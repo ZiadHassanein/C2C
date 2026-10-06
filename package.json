@@ -1,6 +1,6 @@
 {
   "name": "codex-claude-council",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "C2C: independent planning and mutual review across Codex and Claude Code, or different models within either tool.",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test tests/council.test.mjs tests/process.test.mjs tests/adapters.test.mjs tests/state.test.mjs tests/install-compat.test.mjs tests/discussion.test.mjs"
+    "test": "node --test tests/council.test.mjs tests/process.test.mjs tests/adapters.test.mjs tests/state.test.mjs tests/install-compat.test.mjs tests/discussion.test.mjs tests/budget.test.mjs tests/progress.test.mjs"
   },
   "license": "MIT"
 }

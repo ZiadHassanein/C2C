@@ -45,11 +45,35 @@ Sign in through the native CLI once when needed. If the saved CLI login expires 
 | A different installation already exists | Follow [Update the skill](#update-the-skill). The installer protects existing files instead of overwriting them. |
 | The skill does not appear in chat | Confirm installation, then start a new chat or restart the app. Use the Codex `$C2C` or Claude `/C2C` prompt. |
 | Terminal setup works, but the chat reports signed out | Check that the chat uses the same OS account, CLI, and config directory; a restricted host may not see its credential store. Credential environment variables may select another authentication source. Use the approved host execution path; do not copy credentials or change accounts/billing automatically. |
-| A discussion times out or fails | Ask the AI to read the run's `HANDOFF.md`, check its status, and inspect the saved failure logs. A partial response is not a completed review; successful stages should not be repeated. |
+| A discussion times out or fails | Ask the AI to inspect `HANDOFF.md` and `status`, then follow [bounded recovery](#when-a-peer-call-takes-longer) on the same run. Saved activity can distinguish an unfinished response from no observed output; neither is a completed review. |
 
 The installer does not install either provider CLI, create accounts, or sign in for you. Windows npm Codex installations are discovered through their native package binary. When multiple versions are installed, you can set `COUNCIL_CODEX_BIN` to the chosen executable for your terminal session; see [compatibility and recovery](../references/protocol.md#compatibility-and-recovery).
 
 For a damaged or stale run lock, ask the AI to inspect the saved state and follow the [recovery procedure](../references/protocol.md#compatibility-and-recovery). Never delete a live lock or reset attempts to make a run continue.
+
+## When a peer call takes longer
+
+A signed-in peer can take longer than its deadline to return a complete structured plan. Opening another app or terminal does not fix that. C2C uses a larger allowance for large/deep project planning and shows safe activity while waiting: elapsed time, remaining allowance, and received-output size. Activity means the worker has emitted output; it does not mean a usable proposal or review is ready. The AI does not expose raw reasoning or treat a partial response as agreement.
+
+For an existing incomplete run, ask:
+
+```text
+Use C2C to inspect and resume this run. Preserve successful stages.
+If your original allowance was too small, extend this same run within
+the bounded recovery limits. Keep my model settings and explicit caps.
+```
+
+C2C first checks the failure and remaining stages. If recovery is covered by your existing request, it can increase its own conservative allowance without another approval prompt. It records why the limits changed and keeps every used attempt, completed stage, and reviewed artifact. It must respect any time, attempt, or spending cap you set. Fixing a rejected login can still require your participation in the native sign-in flow.
+
+Advanced users can check a pending call without repeating the project assessment/history or making a model call:
+
+```sh
+node scripts/council.mjs progress --run "/absolute/path/to/run" --compact
+```
+
+Use `status` instead of `progress` for full budget and stage details before recovery or resumption.
+
+The [technical recovery command](../references/protocol.md#budgets-and-bounded-recovery) takes absolute totals, with hard ceilings of 15 minutes per call, 60 cumulative peer minutes, and six attempts. It never launches a peer itself or changes a running deadline. Exhausted ceilings leave an honest partial plan; successful stages are never replayed and a fresh run is not a way to bypass the cap.
 
 ## Install for one app only
 
@@ -93,7 +117,7 @@ Remove only the `C2C` folder from the installed locations above, then start a ne
 
 Concise discussion updates are enabled by default. Ask “show the main disagreements and plan changes as you go” for emphasis, or “quiet mode” / “only the final plan” to limit chat updates. The AI handles the runner commands for you.
 
-Updates identify each agent's submitted points, the coordinator's decisions, and unresolved questions after completed stages. A pending call is shown as waiting. C2C does not invent dialogue or stream private reasoning. Both planning modes keep their existing call limits.
+Updates identify each agent's submitted points, the coordinator's decisions, and unresolved questions after completed stages. While waiting, safe activity updates show whether output has arrived and how much time remains. C2C does not invent dialogue or stream private reasoning. Focused review still needs two successful peer calls; independent planning needs three.
 
 Open the run's generated `DISCUSSION.md` to read the evidence-backed account. It stays local and is excluded from peer inputs. To refresh it after local report or decision edits, ask the AI to refresh the discussion. For manual inspection from the repository folder:
 
@@ -121,15 +145,13 @@ The skill runs a short, bounded exchange through your existing provider accounts
 
 C2C reduces repeated instructions, report reads and review prose by default. The AI uses `--compact` for routine runner output; it preserves every JSON field while removing formatting whitespace. Manual commands remain formatted for readability unless you add that flag. This does not change models, review stages or limits; real token savings depend on the task and provider. See [token efficiency](../references/protocol.md#token-efficiency).
 
-| Default limit | Value |
-|---|---|
-| Time per peer call | 5 minutes |
-| Combined peer runtime per run | 15 minutes |
-| Launch attempts, including failed calls | 4 |
-| Successful calls for focused review | 2 |
-| Successful calls for independent planning | 3 |
+| Allowance | Standard: bounded work | Project: large/deep plans |
+|---|---|---|
+| Time per peer call | 5 minutes | 10 minutes |
+| Combined peer runtime per run | 15 minutes | 40 minutes |
+| Launch attempts, including failed calls | 4 | 5 |
 
-These are runtime and attempt limits, **not spending or token caps**. A timeout can leave a partial run. Resuming should preserve successful stages and remaining limits; starting over is not a way to reset a failed run's budget.
+Both profiles use two successful peer calls for focused review or three for independent planning. The coordinator selects the profile before preparation, states the ceilings, and honors explicit user limits; manual `prepare` defaults to `standard`, and explicit limit flags override the profile. These are runtime and attempt limits, **not spending or token caps**. Actual calls can finish earlier. [Bounded recovery](#when-a-peer-call-takes-longer) preserves successful stages and charged attempts when an allowance needs increasing; starting over is not a way to reset a failed run's budget.
 
 Your current chat selects the brief and relevant context to send to the peer's provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
 

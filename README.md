@@ -28,6 +28,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 | **Security and testing in every plan** | Requires a scoped security review and proposed acceptance checks, with gaps and unknowns preserved. |
 | **Task sizing and model advice** | Recommends planning depth and suitable models without changing your settings. |
 | **Saved context and progress** | Keeps Markdown plans and handoffs, structured evidence, bounded attempts, and recovery checkpoints. |
+| **Proportional time and recovery** | Gives large plans more time, shows safe activity while waiting, and extends an existing run within audited ceilings when authorized. |
 | **Less repeated context** | Reuses reports and reduces prompt and output formatting overhead while retaining review stages and selected evidence. |
 
 See the [FAQ](docs/FAQ.md) for usage limits. The [v0.7 visual guide](docs/C2C-LinkedIn-Guide.pdf) covers cross-provider setup and historical measurements; use this README for the newer pairing options and plan format.
@@ -124,6 +125,8 @@ The skill assesses your project first. You do not need to fill in a form or writ
 
 **Model advice stays advisory.** Recommendations do not change your settings. For advice without a peer discussion, add: “Assess the task and recommend models. Keep my settings; advice only.”
 
+**Time follows the task.** Bounded work starts with up to 5 minutes per call, 15 cumulative peer minutes, and four attempts. Large/deep project plans use up to 10 minutes per call, 40 cumulative minutes, and five attempts. C2C states the allowance first and honors your explicit limits. If a call times out, it preserves completed work and can recover within the same run; it does not need a fresh start or an open peer terminal. These are ceilings, not duration estimates or spending caps. [Progress and recovery →](docs/SETUP.md#when-a-peer-call-takes-longer)
+
 **Less repetition by default.** In two offline v0.7.0 fixtures, peer-input tokens fell **8.19%** for a small feature and **10.93%** for a project roadmap; entry instructions were **12.18%** smaller. These are separate input-text measurements, not total-session savings or proof of equal planning quality. Review stages and selected evidence were retained. [Benchmark method and limits →](docs/BENCHMARKS.md)
 
 ## Before planning
@@ -154,7 +157,7 @@ The same stages apply to explicitly selected same-provider pairs. The final deci
 
 ## Follow the discussion
 
-The chat shows concise updates as planning progresses: what each agent proposed, what the other challenged, and how the coordinator changed the plan or kept an issue open. Each update is grounded in a completed report and its decisions. While a peer is working, the chat reports that the response is pending.
+The chat shows concise updates as planning progresses: what each agent proposed, what the other challenged, and how the coordinator changed the plan or kept an issue open. Arguments and decisions come from completed reports. While a peer is working, safe activity and time updates show that its response is still pending; received output is not treated as a completed review.
 
 ```text
 Use $C2C to plan a website for selling cars.

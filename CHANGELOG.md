@@ -2,6 +2,16 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.9.0 — Proportional time and recovery without restarting
+
+- Adds `standard` and `project` budget profiles. Bounded work retains 300 seconds per call, 900 cumulative seconds, and four attempts; large/deep project plans use 600 seconds per call, 2,400 cumulative seconds, and five attempts. Explicit flags override profile defaults and user caps remain authoritative.
+- Adds audited `extend` for an existing run. Absolute limits can increase up to 900 seconds per call, 3,600 cumulative seconds, and six attempts, preserving used attempts, successful stages, and sealed evidence. It does not launch a peer, reset a run, or alter a running deadline.
+- Guides coordinators to recover within existing task authorization when their own allowance was insufficient, while respecting explicit user time, attempt, and spending caps. A timeout no longer implies a fresh run or a ritual approval prompt.
+- Adds a small `progress` response for safe activity and elapsed/remaining call time, avoiding repeated project assessments and history while polling. Full `status` retains recovery details. Received output is distinguished from a validated proposal; raw reasoning remains private.
+- Checks whether remaining attempts can cover the remaining required stages before launching another call. Runtime feasibility remains advisory because future call duration is unknown.
+- Preserves two-/three-call review workflows, model settings, security checks, and independent critique. This addresses long-standing timeout/recovery behavior; it is not an authentication regression introduced by 0.8.1.
+- All **177 automated tests** passed locally, including recovery after an authentication failure and timeout, allowance checks, legacy runs, safe progress metadata, and packaging. All 101 local documentation targets passed. Independent review and two offline instruction scenarios passed; no new paid provider calls were made. See [project notes](PROJECT_NOTES.md) for evidence and limits.
+
 ## 0.8.1 — Headless workers and clearer authentication failures
 
 - Clarifies that only the coordinating chat needs to remain open. C2C already launches Claude and Codex non-interactively; no peer app, panel, or terminal is required.

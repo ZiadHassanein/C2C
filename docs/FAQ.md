@@ -58,7 +58,13 @@ C2C sends explicitly selected, frozen context and relevant review artifacts. The
 
 ## How much does a planning exchange cost?
 
-Peer calls use your provider account and its usage limits. Focused review needs two successful peer calls; independent planning needs three. Failed launches can consume attempts. Defaults allow four model-launch attempts, 300 seconds per call, and 900 seconds of cumulative peer runtime. These limits are not token or spending caps. C2C does not establish a fixed price per plan.
+Peer calls use your provider account and its usage limits. Focused review needs two successful peer calls; independent planning needs three. Failed launches can consume attempts. Standard allowances are four attempts, 5 minutes per call, and 15 cumulative peer minutes. Large/deep plans use five attempts, 10 minutes per call, and 40 cumulative minutes. These are ceilings, not token or spending caps, duration estimates, or a fixed price per plan. C2C states its selected allowance and honors explicit user limits.
+
+## Why did a signed-in Claude or Codex time out?
+
+Authentication and response completion are separate. The peer may be generating output without having returned a valid report before the deadline. C2C shows safe activity and elapsed/remaining time, preserving diagnostics without displaying raw reasoning. Activity does not establish a successful review. Opening the other app or terminal does not extend a deadline.
+
+C2C can increase a coordinator-selected allowance on the same run when your existing request covers bounded recovery, preserving successful stages and every used attempt. It does not ask for repeated approval just to adjust its own default; explicit user caps still require existing permission or your decision before an increase. Hard ceilings are 15 minutes per call, 60 cumulative peer minutes, and six attempts. No stage is skipped, no successful call is repeated, and no model or reasoning setting is lowered automatically. See [resuming a timed-out call](SETUP.md#when-a-peer-call-takes-longer).
 
 ## How many tokens does the efficiency update save?
 

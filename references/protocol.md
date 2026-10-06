@@ -11,7 +11,9 @@ node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --co
 node RUNNER ask --run RUN --stage draft
 node RUNNER ask --run RUN --stage review
 node RUNNER ask --run RUN --stage verify
+node RUNNER progress --run RUN
 node RUNNER status --run RUN
+node RUNNER extend --run RUN --timeout-seconds 600 --budget-seconds 2400 --max-attempts 5 --reason "Coordinator-selected allowance was too short; continuing the authorized project plan."
 node RUNNER discussion --run RUN
 node RUNNER finish --run RUN
 ```
@@ -41,9 +43,10 @@ Other routes need not be ready. These fields check the CLI and visible saved aut
 | `--pairing` | `cross` (default) calls the other provider; `same` calls a different model from the coordinator's provider and requires explicit user request. |
 | `--mode` | `plan` includes draft, review, and verify; `review` critiques a supplied or coordinator-authored plan, then verifies the synthesis. |
 | `--out` | Absolute directory for this new run and its artifacts. |
-| `--timeout-seconds` | Per-call timeout; default `300`. |
-| `--budget-seconds` | Cumulative peer subprocess runtime allowance; default `900`. |
-| `--max-attempts` | Attempt allowance, including failures; default `4`. |
+| `--budget-profile` | `standard` (default): 300 seconds/call, 900 cumulative seconds, 4 attempts. `project`: 600 seconds/call, 2,400 cumulative seconds, 5 attempts. |
+| `--timeout-seconds` | Explicit per-call timeout; overrides the selected profile. Maximum `900`. |
+| `--budget-seconds` | Explicit cumulative peer subprocess runtime allowance; overrides the selected profile. Maximum `3600`. |
+| `--max-attempts` | Explicit attempt allowance, including failures; overrides the selected profile. Maximum `6`. |
 | `--coordinator-model` | The current coordinator's full model ID, required for `same` pairing. A recorded declaration, not a change to the current chat or proof of runtime identity. |
 | `--peer-model` | User-selected peer model, or a choice explicitly delegated by the user. Optional for `cross`; required as a distinct full model ID for `same`. Advice alone does not authorize an override. |
 
@@ -51,9 +54,37 @@ Other routes need not be ready. These fields check the CLI and visible saved aut
 
 The project assessment contains shared facts and user constraints, not new architectural proposals. It is frozen in `snapshot.json`, saved as sealed `project-assessment.json`, rendered as `PROJECT_CONTEXT.md`, and sent once at every stage. Absolute project/input path metadata stays in the local snapshot; outbound file labels are relative or neutral. Authored evidence text is not automatically rewritten, so use relative source references and review it for private information. The runner checks shape and evidence-reference consistency, not the truth of deployment claims or production readiness. Read [project context and direction](project-assessment.md) before preparing it. Keep separate task/model advice out of peer packets.
 
-Calls run sequentially. Do not edit reports while a call is running. Use `status` to inspect an existing run before resuming. A timeout, malformed response, or model-process failure consumes an attempt. Preflight executable/CLI-feature/authentication checks do not launch a model and do not consume an attempt; their errors remain explicit. A successful stage cannot be repeated. Start a new run when the task or evidence materially changes, retaining the old record.
+Calls run sequentially. Do not edit reports while a call is running. Use `status` to inspect an existing run before resuming. A timeout, malformed response, or model-process failure consumes an attempt. Preflight executable/CLI-feature/authentication checks do not launch a model and do not consume an attempt; their errors remain explicit. A successful stage cannot be repeated. Start a new run only for materially changed task/evidence, retaining the old record; use bounded recovery below for an insufficient allowance.
 
-Process handling lives in `scripts/process.mjs`. Streamed output already received is preserved in partial logs when a call times out or is interrupted. Inspect those logs and any reported cleanup uncertainty before considering a permitted retry; neither partial output nor an attempted cleanup establishes successful review or confirmed termination.
+Process handling lives in `scripts/process.mjs`. Streamed output already received is preserved in partial logs when a call times out or is interrupted. Use the safe status summary first, including any cleanup uncertainty, before a useful permitted retry. Raw logs are diagnostic evidence and may contain private reasoning or project content; do not repeatedly tail or expose them. Neither partial output nor attempted cleanup establishes successful review or confirmed termination.
+
+## Budgets and bounded recovery
+
+Use `standard` for bounded features and `project` for large or deep project planning. The profile supplies defaults; explicit flags win. Assess the actual task rather than giving every feature the largest allowance. Announce the selected per-call, cumulative runtime, and attempt ceilings before the first call. These limits bound subprocess runtime and launches, not money, tokens, or expected completion time. Slow useful activity does not extend a deadline automatically.
+
+For pending calls, use read-only `progress --run RUN --compact`. It returns only run, status, peer, and `peer_progress`: phase, elapsed/remaining call time, log bytes, and last observed activity. This avoids repeating the full project assessment and history. Use `status` for resume/recovery: its `budget` also describes pending stages, attempts remaining, whether they can cover those stages, available peer seconds, and full-timeout headroom. Remaining-runtime feasibility is advisory because future response duration is unknown.
+
+Neither command exposes provider prose through `peer_progress`. Growing logs mean output arrived, not that the peer returned a valid proposal. A recorded response event is not report validation; successful authoritative stage state establishes that distinction. Neither command proves process liveness or authentication. Do not describe observed activity as silence, success, or a login failure without evidence.
+
+Read `phase` with `attempt_status` and `recorded_running`: for an ended attempt, it describes the activity observed before that attempt ended, not a currently running model.
+
+While an attempt is recorded as running, `budget.attempts_sufficient` is unknown (`null`); `attempts_sufficient_if_running_fails` is a conservative projection, not a proven blocker. Status does not recover or charge an interruption. Locked commands establish the safe resume state before a new call.
+
+After a failure, check the recorded cause, completed/pending stages, remaining attempts/runtime, and cleanup state. Fix authentication or another known precondition before launching again. `ask` rejects a launch if remaining attempts cannot cover the remaining required stages; this check consumes no attempt. Do not skip a required stage to fit the allowance.
+
+Before recovery, consult the allowance provenance, user caps, and existing recovery permission recorded in `TASK_ASSESSMENT.md`, together with relevant user instructions. A numeric limit alone does not reveal who chose it. If old custom limits have unknown provenance, resolve that from existing evidence before treating them as coordinator defaults.
+
+When the coordinator chose an insufficient allowance and existing task authorization covers bounded recovery, increase it on the **same run**. State the reason and the authorization source in the reason text or local notes. Do not ask for permission merely to replace your own conservative default. An explicit user cap on time, attempts, or spending still applies: preserve it unless the user already authorized the increase, and ask only when an actual user decision or new authority is required. Models and reasoning settings stay unchanged.
+
+```text
+node RUNNER extend --run RUN --timeout-seconds 600 --budget-seconds 2400 --max-attempts 5 --reason "Recover the authorized project plan after a timeout; these were coordinator-selected limits."
+node RUNNER status --run RUN
+node RUNNER ask --run RUN --stage FAILED_STAGE
+```
+
+The values are **absolute totals**, not additions to the remaining allowance. Pass at least one numeric limit; limits never decrease and cannot exceed 900 seconds/call, 3,600 cumulative seconds, or six attempts. Repeating already-applied limits is idempotent. A reason is required: a nonempty single line, at most 500 characters. `extend` appends `limit_history` with its reason, before/after allowances, used attempts and elapsed time, keeps all successful stages, evidence seals and reviewed hashes, and makes no peer call. Use it between calls, not to alter a running deadline; completed runs cannot be extended. Legacy runs retain their evidence and stage contracts.
+
+Retries require a useful reason to expect a different result, such as repaired login or more time for an active but unfinished response. Exhausting the hard ceilings leaves a preserved partial run and an accurate draft. Never edit a manifest, erase failures, replay success, or create a fresh run solely to escape a cap. A later materially different scope/evidence can justify a new run with a recorded link and reason; that is not timeout recovery.
 
 ## Pairing and model identity
 
@@ -134,7 +165,7 @@ Do not describe plan verification as tested implementation. If implementation is
 
 ## Planning depth and deliverables
 
-The planning depth guides the coordinator's content and choice of existing runner mode; the runner has no size or depth flag. Establish [project context and direction](project-assessment.md), then select depth before preparation, state the intended scope and deliverables in the neutral brief, and record the reason in `TASK_ASSESSMENT.md`. Preserve explicit user requests: a small feature can use independent drafts, and a large supplied plan can use review mode. Choosing depth does not change selected models, effort, timeouts, runtime allowance, or attempt limits.
+The planning depth guides the coordinator's content and runner mode; `--budget-profile` separately selects a proportional runtime allowance. Establish [project context and direction](project-assessment.md), then select depth before preparation, state the intended scope and deliverables in the neutral brief, and record the reason in `TASK_ASSESSMENT.md`. Preserve explicit user requests: a small feature can use independent drafts, and a large supplied plan can use review mode. Choose `project` for large/deep roadmaps and `standard` for bounded work, respecting explicit user caps. Neither depth nor profile changes models or effort.
 
 | Depth | Typical choice | Final-plan emphasis |
 |---|---|---|
@@ -201,6 +232,7 @@ Record this task/model assessment after `prepare`, before `ask`, in the compact 
 - Tradeoff: relevant quality, response-time and usage considerations; no invented exact cost or duration.
 - Evidence: official links and date checked; locally observed availability or explicitly unknown.
 - Actual selections: known current coordinator and explicit peer selection, or CLI default/unknown. Settings unchanged; advice not applied.
+- Run allowance: actual profile and per-call/total/attempt ceilings; chosen by coordinator or user with instruction/source. Record explicit user time/attempt/spending caps, existing permission for recovery, and any unknown provenance. For advice only, mark not prepared.
 - Reassess when: material change that would alter scope, risk or model suitability.
 ```
 
@@ -224,7 +256,7 @@ For runs prepared by version 0.5 or later, the runner generates `HANDOFF.md` fro
 - Material decisions or user questions, linking finding IDs and source evidence.
 - Observed checks versus proposed checks, dated model advice, and the exact next action.
 
-Legacy runs without the generation flag retain their handwritten handoff. Keep those concise and current. On resume, read the handoff, optional notes and `status`, then inspect the relevant artifacts. Missing original inputs do not prove changed contents: the sealed snapshot remains the evidence used by the peer. Never repeat successful stages or reset attempts. Materially changed evidence can justify a new run with its reason recorded.
+Legacy runs without the generation flag retain their handwritten handoff. Keep those concise and current. On resume, read the handoff, optional notes and `status`, then inspect the relevant artifacts. Missing original inputs do not prove changed contents: the sealed snapshot remains the evidence used by the peer. Never repeat successful stages or reset attempts. For an insufficient allowance, use [bounded recovery](#budgets-and-bounded-recovery) on the same run; materially changed evidence can justify a new run with its reason recorded.
 
 These notes stay local and are not independent peer packets. Do not pass coordinator drafts or critiques through `--context`; the runner selects stage-appropriate reports. Keep private run records out of public repositories.
 

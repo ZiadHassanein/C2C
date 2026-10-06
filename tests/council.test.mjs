@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, ask, finish, status, discussion, validateReport, parsePeerResponse,
+  prepare, ask, finish, status, extend, discussion, validateReport, parsePeerResponse,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -363,7 +363,7 @@ test('sealed coordinator and peer reports cannot be silently rewritten', async (
 });
 
 test('failed and malformed peer calls cannot create successful peer reports', async () => {
-  const f = await fixture('failures');
+  const f = await fixture('failures', {'max-attempts':'5'});
   await hostDraft(f);
   await assert.rejects(async()=>ask({run:f.out,stage:'draft'},async()=>({code:3,stdout:JSON.stringify(report()),stderr:'Authentication failed'})));
   await assert.rejects(async()=>fs.access(path.join(f.out,'peer-draft.json')));
@@ -531,16 +531,15 @@ test('source edits are surfaced but do not replace frozen shared inputs', async 
 });
 
 test('failures consume attempts and preserve evidence when budget ends', async () => {
-  const f = await fixture('attempt-budget',{'max-attempts':'1'});
-  await hostDraft(f);
-  await assert.rejects(async()=>ask({run:f.out,stage:'draft'},async()=>{throw new Error('Simulated peer deadline exceeded');}));
+  const f = await readyForVerify('attempt-budget',{'max-attempts':'3'});
+  await assert.rejects(async()=>ask({run:f.out,stage:'verify'},async()=>{throw new Error('Simulated peer deadline exceeded');}));
   const state = await read(path.join(f.out,'run.json'));
-  assert.equal(state.attempts.length,1);
-  assert.equal(state.attempts[0].status,'failed');
-  assert.ok(state.attempts[0].error.includes('deadline'));
+  assert.equal(state.attempts.length,3);
+  assert.equal(state.attempts[2].status,'failed');
+  assert.ok(state.attempts[2].error.includes('deadline'));
   assert.equal((await status({run:f.out})).attempts_remaining,0);
   let invoked=false;
-  await assert.rejects(async()=>ask({run:f.out,stage:'draft'},async req=>{invoked=true;return invocation()(req);}));
+  await assert.rejects(async()=>ask({run:f.out,stage:'verify'},async req=>{invoked=true;return invocation()(req);}));
   assert.equal(invoked,false);
   await assert.rejects(async()=>finish({run:f.out}));
 });
@@ -624,6 +623,223 @@ test('interrupted recovery is persisted before attempt or runtime budget rejecti
     await assert.rejects(()=>ask({run:f.out,stage:'draft'},fake),/budget exhausted/);
     assert.equal((await read(manifestPath)).elapsed_ms,10000,'recovered interruption was charged twice');
   }
+});
+
+test('failed login and timeout resume in the same run only after sufficient audited extension', async () => {
+  const f = await fixture('extend-failed-draft');
+  await hostDraft(f);
+  await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async () => ({ code: 1, stdout: JSON.stringify({ type: 'result', is_error: true, errors: ['OAuth token has expired.'] }), stderr: '' })), /authentication|login/i);
+  const partial = JSON.stringify({ type: 'system', subtype: 'thinking_tokens', text: 'PRIVATE_RAW_PROGRESS' });
+  await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async () => {
+    await new Promise(resolve => setTimeout(resolve, 5));
+    throw Object.assign(new Error('Simulated peer deadline exceeded (300 seconds)'), { reason: 'timeout', stdout: partial, stderr: '' });
+  }), error => {
+    assert.equal(error.progress.phase, 'model_working');
+    assert.equal(error.progress.report_validated, false);
+    assert.match(error.message, /Last observed phase: model_working/);
+    assert.doesNotMatch(JSON.stringify(error.progress) + error.message, /PRIVATE_RAW_PROGRESS/);
+    return true;
+  });
+  const manifestPath = path.join(f.out, 'run.json');
+  const before = await read(manifestPath);
+  const failedLogs = await Promise.all([1, 2].map(number => fs.readFile(path.join(f.out, `attempt-${number}-stdout.txt`))));
+  assert.equal(status({ run: f.out }).budget.assessment, 'insufficient_attempts');
+  assert.equal(status({ run: f.out }).budget.successful_calls_remaining, 3);
+  assert.equal(status({ run: f.out }).attempts_remaining, 2);
+  assert.equal(status({ run: f.out }).peer_progress.phase, 'model_working');
+  let launched = false;
+  await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async request => { launched = true; return invocation()(request); }), /3 pending peer stages: 2 attempts remain/);
+  assert.equal(launched, false);
+  // With no invoker, the same guard must also run before real CLI preflight.
+  const oldBinary = process.env.COUNCIL_CLAUDE_BIN;
+  process.env.COUNCIL_CLAUDE_BIN = path.join(f.root, 'missing-peer.exe');
+  try { await assert.rejects(() => ask({ run: f.out, stage: 'draft' }), /3 pending peer stages: 2 attempts remain/); }
+  finally { if (oldBinary === undefined) delete process.env.COUNCIL_CLAUDE_BIN; else process.env.COUNCIL_CLAUDE_BIN = oldBinary; }
+  assert.deepEqual(await read(manifestPath), before, 'A futile ask cannot reserve an attempt');
+  const limits = { run: f.out, 'timeout-seconds': '600', 'budget-seconds': '2400', 'max-attempts': '5', reason: 'Login repaired; retain failed attempts and provide time for remaining stages.' };
+  const amended = extend(limits);
+  assert.equal(amended.changed, true);
+  assert.equal(amended.attempts_reset, false);
+  assert.equal(amended.budget.attempts_sufficient, true);
+  const saved = await read(manifestPath);
+  assert.deepEqual(saved.attempts, before.attempts);
+  assert.deepEqual(saved.seals, before.seals);
+  assert.equal(saved.elapsed_ms, before.elapsed_ms);
+  assert.equal(saved.id, before.id);
+  assert.equal(saved.limit_history[0].elapsed_ms, before.elapsed_ms);
+  assert.equal(saved.limit_history[0].attempts_used, 2);
+  await ask({ run: f.out, stage: 'draft' }, async request => { assert.equal(request.timeoutMs, 600000); return invocation()(request); });
+  await hostReview(f);
+  await ask({ run: f.out, stage: 'review' }, invocation());
+  await write(path.join(f.out, 'security-review.json'), report());
+  await write(path.join(f.out, 'final-plan.md'), '# Plan\nSynthetic scope, security checks and acceptance tests.');
+  await write(path.join(f.out, 'decisions.json'), []);
+  await ask({ run: f.out, stage: 'verify' }, invocation());
+  const completed = finish({ run: f.out });
+  assert.equal(completed.successful_peer_calls, 3);
+  assert.equal(completed.attempts_used, 5);
+  assert.equal(completed.budget.limit_changes, 1);
+  assert.equal(completed.limit_history[0].reason, limits.reason);
+  assert.ok((await read(manifestPath)).elapsed_ms >= before.elapsed_ms);
+  for (const number of [1, 2]) assert.deepEqual(await fs.readFile(path.join(f.out, `attempt-${number}-stdout.txt`)), failedLogs[number - 1]);
+  assert.match(await fs.readFile(path.join(f.out, 'RESULT.md'), 'utf8'), /Recorded limit changes: 1; earlier attempts and runtime remain charged/);
+});
+
+test('extension preserves successful stages and seals while identical totals are a no-op', async () => {
+  const f = await fixture('extend-sealed-draft');
+  await hostDraft(f);
+  await ask({ run: f.out, stage: 'draft' }, invocation());
+  const before = await read(path.join(f.out, 'run.json'));
+  const options = { run: f.out, 'timeout-seconds': '600', 'budget-seconds': '2400', 'max-attempts': '5', reason: 'Allow more time for the remaining critique and verification.' };
+  assert.equal(extend(options).changed, true);
+  const after = await read(path.join(f.out, 'run.json'));
+  assert.deepEqual(after.stages, before.stages);
+  assert.deepEqual(after.attempts, before.attempts);
+  assert.deepEqual(after.seals, before.seals);
+  assert.equal(after.elapsed_ms, before.elapsed_ms);
+  const bytes = await fs.readFile(path.join(f.out, 'run.json'));
+  assert.equal(extend(options).changed, false);
+  assert.deepEqual(await fs.readFile(path.join(f.out, 'run.json')), bytes);
+  let called = false;
+  await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async request => { called = true; return invocation()(request); }), /already succeeded/);
+  assert.equal(called, false);
+  for (const extra of [{ 'max-attempts': '4' }, { 'timeout-seconds': '901' }, { 'budget-seconds': '3601' }, { reason: '' }, { reason: 'two\nlines' }, { reason: 'x'.repeat(501) }]) {
+    assert.throws(() => extend({ ...options, ...extra }));
+    assert.deepEqual(await fs.readFile(path.join(f.out, 'run.json')), bytes);
+  }
+  assert.match(await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8'), /recorded limit changes: 1/);
+});
+
+test('extension and status cannot alter an active call or its current deadline', async () => {
+  const f = await fixture('extend-concurrency');
+  await hostDraft(f);
+  let unblock, entered;
+  const reached = new Promise(resolve => { entered = resolve; });
+  const call = ask({ run: f.out, stage: 'draft' }, async request => {
+    assert.equal(request.timeoutMs, 300000);
+    entered();
+    await new Promise(resolve => { unblock = resolve; });
+    return invocation()(request);
+  });
+  await reached;
+  try {
+    const before = await fs.readFile(path.join(f.out, 'run.json'));
+    const current = status({ run: f.out });
+    assert.equal(current.budget.assessment, 'running_attempt_recorded');
+    assert.equal(current.budget.attempts_sufficient, null);
+    assert.equal(current.budget.peer_seconds_reserved, 300);
+    assert.equal(current.peer_seconds_remaining, 600);
+    assert.equal(current.peer_progress.timeout_ms, 300000);
+    assert.equal(current.peer_progress.recorded_running, true);
+    assert.throws(() => extend({ run: f.out, 'timeout-seconds': '600', reason: 'Cannot change a running worker deadline.' }), /lock|another|active/i);
+    assert.deepEqual(await fs.readFile(path.join(f.out, 'run.json')), before);
+  } finally { unblock(); await call; }
+  assert.equal(status({ run: f.out }).peer_progress.report_validated, true);
+});
+
+test('extension recovers interrupted runtime once even if amendment validation fails', async () => {
+  const f = await fixture('extend-interrupted');
+  const manifestPath = path.join(f.out, 'run.json');
+  const recorded = await read(manifestPath);
+  recorded.elapsed_ms = 1000;
+  recorded.status = 'running';
+  recorded.attempts = [{ number: 1, stage: 'draft', status: 'running', timeout_ms: 300000 }];
+  await write(manifestPath, recorded);
+  assert.throws(() => extend({ run: f.out, 'max-attempts': '7', reason: 'Out-of-range request must not erase interrupted runtime.' }), /max-attempts/);
+  let recovered = await read(manifestPath);
+  assert.equal(recovered.elapsed_ms, 301000);
+  assert.equal(recovered.attempts[0].status, 'interrupted');
+  assert.equal(recovered.max_attempts, 4);
+  assert.equal(recovered.limit_history.length, 0);
+  const before = await fs.readFile(manifestPath);
+  assert.throws(() => extend({ run: f.out, 'max-attempts': '7', reason: 'Still out of range.' }));
+  assert.deepEqual(await fs.readFile(manifestPath), before);
+  const options = { run: f.out, 'timeout-seconds': '600', 'budget-seconds': '2400', 'max-attempts': '5', reason: 'Resume the same saved scope within bounded additional allowance.' };
+  extend(options);
+  assert.equal(extend(options).changed, false);
+  recovered = await read(manifestPath);
+  assert.equal(recovered.elapsed_ms, 301000);
+  assert.equal(recovered.limit_history.length, 1);
+  assert.equal(recovered.limit_history[0].elapsed_ms, 301000);
+});
+
+test('completed runs reject budget changes and legacy runs retain their original contracts', async () => {
+  const completed = await readyForVerify('extend-complete');
+  await ask({ run: completed.out, stage: 'verify' }, invocation());
+  finish({ run: completed.out });
+  const before = await fs.readFile(path.join(completed.out, 'run.json'));
+  assert.throws(() => extend({ run: completed.out, 'max-attempts': '5', reason: 'A finished run must remain unchanged.' }), /complete run/);
+  assert.deepEqual(await fs.readFile(path.join(completed.out, 'run.json')), before);
+  for (const version of [1, 2, 3]) {
+    const f = await fixture(`extend-legacy-${version}`);
+    const manifest = await read(path.join(f.out, 'run.json'));
+    manifest.version = version;
+    for (const key of ['pairing', 'coordinator_model', 'budget_profile', 'initial_limits', 'limit_history']) delete manifest[key];
+    const snapshotPath = path.join(f.out, 'snapshot.json');
+    const snapshot = await read(snapshotPath);
+    delete snapshot.participants;
+    await write(snapshotPath, snapshot);
+    manifest.seals['snapshot.json'] = createHash('sha256').update(await fs.readFile(snapshotPath)).digest('hex');
+    await write(path.join(f.out, 'run.json'), manifest);
+    const result = extend({ run: f.out, 'max-attempts': '5', reason: 'Retain the legacy run and provide one bounded retry allowance.' });
+    assert.equal(result.budget.profile, 'legacy');
+    const amended = await read(path.join(f.out, 'run.json'));
+    assert.equal(amended.version, version);
+    assert.deepEqual(amended.seals, manifest.seals);
+    assert.deepEqual(amended.initial_limits, { timeout_ms: 300000, budget_ms: 900000, max_attempts: 4 });
+    await hostDraft(f);
+    await ask({ run: f.out, stage: 'draft' }, invocation());
+    assert.equal(status({ run: f.out }).successful_peer_calls, 1);
+  }
+});
+
+test('project profile CLI and explicit overrides expose honest limits without requiring full-timeout headroom', async () => {
+  const f = await inputFixture('budget-profile-cli');
+  const runner = path.join(packageRoot, 'scripts', 'council.mjs');
+  const result = spawnSync(process.execPath, [runner, 'prepare', '--project', f.project, '--brief', f.brief, '--assessment', f.assessment, '--coordinator', 'codex', '--out', f.out, '--budget-profile', 'project', '--timeout-seconds', '10', '--budget-seconds', '10'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
+  assert.equal(result.status, 0, result.stderr);
+  const prepared = JSON.parse(result.stdout);
+  assert.equal(prepared.budget.profile, 'project');
+  assert.equal(prepared.budget.timeout_seconds, 10);
+  assert.equal(prepared.budget.budget_seconds, 10);
+  assert.equal(prepared.budget.max_attempts, 5);
+  assert.equal(prepared.budget.full_timeout_headroom, false);
+  assert.equal(prepared.budget.attempts_sufficient, true);
+  await hostDraft(f);
+  await ask({ run: f.out, stage: 'draft' }, invocation());
+  const extended = spawnSync(process.execPath, [runner, 'extend', '--run', f.out, '--timeout-seconds', '600', '--budget-seconds', '2400', '--reason', 'Provide room for the remaining project critique and verification.', '--compact'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
+  assert.equal(extended.status, 0, extended.stderr);
+  const amendment = JSON.parse(extended.stdout);
+  assert.equal(amendment.changed, true);
+  assert.equal(amendment.budget.successful_calls_remaining, 2);
+  assert.equal(amendment.budget.timeout_seconds, 600);
+  assert.equal(amendment.budget.budget_seconds, 2400);
+  assert.equal(amendment.limit_history[0].attempts_used, 1);
+});
+
+test('progress CLI polls only safe metadata without repeating private evidence or mutating state', async () => {
+  const f = await fixture('progress-cli');
+  await hostDraft(f);
+  await ask({ run: f.out, stage: 'draft' }, invocation(report([], 'PRIVATE_PEER_REPORT_TEXT')));
+  extend({ run: f.out, 'max-attempts': '5', reason: 'PRIVATE_LIMIT_REASON must stay out of routine progress polling.' });
+  const files = ['run.json', 'run.checkpoint.json', 'HANDOFF.md', 'DISCUSSION.md', 'peer-draft.json'];
+  const before = await Promise.all(files.map(file => fs.readFile(path.join(f.out, file))));
+  const result = spawnSync(process.execPath, [path.join(packageRoot, 'scripts', 'council.mjs'), 'progress', '--run', f.out, '--compact'], {
+    encoding: 'utf8', windowsHide: true, timeout: 5000,
+    env: { ...process.env, COUNCIL_CLAUDE_BIN: path.join(f.root, 'missing-claude.exe'), COUNCIL_CODEX_BIN: path.join(f.root, 'missing-codex.exe') },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const current = JSON.parse(result.stdout);
+  assert.deepEqual(Object.keys(current), ['run', 'status', 'peer', 'peer_progress']);
+  assert.equal(current.run, f.out);
+  assert.equal(current.status, 'awaiting_coordinator');
+  assert.equal(current.peer, 'claude');
+  assert.equal(current.peer_progress.attempt, 1);
+  assert.equal(current.peer_progress.phase, 'response_received');
+  assert.equal(current.peer_progress.report_validated, true);
+  assert.doesNotMatch(result.stdout, /PRIVATE_PEER_REPORT_TEXT|PRIVATE_LIMIT_REASON|ASSESSMENT_CONTEXT_TOKEN|INPUT_CONTEXT_TOKEN|HOST_DRAFT_SECRET_714|project_assessment|limit_history/);
+  assert.equal(result.stdout.trim().split('\n').length, 1);
+  for (let index = 0; index < files.length; index++) assert.deepEqual(await fs.readFile(path.join(f.out, files[index])), before[index]);
 });
 
 test('new runs require substantive security review with C-S IDs before verification', async () => {
@@ -819,7 +1035,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');

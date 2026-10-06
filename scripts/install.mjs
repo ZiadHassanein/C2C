@@ -19,7 +19,7 @@ const skillRoots = [
   ...(target !== 'codex' ? [path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'skills')] : []),
 ];
 const targets = skillRoots.map(root => path.join(root, 'C2C'));
-const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'package.json', 'LICENSE'];
+const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'package.json', 'LICENSE'];
 function sameInstalledText(existing, packaged) {
   // Latin-1 preserves every byte, including BOMs and invalid UTF-8. Only
   // Windows line endings are equivalent; other edits still require a backup.

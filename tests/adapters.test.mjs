@@ -79,7 +79,14 @@ test('quoted Windows PATH, Path spelling, native Claude fallback, and POSIX exec
   assert.equal(resolveExecutable('claude', windowsOptions('')), claude);
   const posixDirectory = await fs.mkdtemp(path.join(root, 'posix-'));
   const codex = await file(path.join(posixDirectory, 'codex'));
-  assert.equal(resolveExecutable('codex', { platform: 'linux', env: { PATH: posixDirectory }, home: root }), codex);
+  // Keep the simulated POSIX PATH free of Windows drive letters. Otherwise
+  // its ':' separator splits C:\\... and accidentally relies on the cwd drive.
+  const previousCwd = process.cwd();
+  try {
+    process.chdir(root);
+    const posixPath = `missing-bin:${path.basename(posixDirectory)}`;
+    assert.equal(resolveExecutable('codex', { platform: 'linux', env: { PATH: posixPath }, home: root }), codex);
+  } finally { process.chdir(previousCwd); }
 });
 
 const features = names => names.map(name => `${name}    stable    true`).join('\n');

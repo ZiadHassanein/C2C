@@ -948,6 +948,98 @@ test('peer packet minimizes host paths and includes the assessment only once', a
   assert.equal((await read(path.join(f.out,'snapshot.json'))).project,await fs.realpath(f.project));
 });
 
+test('lean packets preserve exact evidence, reports and verification data at every stage', async () => {
+  const f=await inputFixture('lean-evidence');
+  const evidence='  Literal evidence: "quoted", C:\\cars\\stock, café, 車, tabs\tand\r\nnewlines.\nNever normalize these source bytes.  ';
+  await write(f.context,evidence);
+  await prepare(prepareOptions(f));
+  const original=await read(path.join(f.out,'snapshot.json'));
+  const captured=[];
+  const capture=async req=>{
+    captured.push({prompt:req.prompt,packet:JSON.parse(req.prompt.split('COUNCIL_PACKET_JSON\n')[1])});
+    return invocation(report(['peer-finding'],'A material finding with complete evidence'))(req);
+  };
+  await hostDraft(f,['C-D1'],'Full independent proposal with unique architecture constraints');
+  await ask({run:f.out,stage:'draft'},capture);
+  await hostReview(f,['C-R1'],'Additional critique with distinct evidence');
+  await ask({run:f.out,stage:'review'},capture);
+  const security=report(['C-S1'],'Security scope and retained unknowns');
+  security.limitations=['Tenant authorization is unverified.'];
+  await write(path.join(f.out,'security-review.json'),security);
+  const plan='# Plan\nPreserve the migration and rollback gate; checks are proposed.';
+  await write(path.join(f.out,'final-plan.md'),plan);
+  const decisions=['C-D1','C-R1','P-D1','P-R1','C-S1'].map(finding_id=>({finding_id,disposition:'unresolved',rationale:'Retained pending the specified evidence and owner decision.'}));
+  await write(path.join(f.out,'decisions.json'),decisions);
+  await ask({run:f.out,stage:'verify'},capture);
+  for(const {packet} of captured) {
+    assert.deepEqual(packet.shared_context.project_assessment,original.project_assessment);
+    assert.equal(packet.shared_context.inputs.find(input=>input.kind==='context').content,evidence);
+    for(const input of packet.shared_context.inputs) {
+      assert.deepEqual(Object.keys(input).sort(),['content','kind','path']);
+      const source=original.inputs.find(item=>item.kind===input.kind);
+      assert.equal(input.content,source.content);
+      assert.equal(source.bytes,Buffer.byteLength(source.content));
+      assert.equal(source.sha256,createHash('sha256').update(source.content).digest('hex'));
+    }
+  }
+  const verified=captured[2].packet;
+  for(const [key,file] of [['coordinator_proposal','coordinator-draft.json'],['peer_proposal','peer-draft.json'],['coordinator_review','coordinator-review.json'],['peer_review','peer-review.json'],['security_review','security-review.json']]) {
+    assert.deepEqual(verified[key],await read(path.join(f.out,file)));
+  }
+  assert.equal(verified.final_plan,plan);
+  assert.deepEqual(verified.decisions,decisions);
+  const commonPrefix=captured.map(({prompt})=>prompt.slice(0,prompt.indexOf(',"stage":')));
+  assert.equal(commonPrefix[0],commonPrefix[1]);
+  assert.equal(commonPrefix[1],commonPrefix[2]);
+  assert.deepEqual(await read(path.join(f.out,'snapshot.json')),original);
+  const manifest=await read(path.join(f.out,'run.json'));
+  for(const file of ['final-plan.md','decisions.json','security-review.json']) {
+    assert.equal(manifest.stages.verify.reviewed_hashes[file],createHash('sha256').update(await fs.readFile(path.join(f.out,file))).digest('hex'));
+  }
+});
+
+test('changes-only peer reviews can omit revision prose while retaining every finding', async () => {
+  const f=await readyForVerify('delta-report',{mode:'review'});
+  const delta={...report(['new-finding'],'One remaining authorization gap'),proposal_markdown:''};
+  const result=await ask({run:f.out,stage:'verify'},invocation(delta));
+  assert.equal(result.report.proposal_markdown,'');
+  assert.deepEqual(result.report.findings,[{...delta.findings[0],id:'P-V1'}]);
+  const decisions=await read(path.join(f.out,'decisions.json'));
+  decisions.push({finding_id:'P-V1',disposition:'unresolved',rationale:'Requires the missing authorization policy before coding.'});
+  await write(path.join(f.out,'decisions.json'),decisions);
+  assert.equal(finish({run:f.out}).unresolved[0].finding_id,'P-V1');
+});
+
+test('compact CLI output preserves full parsed status and Unicode without changing state', async () => {
+  const f=await inputFixture('compact-cli');
+  const value={...assessment(),summary:'Quoted "status" with café, 車 and a newline\nthat must survive.'};
+  await write(f.assessment,value);
+  const runner=path.join(packageRoot,'scripts','council.mjs');
+  const prepared=spawnSync(process.execPath,[runner,'prepare','--compact','--project',f.project,'--brief',f.brief,'--assessment',f.assessment,'--context',f.context,'--coordinator','codex','--out',f.out],{encoding:'utf8',windowsHide:true,timeout:10000});
+  assert.equal(prepared.status,0,prepared.stderr);
+  assert.equal(JSON.parse(prepared.stdout).run,f.out);
+  assert.equal(prepared.stdout.trim().split('\n').length,1);
+  const before=await fs.readFile(path.join(f.out,'run.json'));
+  const base=[runner,'status','--run',f.out];
+  const normal=spawnSync(process.execPath,base,{encoding:'utf8',windowsHide:true,timeout:10000});
+  const compact=spawnSync(process.execPath,[...base,'--compact'],{encoding:'utf8',windowsHide:true,timeout:10000});
+  assert.equal(normal.status,0,normal.stderr); assert.equal(compact.status,0,compact.stderr);
+  assert.deepEqual(JSON.parse(compact.stdout),JSON.parse(normal.stdout));
+  assert.equal(JSON.parse(compact.stdout).project_assessment.summary,value.summary);
+  assert.ok(compact.stdout.length<normal.stdout.length);
+  assert.equal(compact.stdout.trim().split('\n').length,1);
+  assert.deepEqual(await fs.readFile(path.join(f.out,'run.json')),before);
+});
+
+test('compact flag does not consume option values or allow duplicate and unknown flags', () => {
+  const runner=path.join(packageRoot,'scripts','council.mjs');
+  for(const args of [['status','--run','--compact'],['status','--compact','yes'],['version','--compact','--compact'],['status','--compcat']]) {
+    const result=spawnSync(process.execPath,[runner,...args],{encoding:'utf8',windowsHide:true,timeout:5000});
+    assert.equal(result.status,1);
+    assert.match(result.stderr,/Invalid option|Duplicate option/);
+  }
+});
+
 test('source status distinguishes modified content from unavailable original inputs', async () => {
   const f=await fixture('unavailable-input');
   await fs.rename(f.brief,path.join(f.root,'moved-brief.txt'));

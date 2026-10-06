@@ -89,6 +89,8 @@ The skill assesses your project first. You do not need to fill in a form or writ
 
 **Model advice stays advisory.** Recommendations do not change your settings. For advice without a peer discussion, add: “Assess the task and recommend models. Keep my settings; advice only.”
 
+**Less repetition by default.** C2C reuses returned reports, keeps review prose focused on changes, and omits bookkeeping from peer context. The selected evidence, security checks and review stages stay intact. Token savings vary with the task; shorter prompts alone do not prove equal planning quality. [Efficiency details →](references/protocol.md#token-efficiency)
+
 ## Before planning
 
 The coordinator inspects relevant project evidence and establishes a useful path before either agent proposes a solution.

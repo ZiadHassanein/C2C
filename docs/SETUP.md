@@ -100,6 +100,8 @@ Before planning, the AI checks the relevant project context and makes the goal, 
 
 The skill runs a short, bounded exchange through your existing provider accounts. Normal provider usage applies.
 
+C2C reduces repeated instructions, report reads and review prose by default. The AI uses `--compact` for routine runner output; it preserves every JSON field while removing formatting whitespace. Manual commands remain formatted for readability unless you add that flag. This does not change models, review stages or limits; real token savings depend on the task and provider. See [token efficiency](../references/protocol.md#token-efficiency).
+
 | Default limit | Value |
 |---|---|
 | Time per peer call | 5 minutes |

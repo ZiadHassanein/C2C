@@ -16,6 +16,8 @@ node RUNNER discussion --run RUN
 node RUNNER finish --run RUN
 ```
 
+Append `--compact` to routine commands to receive single-line JSON with every field preserved. This changes only console formatting; saved artifacts remain readable. `ask` already returns the complete validated report: use that result and open the report file only if it was unavailable or truncated.
+
 `prepare` options:
 
 | Option | Meaning |
@@ -241,6 +243,11 @@ Each draft, review, security review, and verification report uses this complete 
 - Coordinator draft IDs use `C-D1`, `C-D2`, and so on; coordinator critique IDs use `C-R1`, `C-R2`, and so on; security review IDs use `C-S1`, `C-S2`, and so on. Peer IDs use `P-D1`, `P-R1`, or `P-V1` with increasing numbers within that report. Keep IDs unique and stable.
 - Cite relevant supplied sources or observed experiment results in `evidence`. An assumption or hypothetical failure must be labeled as such. An absence of evidence is not proof of a defect.
 - `proposal_markdown` carries the independent plan for a draft and useful proposed changes for a review; do not claim that proposed tests have already run.
+- Review and verification `proposal_markdown` may be empty when structured findings contain all useful changes. Do not duplicate findings or restate the whole plan there. Drafts still need complete nonempty proposals; security reviews still need their nonempty applicability assessment. There is no minimum report word count. Retain all material findings, assumptions, questions and limitations.
+
+## Token efficiency
+
+Peer packets retain exact selected evidence, assessment and applicable full reports; only source byte counts/hashes stay local in the sealed snapshot. Common instructions and context precede stage-specific data, permitting but not guaranteeing cache reuse. Models, review stages and requirements are unchanged. Avoid duplicate prose/reads, never material evidence. Per-attempt provider usage is retained when returned; offline token counts establish neither billed savings nor equal planning quality.
 
 ## Decision record
 

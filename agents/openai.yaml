@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex-Claude Council"
-  short_description: "Plan and review work with Codex and Claude Code"
-  default_prompt: "Use $codex-claude-council to plan this feature or project with proportionate peer review, advisory model recommendations, and a clear decision record."
+  short_description: "Assess project context, then plan with Codex and Claude"
+  default_prompt: "Use $codex-claude-council to assess this project's deployment context and direction, then make an actionable plan with proportionate peer review, security checks, and advisory model recommendations."

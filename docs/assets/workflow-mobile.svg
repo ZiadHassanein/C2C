@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="480" height="1000" viewBox="0 0 480 1000" role="img" aria-labelledby="workflow-title workflow-description">
   <title id="workflow-title">Codex–Claude Council: independent planning workflow</title>
-  <desc id="workflow-description">In independent plan mode, a shared brief informs separate Codex and Claude proposals. Both agents review the other's proposal. The coordinating chat synthesizes the plan with a security review and acceptance checks. The peer verifies it. The final plan records decisions and retains unresolved questions. Follow the six numbered stages from top to bottom. The diagram shows separate viewpoints, not concurrent execution or completed implementation tests.</desc>
+  <desc id="workflow-description">In independent plan mode, an evidence-based project assessment and clear direction inform separate Codex and Claude proposals. Both agents review the other's proposal. The coordinating chat synthesizes the plan with a security review and acceptance checks. The peer verifies it. The final plan records decisions and retains unresolved questions. Follow the six numbered stages from top to bottom. The diagram shows separate viewpoints, not concurrent execution or completed implementation tests.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M 1 1 L 8 5 L 1 9" fill="none" stroke="#7b918d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -40,7 +40,7 @@
     </g>
 
     <g fill="#14252b" font-size="26" font-weight="600" letter-spacing="-0.4">
-      <text x="46" y="218">Shared brief</text>
+      <text x="46" y="218">Project state</text>
       <text x="46" y="354">Independent proposals</text>
       <text x="46" y="514">Cross-review</text>
       <text x="46" y="650">Coordinator plan</text>
@@ -49,7 +49,7 @@
     </g>
 
     <g fill="#596c70" font-size="20">
-      <text x="46" y="249">Scope, evidence and constraints</text>
+      <text x="46" y="249">Evidence, scope and clear direction</text>
       <text x="46" y="545">Both agents critique the other's proposal</text>
       <text x="46" y="681">Security review + acceptance checks</text>
       <text x="46" y="817">Challenges the plan and remaining gaps</text>

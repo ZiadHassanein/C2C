@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="576" viewBox="0 0 960 576" role="img" aria-labelledby="workflow-title workflow-description">
   <title id="workflow-title">Codex–Claude Council: independent planning workflow</title>
-  <desc id="workflow-description">In independent plan mode, a shared brief informs separate Codex and Claude proposals. Both agents review the other's proposal. The coordinating chat synthesizes the plan with a security review and acceptance checks. The peer verifies it. The final plan records decisions and retains unresolved questions. The numbered flow reads left to right across the top, then right to left across the bottom. The diagram shows separate viewpoints, not concurrent execution or completed implementation tests.</desc>
+  <desc id="workflow-description">In independent plan mode, an evidence-based project assessment and clear direction inform separate Codex and Claude proposals. Both agents review the other's proposal. The coordinating chat synthesizes the plan with a security review and acceptance checks. The peer verifies it. The final plan records decisions and retains unresolved questions. The numbered flow reads left to right across the top, then right to left across the bottom. The diagram shows separate viewpoints, not concurrent execution or completed implementation tests.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 1 1 L 8 5 L 1 9" fill="none" stroke="#7b918d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -41,7 +41,7 @@
     </g>
 
     <g fill="#14252b" font-size="26" font-weight="600" letter-spacing="-0.4">
-      <text x="54" y="212">Shared brief</text>
+      <text x="54" y="212">Project state</text>
       <text x="307" y="212" font-size="24">Independent proposals</text>
       <text x="666" y="212">Cross-review</text>
       <text x="666" y="439">Coordinator plan</text>
@@ -50,8 +50,8 @@
     </g>
 
     <g fill="#596c70" font-size="21">
-      <text x="54" y="253">Scope, evidence</text>
-      <text x="54" y="283">and constraints</text>
+      <text x="54" y="253">Evidence + scope</text>
+      <text x="54" y="283">Clear direction</text>
       <text x="666" y="253">Both agents critique</text>
       <text x="666" y="283">the other's proposal</text>
       <text x="666" y="480">Security review</text>

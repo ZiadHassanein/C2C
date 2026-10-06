@@ -5,11 +5,13 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 import {
   prepare, ask, finish, status, validateReport, parsePeerResponse,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
+import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(tempParent, 'council-test-'));
@@ -21,6 +23,24 @@ after(async () => {
 });
 const write = (p, value) => fs.writeFile(p, typeof value === 'string' ? value : JSON.stringify(value, null, 2), 'utf8');
 const read = async (p) => JSON.parse(await fs.readFile(p, 'utf8'));
+function assessment() {
+  return {
+    assessed_at: '2026-10-06T12:00:00.000Z',
+    summary: 'ASSESSMENT_CONTEXT_TOKEN: isolated synthetic exporter fixture.',
+    project_type: 'software',
+    deployment: { status: 'non_production', evidence: ['E1'] },
+    readiness: { status: 'not_assessed', scope: 'Only this temporary fixture is in scope.', gaps: [], evidence: [] },
+    evidence: [{ id: 'E1', source: 'Test fixture setup', observation: 'The test created a temporary project with no deployed service.', kind: 'observed' }],
+    direction: {
+      route: 'extend_existing', clarity: 'ready', goal: 'Add reliable export to the fixture.',
+      scope: ['Field escaping and deterministic ordering.'],
+      success_criteria: ['Quoted fields round-trip and export ordering is reproducible.'],
+      constraints: ['Use the explicitly provided fixture context.'],
+      next_step: 'Inspect the exporter interface before selecting the smallest implementation change.',
+    },
+    unknowns: [],
+  };
+}
 function report(ids = [], token = 'A useful report') {
   return {
     summary: token, verdict: ids.length ? 'needs_changes' : 'ready',
@@ -37,17 +57,24 @@ function invocation(result = report()) {
       : [{type:'thread.started',thread_id:'codex-test-session'},{type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}},{type:'turn.completed',usage:{input_tokens:10,output_tokens:20}}].map(x=>JSON.stringify(x)).join('\n'),
   });
 }
-async function fixture(label, extra = {}) {
+async function inputFixture(label) {
   const root = await fs.mkdtemp(path.join(testRoot, `${label}-`));
   const project = path.join(root, 'project');
   const out = path.join(root, 'run');
   await fs.mkdir(project);
   const brief = path.join(root, 'brief.txt');
   const context = path.join(project, 'context.txt');
+  const assessmentFile = path.join(root, 'assessment.json');
   await write(brief, 'Build a reliable export feature. Success: escaped fields and reproducible ordering.');
   await write(context, 'INPUT_CONTEXT_TOKEN: existing exporter has no dependency on the database.');
-  await prepare({project,brief,context:[context],coordinator:'codex',mode:'plan',out,...extra});
-  return {root,project,out,brief,context};
+  await write(assessmentFile, assessment());
+  return {root,project,out,brief,context,assessment:assessmentFile};
+}
+const prepareOptions = f => ({project:f.project,brief:f.brief,assessment:f.assessment,context:[f.context],coordinator:'codex',mode:'plan',out:f.out});
+async function fixture(label, extra = {}) {
+  const f = await inputFixture(label);
+  await prepare({...prepareOptions(f),...extra});
+  return f;
 }
 async function hostDraft(f, ids = [], token = 'HOST_DRAFT_SECRET_714') {
   await write(path.join(f.out,'coordinator-draft.json'),report(ids,token));
@@ -76,6 +103,216 @@ test('report validator rejects incomplete and invalid reports', () => {
   assert.throws(()=>validateReport(report(['C-D1','C-D1'])));
   assert.throws(()=>validateReport(report(['C-R1']),'C-D'));
   assert.equal(REPORT_SCHEMA.type,'object');
+});
+
+test('project assessment rejects empty direction and unsupported deployment or readiness claims', () => {
+  assert.doesNotThrow(()=>validateAssessment(assessment()));
+  const reported=assessment();
+  reported.deployment.status='production';
+  reported.evidence[0].kind='user_reported';
+  assert.doesNotThrow(()=>validateAssessment(reported));
+  const checked=assessment();
+  checked.readiness={status:'checks_passed_for_scope',scope:'Fixture input validation checks only.',gaps:[],evidence:['E1']};
+  checked.evidence[0].observation='Synthetic input-validation checks passed; no wider readiness claim is made.';
+  assert.doesNotThrow(()=>validateAssessment(checked));
+  const leap=assessment();
+  leap.assessed_at='2024-02-29T23:59:59.999+03:00';
+  assert.doesNotThrow(()=>validateAssessment(leap));
+  assert.equal(ASSESSMENT_SCHEMA.type,'object');
+  const invalid = [
+    ['missing assessment field', a => { delete a.summary; }],
+    ['blank summary', a => { a.summary=' '; }],
+    ['invalid timestamp', a => { a.assessed_at='today'; }],
+    ['February 30', a => { a.assessed_at='2026-02-30T12:00:00Z'; }],
+    ['April 31', a => { a.assessed_at='2026-04-31T12:00:00Z'; }],
+    ['non-leap February 29', a => { a.assessed_at='2025-02-29T12:00:00Z'; }],
+    ['hour 24', a => { a.assessed_at='2026-10-06T24:00:00Z'; }],
+    ['minute 60', a => { a.assessed_at='2026-10-06T12:60:00Z'; }],
+    ['timezone minute 60', a => { a.assessed_at='2026-10-06T12:00:00+03:60'; }],
+    ['empty scope', a => { a.direction.scope=[]; }],
+    ['blank success criterion', a => { a.direction.success_criteria=['  ']; }],
+    ['missing success criteria', a => { a.direction.success_criteria=[]; }],
+    ['blank next step', a => { a.direction.next_step=' '; }],
+    ['duplicate evidence ID', a => { a.evidence.push({...a.evidence[0]}); }],
+    ['missing evidence reference', a => { a.deployment.evidence=['MISSING']; }],
+    ['blank evidence observation', a => { a.evidence[0].observation=' '; }],
+    ['production inferred from a clue', a => { a.deployment.status='production'; a.evidence[0].kind='inferred'; }],
+    ['nonproduction without evidence', a => { a.deployment.evidence=[]; }],
+    ['production status invented', a => { a.deployment.status='staging'; }],
+    ['readiness from user assertion', a => { a.readiness.status='checks_passed_for_scope'; a.readiness.evidence=['E1']; a.evidence[0].kind='user_reported'; }],
+    ['checks passed despite gaps', a => { a.readiness.status='checks_passed_for_scope'; a.readiness.evidence=['E1']; a.readiness.gaps=['Unverified access policy.']; }],
+    ['gaps found without gaps', a => { a.readiness.status='gaps_found'; }],
+    ['unknown deployment with no unknowns', a => { a.deployment.status='unknown'; a.deployment.evidence=[]; }],
+    ['unclear direction with no unknowns', a => { a.direction.clarity='discovery_needed'; }],
+    ['blank constraint', a => { a.direction.constraints=[' ']; }],
+    ['unknown field', a => { a.production_ready=true; }],
+  ];
+  for (const [label, mutate] of invalid) {
+    const value=assessment();
+    mutate(value);
+    assert.throws(()=>validateAssessment(value),undefined,label);
+  }
+});
+
+test('prepare requires a valid assessment before creating a run', async () => {
+  const f=await inputFixture('assessment-required');
+  const options=prepareOptions(f);
+  delete options.assessment;
+  await assert.rejects(async()=>prepare(options),/assessment/i);
+  await assert.rejects(()=>fs.access(f.out));
+  for (const content of ['{invalid json', '{}', JSON.stringify({...assessment(),summary:' '})]) {
+    await write(f.assessment,content);
+    await assert.rejects(async()=>prepare(prepareOptions(f)));
+    await assert.rejects(()=>fs.access(f.out));
+  }
+});
+
+test('user-blocked direction cannot create a run or spend a peer attempt', async () => {
+  const f=await inputFixture('assessment-needs-user');
+  const value=assessment();
+  value.direction.clarity='needs_user_input';
+  value.unknowns=['The user must choose whether to replace or extend the live application.'];
+  await write(f.assessment,value);
+  await assert.rejects(async()=>prepare(prepareOptions(f)),/needs_user_input|user input|clarif/i);
+  await assert.rejects(()=>fs.access(f.out));
+  let called=false;
+  await assert.rejects(()=>ask({run:f.out,stage:'draft'},async req=>{called=true;return invocation()(req);}));
+  assert.equal(called,false);
+});
+
+test('new builds, unknown deployments and non-software discovery retain honest project context', async () => {
+  const newBuild=assessment();
+  newBuild.direction.route='new_build';
+  newBuild.direction.goal='Build a new application from the supplied requirements.';
+  const newInputs=await inputFixture('assessment-new-build');
+  await write(newInputs.assessment,newBuild);
+  await prepare(prepareOptions(newInputs));
+  assert.equal((await status({run:newInputs.out})).project_assessment.direction.route,'new_build');
+
+  const discovery=assessment();
+  discovery.deployment={status:'unknown',evidence:[]};
+  discovery.direction.route='discovery';
+  discovery.direction.clarity='discovery_needed';
+  discovery.direction.next_step='Inspect the selected deployment record and summarize which environment is actually serving users.';
+  discovery.unknowns=['The current deployment environment has no confirmed evidence.'];
+  const discoveryInputs=await inputFixture('assessment-discovery');
+  await write(discoveryInputs.assessment,discovery);
+  await prepare(prepareOptions(discoveryInputs));
+  const discoveryContext=(await status({run:discoveryInputs.out})).project_assessment;
+  assert.equal(discoveryContext.deployment.status,'unknown');
+  assert.equal(discoveryContext.direction.clarity,'discovery_needed');
+  assert.deepEqual(discoveryContext.unknowns,discovery.unknowns);
+
+  const nonSoftware=assessment();
+  nonSoftware.project_type='non_software';
+  nonSoftware.deployment={status:'not_applicable',evidence:[]};
+  nonSoftware.readiness={status:'not_applicable',scope:'A workshop agenda has no software deployment.',gaps:[],evidence:[]};
+  nonSoftware.evidence=[];
+  nonSoftware.direction={route:'non_software',clarity:'discovery_needed',goal:'Prepare a workshop.',scope:['Find audience needs before drafting the agenda.'],success_criteria:['A confirmed audience and an agreed workshop outcome.'],constraints:[],next_step:'Summarize the known audience evidence and identify the missing decision.'};
+  nonSoftware.unknowns=['Audience needs are not yet confirmed.'];
+  const nonSoftwareInputs=await inputFixture('assessment-non-software');
+  await write(nonSoftwareInputs.assessment,nonSoftware);
+  await prepare(prepareOptions(nonSoftwareInputs));
+  const context=(await status({run:nonSoftwareInputs.out})).project_assessment;
+  assert.equal(context.deployment.status,'not_applicable');
+  assert.equal(context.readiness.status,'not_applicable');
+  assert.equal(context.direction.clarity,'discovery_needed');
+  assert.deepEqual(context.unknowns,nonSoftware.unknowns);
+  assert.throws(()=>validateAssessment({...nonSoftware,direction:{...nonSoftware.direction,route:'extend_existing'}}));
+  assert.throws(()=>validateAssessment({...nonSoftware,deployment:{status:'production',evidence:[]}}));
+});
+
+test('project assessment is frozen in every peer stage while source changes remain visible', async () => {
+  const f=await fixture('assessment-frozen');
+  const original=await read(f.assessment);
+  const snapshot=await read(path.join(f.out,'snapshot.json'));
+  assert.deepEqual(snapshot.project_assessment,original);
+  assert.equal(snapshot.inputs.find(input=>input.kind==='assessment').path,f.assessment);
+  assert.deepEqual(await read(path.join(f.out,'project-assessment.json')),original);
+  assert.match(await fs.readFile(path.join(f.out,'PROJECT_CONTEXT.md'),'utf8'),/isolated synthetic exporter fixture/);
+  await write(f.assessment,{...original,summary:'REVISED_ASSESSMENT_TOKEN: later evidence needs a new run.'});
+  assert.deepEqual((await status({run:f.out})).changed_source_files,[f.assessment]);
+  const captured=[];
+  const fake=async req=>{
+    captured.push(JSON.parse(req.prompt.split('COUNCIL_PACKET_JSON\n')[1]));
+    assert.ok(!req.prompt.includes('REVISED_ASSESSMENT_TOKEN'));
+    return invocation()(req);
+  };
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},fake);
+  await hostReview(f);
+  await ask({run:f.out,stage:'review'},fake);
+  await write(path.join(f.out,'security-review.json'),report());
+  await write(path.join(f.out,'final-plan.md'),'# Plan\nUse the agreed exporter scope and run the acceptance checks.');
+  await write(path.join(f.out,'decisions.json'),[]);
+  await ask({run:f.out,stage:'verify'},fake);
+  assert.equal(captured.length,3);
+  for (const packet of captured) assert.deepEqual(packet.shared_context.project_assessment,original);
+  const completed=await finish({run:f.out});
+  assert.deepEqual(completed.project_assessment,{required:true,...original});
+  assert.deepEqual(completed.source_changes,[f.assessment]);
+});
+
+test('sealed project assessment and human context cannot be silently rewritten', async () => {
+  for (const file of ['project-assessment.json','PROJECT_CONTEXT.md']) {
+    const f=await fixture(`assessment-tamper-${path.extname(file).slice(1)}`);
+    await hostDraft(f);
+    await write(path.join(f.out,file),file.endsWith('.json')?{...assessment(),summary:'Edited frozen context'}:'# Rewritten project status');
+    let called=false;
+    await assert.rejects(()=>ask({run:f.out,stage:'draft'},async req=>{called=true;return invocation()(req);}),/Sealed artifact changed/);
+    assert.equal(called,false);
+    assert.equal((await read(path.join(f.out,'run.json'))).attempts.length,0);
+    assert.throws(()=>status({run:f.out}),/Sealed artifact changed/);
+  }
+});
+
+test('peer approval cannot erase production gaps or unknowns from completion', async () => {
+  const value=assessment();
+  value.deployment.status='production';
+  value.evidence[0]={id:'E1',source:'Synthetic deployment fixture',observation:'This fixture explicitly represents an existing live deployment.',kind:'user_reported'};
+  value.readiness={status:'gaps_found',scope:'Backup recovery and the new export path.',gaps:['Restore rehearsal has no observed passing result.'],evidence:['E1']};
+  value.direction.route='harden_existing';
+  value.unknowns=['Recovery-time objective is unconfirmed.'];
+  const f=await inputFixture('assessment-production');
+  await write(f.assessment,value);
+  await prepare({...prepareOptions(f),mode:'review'});
+  await hostDraft(f);
+  await hostReview(f);
+  await ask({run:f.out,stage:'review'},invocation());
+  await write(path.join(f.out,'security-review.json'),report());
+  await write(path.join(f.out,'final-plan.md'),'# Plan\nRehearse restores and prove the scoped export behavior before rollout.');
+  await write(path.join(f.out,'decisions.json'),[]);
+  await ask({run:f.out,stage:'verify'},invocation());
+  const completed=await finish({run:f.out});
+  assert.equal(completed.peer_verdict,'ready');
+  assert.deepEqual(completed.project_assessment,{required:true,...value});
+  const result=await fs.readFile(path.join(f.out,'RESULT.md'),'utf8');
+  assert.match(result,/production/);
+  assert.match(result,/Restore rehearsal has no observed passing result/);
+  assert.match(result,/Recovery-time objective is unconfirmed/);
+});
+
+test('assessment secrets and combined input size are rejected before a run is created', async () => {
+  const secret=await inputFixture('assessment-secret');
+  await write(secret.assessment,{...assessment(),summary:'Unsafe credential example sk-'+'x'.repeat(28)});
+  await assert.rejects(async()=>prepare(prepareOptions(secret)),/Possible credential/);
+  await assert.rejects(()=>fs.access(secret.out));
+  const large=await inputFixture('assessment-size');
+  await write(large.context,'x'.repeat(239500));
+  await assert.rejects(async()=>prepare(prepareOptions(large)),/context exceeds|summarize/i);
+  await assert.rejects(()=>fs.access(large.out));
+});
+
+test('prepare CLI accepts an explicit assessment and persists the preflight without launching a peer', async () => {
+  const f=await inputFixture('assessment-cli');
+  const result=spawnSync(process.execPath,[path.join(packageRoot,'scripts','council.mjs'),'prepare','--project',f.project,'--brief',f.brief,'--assessment',f.assessment,'--out',f.out],{cwd:f.root,encoding:'utf8',windowsHide:true,timeout:5000});
+  assert.equal(result.status,0,result.stderr);
+  assert.equal(JSON.parse(result.stdout).run,f.out);
+  const manifest=await read(path.join(f.out,'run.json'));
+  assert.equal(manifest.version,3);
+  assert.equal(manifest.status,'prepared');
+  assert.deepEqual(manifest.attempts,[]);
+  assert.deepEqual(await read(path.join(f.out,'project-assessment.json')),assessment());
 });
 
 test('preconditions prevent invented stages and incomplete completion', async () => {
@@ -447,16 +684,39 @@ test('insufficient security evidence stays visible even with no findings', async
   assert.match(await fs.readFile(path.join(f.out,'RESULT.md'),'utf8'),/Authorization design is absent/);
 });
 
-test('legacy version 1 runs finish without a new security claim', async () => {
-  const f=await readyForVerify('legacy-security',{mode:'review'});
-  const manifest=await read(path.join(f.out,'run.json'));
-  manifest.version=1;
-  await write(path.join(f.out,'run.json'),manifest);
-  await fs.unlink(path.join(f.out,'security-review.json'));
-  await ask({run:f.out,stage:'verify'},invocation());
-  const completed=await finish({run:f.out});
-  assert.equal(completed.security_review.required,false);
-  assert.equal(completed.security_review.verdict,'not_required_by_legacy_run');
+test('legacy versions preserve their original security rules and never gain a project assessment claim', async () => {
+  for (const version of [1,2]) {
+    const f=await readyForVerify(`legacy-v${version}`,{mode:'review'});
+    const manifest=await read(path.join(f.out,'run.json'));
+    manifest.version=version;
+    await write(path.join(f.out,'run.json'),manifest);
+    // Even if a v3 assessment artifact is present, legacy completion must not claim
+    // that deployment evidence or direction clarity was a required preflight.
+    assert.equal((await status({run:f.out})).project_assessment.required,false);
+    // Actual old runs have neither the artifacts nor the snapshot field. Exercise
+    // resume and completion with that layout as well as the orphan-artifact case.
+    for (const file of ['project-assessment.json','project-assessment.schema.json','PROJECT_CONTEXT.md']) {
+      delete manifest.seals[file];
+      await fs.unlink(path.join(f.out,file));
+    }
+    const snapshotPath=path.join(f.out,'snapshot.json');
+    const snapshot=await read(snapshotPath);
+    delete snapshot.project_assessment;
+    snapshot.inputs=snapshot.inputs.filter(input=>input.kind!=='assessment');
+    await write(snapshotPath,snapshot);
+    manifest.seals['snapshot.json']=createHash('sha256').update(await fs.readFile(snapshotPath,'utf8')).digest('hex');
+    await write(path.join(f.out,'run.json'),manifest);
+    await fs.unlink(f.assessment);
+    if (version===1) await fs.unlink(path.join(f.out,'security-review.json'));
+    await ask({run:f.out,stage:'verify'},invocation());
+    const completed=await finish({run:f.out});
+    assert.equal(completed.security_review.required,version>=2);
+    if (version===1) assert.equal(completed.security_review.verdict,'not_required_by_legacy_run');
+    assert.equal(completed.project_assessment.required,false);
+    assert.equal(completed.project_assessment.deployment.status,'unknown');
+    assert.notEqual(completed.project_assessment.readiness.status,'checks_passed_for_scope');
+    assert.ok(completed.project_assessment.unknowns.length);
+  }
 });
 
 test('obvious credentials in final plan are rejected before peer launch', async () => {
@@ -506,7 +766,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','scripts/council.mjs','scripts/process.mjs','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');

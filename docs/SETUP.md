@@ -75,6 +75,8 @@ Remove only the `codex-claude-council` folder from the installed locations above
 
 ## Usage and privacy
 
+Before planning, the AI checks the relevant project context and makes the goal, scope, success criteria, and next step explicit. It writes the assessment files for you. It may ask a focused question when an essential requirement is missing; unknown deployment details alone do not prevent a useful plan. Read `PROJECT_CONTEXT.md` for the evidence and limits. For an assessment without a peer discussion, ask for “assessment only.”
+
 The skill runs a short, bounded exchange through your existing provider accounts. Normal provider usage applies.
 
 | Default limit | Value |

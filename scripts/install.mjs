@@ -18,7 +18,7 @@ const targets = [
   ...(target !== 'claude' ? [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'skills', 'codex-claude-council')] : []),
   ...(target !== 'codex' ? [path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'skills', 'codex-claude-council')] : []),
 ];
-const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'scripts/council.mjs', 'scripts/process.mjs', 'LICENSE'];
+const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'LICENSE'];
 try {
   for (const file of files) if (!fs.statSync(path.join(source, file)).isFile()) throw new Error(`Missing package file: ${file}`);
   for (const dest of targets) {

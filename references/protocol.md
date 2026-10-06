@@ -1,12 +1,12 @@
 # Runner protocol
 
-Resolve `RUNNER` to the absolute path of this skill's `scripts/council.mjs`. Resolve `PROJECT`, `BRIEF`, each `CONTEXT`, and `RUN` to actual absolute filesystem paths. Quote each path in shell commands. `PROJECT` identifies the task's project; peer processes execute in isolated temporary directories.
+Resolve `RUNNER` to the absolute path of this skill's `scripts/council.mjs`. Resolve `PROJECT`, `BRIEF`, `ASSESSMENT`, each `CONTEXT`, and `RUN` to actual absolute filesystem paths. Quote each path in shell commands. `PROJECT` identifies the task's project; peer processes execute in isolated temporary directories.
 
 ## Commands
 
 ```text
 node RUNNER doctor
-node RUNNER prepare --project PROJECT --brief BRIEF --context CONTEXT --coordinator codex --mode plan --out RUN
+node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --context CONTEXT --coordinator codex --mode plan --out RUN
 node RUNNER ask --run RUN --stage draft
 node RUNNER ask --run RUN --stage review
 node RUNNER ask --run RUN --stage verify
@@ -20,6 +20,7 @@ node RUNNER finish --run RUN
 |---|---|
 | `--project` | Absolute project/workspace directory. |
 | `--brief` | UTF-8 task brief file to snapshot. |
+| `--assessment` | Required UTF-8 project-assessment JSON; evidence-based deployment/readiness and a clear direction. See the [assessment contract](project-assessment.md). |
 | `--context` | Explicit UTF-8 context file to snapshot; repeat for multiple files, omit when the brief suffices. |
 | `--coordinator` | `codex` calls Claude Code; `claude` calls Codex. |
 | `--mode` | `plan` includes draft, review, and verify; `review` critiques a supplied or coordinator-authored plan, then verifies the synthesis. |
@@ -29,7 +30,9 @@ node RUNNER finish --run RUN
 | `--max-attempts` | Attempt allowance, including failures; default `4`. |
 | `--peer-model` | Optional peer CLI model identifier chosen explicitly by the user; a recommendation alone does not authorize this override. Omit to use the CLI default. |
 
-`prepare` freezes selected inputs. It does not invoke a model, read the whole repository, or automatically follow references in documents. Supply excerpts when full files contain unrelated or private content. An incomplete brief/context may correctly result in `insufficient_context`.
+`prepare` freezes selected inputs. It does not invoke a model, read the whole repository, or automatically follow references in documents. Supply excerpts when full files contain unrelated or private content. An incomplete brief/context may correctly result in `insufficient_context`. New version 3 runs require the project assessment; `direction.clarity: needs_user_input` is rejected before creating a run. Resolve essential user choices first. `discovery_needed` supports a bounded investigation with a clear next action and exit criterion.
+
+The project assessment contains shared facts and user constraints, not new architectural proposals. It is frozen in `snapshot.json`, saved as sealed `project-assessment.json`, rendered as `PROJECT_CONTEXT.md`, and sent at every stage. The runner checks shape and evidence-reference consistency, not the truth of deployment claims or production readiness. Read [project context and direction](project-assessment.md) before preparing it. Keep separate task/model advice out of peer packets.
 
 Calls run sequentially. Do not edit reports while a call is running. Use `status` to inspect an existing run before resuming. A timeout, malformed response, or model-process failure consumes an attempt. Preflight executable/authentication checks do not launch a model and do not consume an attempt; their errors remain explicit. A successful stage cannot be repeated. Start a new run when the task or evidence materially changes, retaining the old record.
 
@@ -37,16 +40,18 @@ Process handling lives in `scripts/process.mjs`. Streamed output already receive
 
 ## File contract
 
-All coordinator-authored JSON is UTF-8 and follows the report schema below. `prepare` also creates `report.schema.json` and `decisions.schema.json` in the run directory; read these as needed when authoring reports. Write the specified files directly inside `RUN` using normal file tools; the runner reads them at the next stage.
+All JSON is UTF-8. Reports use the report schema below; the assessment uses its [own contract](project-assessment.md#json-contract), and decisions use the array schema below. `prepare` creates schema files in the run directory; read these as needed when authoring reports. Write the specified coordinator report files directly inside `RUN` using normal file tools; the runner reads them at the next stage.
 
 | File | Author | Required by |
 |---|---|---|
+| `project-assessment.json` | Runner from coordinator-supplied assessment | Required input to version 3 preparation; sealed facts and direction shared at every peer stage. |
+| `PROJECT_CONTEXT.md` | Runner | Sealed readable assessment generated at preparation; a view of the JSON record, not a replacement for it. |
 | `coordinator-draft.json` | Coordinator | Before peer draft in plan mode; before peer review in review mode. |
 | `peer-draft.json` | Runner from peer | Created by successful draft in plan mode. |
 | `coordinator-review.json` | Coordinator | Before peer review. In plan mode, critique the peer draft; in review mode, independently critique the existing plan. |
 | `peer-review.json` | Runner from peer | Created by successful review of the coordinator draft. |
 | `final-plan.md` | Coordinator | Before peer verification; revise afterward when warranted. |
-| `security-review.json` | Coordinator | Required before verification in version 2 runs; standard report schema with `C-S…` finding IDs. |
+| `security-review.json` | Coordinator | Required before verification in version 2 and newer runs; standard report schema with `C-S…` finding IDs. |
 | `security-review-submitted.json` | Runner | Sealed copy saved at the first verification launch; its finding objects must remain unchanged in the current security review. |
 | `decisions.json` | Coordinator | Before verification, then updated with verification findings before finish. |
 | `peer-verify.json` | Runner from peer | Created by successful verification. |
@@ -54,11 +59,11 @@ All coordinator-authored JSON is UTF-8 and follows the report schema below. `pre
 | `TASK_ASSESSMENT.md` | Coordinator | Advisory sizing and model recommendation before the first peer call; linked from the handoff and summarized in the final plan. Not read by the runner. |
 | `IMPLEMENTATION_BRIEF.md` | Coordinator | Optional handoff for one selected milestone after plan completion; not executed or parsed by the runner. |
 
-Do not rewrite successful peer reports or earlier coordinator reports to erase disagreements. Use the final plan and decision record for synthesis. `finish` records reviewed and final hashes for the plan, decisions, and, in version 2 runs, the security report. Disclose changes after verification; completion does not mean that revised artifacts received another peer check or that every recommendation is factually correct. Legacy version 1 completion must not be represented as satisfying the new security requirement.
+Do not rewrite successful peer reports or earlier coordinator reports to erase disagreements. Use the final plan and decision record for synthesis. `finish` records reviewed and final hashes for the plan, decisions, and, in version 2 and newer runs, the security report. Disclose changes after verification; completion does not mean that revised artifacts received another peer check or that every recommendation is factually correct. Legacy version 1 completion does not satisfy the security requirement; legacy version 1/2 runs do not establish that the project assessment occurred.
 
 ## Security and testing
 
-Every actual plan in either mode needs a security assessment proportionate to its consequences. Before `ask --stage verify`, the coordinator writes `security-review.json` using the complete standard report schema, with `C-S1`, `C-S2`, … IDs. Include every security finding in `decisions.json`. Version 2 runs enforce this report and send it with the final plan to the peer for verification; there is no additional peer stage or security CLI flag. Keep coordinator security conclusions out of independent draft and critique packets; neutral risk and constraint facts belong in the shared brief.
+Every actual plan in either mode needs a security assessment proportionate to its consequences. Before `ask --stage verify`, the coordinator writes `security-review.json` using the complete standard report schema, with `C-S1`, `C-S2`, … IDs. Include every security finding in `decisions.json`. Version 2 and newer runs enforce this report and send it with the final plan to the peer for verification; there is no additional peer stage or security CLI flag. Keep coordinator security conclusions out of independent draft and critique packets; neutral risk and constraint facts belong in the shared brief and project assessment. Carry relevant deployment consequences and readiness gaps into this review without claiming that a production classification proves security.
 
 The report's nonempty `proposal_markdown` briefly addresses each area below, stating applicability, evidence or assumptions, unresolved risk, and necessary checks. Explain why an area does not apply instead of silently omitting it. Scale depth to the plan; this is not a mandatory exhaustive audit.
 
@@ -82,8 +87,9 @@ At the first verification launch, the runner seals `security-review-submitted.js
 After plan completion, the coordinator may write a concise `IMPLEMENTATION_BRIEF.md` for the selected milestone. It is a handoff document, not a runner command or an automatic implementation trigger. Include:
 
 - Milestone ID, objective, scope/non-goals, and its relationship to the reviewed plan.
+- Link to `PROJECT_CONTEXT.md`, deployment evidence, readiness scope/gaps and any prerequisite for work with live impact.
 - Relevant files/components, snapshot/source version, evidence links, and constraints; mark unknown paths explicitly.
-- Ordered work and actual validation commands with expected acceptance results, or the missing information needed to establish them.
+- First concrete action and gate, then ordered work/dependencies and actual validation commands with expected acceptance results, or the missing information needed to establish them.
 - Security acceptance checks, finding dispositions, unresolved blockers, and prerequisites before proceeding.
 - Status of each check: proposed, tested with dated results, or blocked/unavailable; note any changes since plan verification.
 
@@ -91,7 +97,7 @@ Do not describe plan verification as tested implementation. If implementation is
 
 ## Planning depth and deliverables
 
-The planning depth guides the coordinator's content and choice of existing runner mode; the runner has no size or depth flag. Select it before preparation, state the intended scope and deliverables in the neutral brief, and record the reason in `TASK_ASSESSMENT.md`. Preserve explicit user requests: a small feature can use independent drafts, and a large supplied plan can use review mode. Choosing depth does not change selected models, effort, timeouts, runtime allowance, or attempt limits.
+The planning depth guides the coordinator's content and choice of existing runner mode; the runner has no size or depth flag. Establish [project context and direction](project-assessment.md), then select depth before preparation, state the intended scope and deliverables in the neutral brief, and record the reason in `TASK_ASSESSMENT.md`. Preserve explicit user requests: a small feature can use independent drafts, and a large supplied plan can use review mode. Choosing depth does not change selected models, effort, timeouts, runtime allowance, or attempt limits.
 
 | Depth | Typical choice | Final-plan emphasis |
 |---|---|---|
@@ -103,15 +109,17 @@ The planning depth guides the coordinator's content and choice of existing runne
 
 **Feature design:** Identify the unresolved decisions worth independent proposals. Compare viable approaches against the user's actual constraints; do not manufacture alternatives for settled details. Explain what peer critique changed and provide evidence-based acceptance criteria. Medium size is not a requirement: a small authentication change may deserve this depth, while a large mechanical edit may need only focused review.
 
+For either feature depth, anchor the plan in current behavior, affected architecture and dependencies before describing the target change. Include a concrete starting action and proceeding gate. Add compatibility, data protection, migration and rollout/recovery checks when the assessed deployment and change make them relevant; do not burden a local cosmetic change with unrelated production work.
+
 **Project roadmap:** Cover the whole requested project; detail the first milestone without silently narrowing the assignment to it. Keep the council at project level rather than trying to design every future feature in one packet. Build the final plan around:
 
-- Users, desired outcomes, scope, non-goals, MVP boundary and known constraints.
+- Assessed current project/deployment context, users, desired outcomes, scope, non-goals, MVP boundary and known constraints. Existing projects retain their relevant architecture and compatibility constraints.
 - Architecture or workstream boundaries, relevant data flows/interfaces, dependencies and consequential tradeoffs.
 - A milestone table with stable IDs, outcome/deliverable, prerequisite IDs, acceptance/exit criteria, and responsible role where known. Flag dependencies that control sequencing; do not invent staffing or calendar commitments.
 - A concrete first milestone with ordered work and verification. Describe later milestones at a coarser level, with open decisions and triggers for refinement. If requirements are missing, the first milestone gathers the missing evidence rather than assuming an architecture is settled.
 - Relevant integration, security, migration, rollout/rollback and operational risks, plus how they will be tested or resolved. Include only concerns that apply to the project.
 
-Preserve this roadmap in `final-plan.md` and link it from `HANDOFF.md`. Supporting Markdown is optional when it improves navigation; the evidence and plan content actually sent for verification must be self-contained in the run's supported inputs and final plan. A linked file alone is not reviewed. Select focused excerpts or a dated, source-linked factual summary; peers cannot follow local links, and frozen brief/context inputs must stay within 240,000 bytes and 30 context files. Keep current independent proposals and critiques out of shared context.
+Preserve this roadmap in `final-plan.md` and link it from `HANDOFF.md`. Link the assessment's `PROJECT_CONTEXT.md` and summarize material facts, remaining gaps and the next action in the plan. Supporting Markdown is optional when it improves navigation; evidence sent for verification must be self-contained in the supported inputs and final plan. A linked file alone is not reviewed. Select focused excerpts or a dated, source-linked factual summary; peers cannot follow local links. Keep inputs within runner limits and current independent proposals and critiques out of shared context.
 
 A roadmap request normally produces one project-level council. Recommend later milestone discussions where useful, without starting them automatically or pausing the current roadmap for another approval. When follow-up planning is within the user's requested scope, give each materially different milestone a new brief/run and retain links to prior accepted decisions and evidence. Mark previously accepted constraints as such rather than claiming they were independently rediscovered. Each run retains its own limits; there is no project-wide billing cap or automatic multi-run scheduler. Never split a failed run just to reset its budget. Identify exactly which scope each completed review covers; project-level verification does not verify all future feature plans or implementations.
 
@@ -140,7 +148,7 @@ The advisory boundary is strict: neither a model recommendation nor a suggested 
 
 Do not claim that an isolated CLI default matches a user's existing model choice when that choice's identifier is unknown. Record the gap; resolve it only if needed for an actual authorized invocation, without blocking an advice-only assessment.
 
-Record the assessment after `prepare`, before `ask`, in this compact Markdown shape. For advice-only work with no run, save it in the requested workspace without invoking `prepare` or a peer. No JSON report-schema fields are added.
+Record this task/model assessment after `prepare`, before `ask`, in the compact Markdown shape below. It is separate from the required project-assessment JSON gathered before preparation. For advice-only work with no run, save it in the requested workspace without invoking `prepare` or a peer. No JSON report-schema fields are added.
 
 ```markdown
 # Task assessment — recommendation only
@@ -157,7 +165,7 @@ Record the assessment after `prepare`, before `ask`, in this compact Markdown sh
 - Reassess when: material change that would alter scope, risk or model suitability.
 ```
 
-Keep it short, usually under 250 words. Link it from the handoff and include a short assessment paragraph in `final-plan.md`; this makes the advice visible in the completed `RESULT.md`. Preserve the distinction between a recommendation, an explicit user choice, and the model observed in a real response. Do not pass the assessment via `--context` or other independent peer inputs: risk/constraint facts belong in the neutral brief, not a coordinator's proposed solution.
+Keep it short, usually under 250 words. Link it from the handoff and include a short assessment paragraph in `final-plan.md`; this makes the advice visible in the completed `RESULT.md`. Preserve the distinction between a recommendation, an explicit user choice, and the model observed in a real response. Do not pass this task/model advice via `--assessment`, `--context` or other independent peer inputs: shared risk/constraint facts belong in the neutral project assessment and brief, not a coordinator's proposed solution.
 
 ## Handoff note
 
@@ -167,6 +175,7 @@ Keep `HANDOFF.md` concise and current, with links to evidence rather than copied
 # Council handoff
 - Last updated: ISO date/time with timezone.
 - Goal and scope: objective, constraints, authorized next work.
+- Project context: link to PROJECT_CONTEXT.md; evidenced deployment, readiness scope/gaps, direction/clarity and gate before the next action; legacy assessment absence if applicable.
 - Task fit: link to TASK_ASSESSMENT.md; planning depth/scope; recommendation versus actual model selections.
 - Run and snapshot: absolute run directory; coordinator/peer; mode; snapshot file/hash.
 - Current state: successful stages; attempts used/remaining; runtime used/remaining from status.
@@ -176,7 +185,7 @@ Keep `HANDOFF.md` concise and current, with links to evidence rather than copied
 - Next action: one exact command with real paths, or the exact missing artifact to write first.
 ```
 
-On resume, read this note and run `node RUNNER status --run RUN`. Use the current runner state to verify sealed hashes and detect changed source files; inspect relevant current sources before relying on the old snapshot. Reconcile inconsistencies against `snapshot.json`, the report JSON, and `decisions.json`, updating the note instead of rewriting sealed evidence. Do not repeat successful stages or infer current authentication/model availability from a dated note. A material change to the brief or evidence requires a new run, retaining a link to the old one.
+On resume, read this note and run `node RUNNER status --run RUN`. Use the current runner state to verify sealed hashes and detect changed source files; inspect relevant current sources before relying on the old snapshot. Reconcile inconsistencies against `snapshot.json`, the sealed project assessment, report JSON, and `decisions.json`, updating the note instead of rewriting sealed evidence. Do not repeat successful stages or infer current deployment, authentication or model availability from a dated note. A material change to the brief or evidence requires a new run, retaining a link to the old one.
 
 The note is local continuity context, not an additional peer packet. Never include a coordinator note containing its independent draft or critique via `--context` or pasted peer instructions during independent stages. Let the runner select the permitted reports for each stage. Exclude credentials and keep private run context out of public repositories.
 
@@ -214,7 +223,7 @@ Each draft, review, security review, and verification report uses this complete 
 
 ## Decision record
 
-`decisions.json` is a JSON array with one entry for every finding from every report in the run, including coordinator critiques, version 2 security findings, and final peer verification findings. Before verification, it covers all reports available at that point.
+`decisions.json` is a JSON array with one entry for every finding from every report in the run, including coordinator critiques, security findings in version 2 and newer runs, and final peer verification findings. Before verification, it covers all reports available at that point.
 
 ```json
 [

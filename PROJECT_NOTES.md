@@ -12,12 +12,13 @@ The user also requested task-size assessment and task-appropriate model recommen
 
 The user explicitly requested suitability for both small features and big-project planning. Instructions now choose focused feature review (2 successful peer calls), feature design (3), or a project roadmap (3 at project level), using the existing runner modes. Small tasks still get a real council when requested. Project plans include MVP boundaries, dependent milestones, acceptance gates and a concrete first milestone; later milestone councils are not started automatically. UI prompt wording now allows proportional planning instead of always requiring independent drafts.
 
+- Version 0.5.0 addresses the external reliability review: npm discovery and capability preflight, explicit coordinator routing, linked entrypoints, durable current-state recovery, process-identity locks, accurate progress/provenance, smaller private-context packets, wider secret checks, generated handoffs and line-ending-compatible installs. The version 3 planning format is retained.
 - Version 0.4.0 makes `C2C` the actual skill identifier and installed folder name. The installer refuses selected legacy folders before writing any files; users move those folders to backups outside all skill directories before reinstalling. Planning behavior and the version 3 run format are unchanged.
 - Version 0.3.0 requires a factual project assessment and clear direction before a new council. It separates deployment evidence from scoped readiness, supports bounded discovery, and freezes the assessment into every peer stage and the final result. Repository: [ZiadHassanein/codex-claude-council](https://github.com/ZiadHassanein/codex-claude-council).
 - Version 0.2.0 introduced mandatory security reviews, persistent partial process logs, bounded cleanup, and an optional implementation handoff. These remain in version 0.3.0.
 - The initial published implementation is commit `6343b8b4b3efa5dd96b02b048185d8c6889299fb`.
 - The skill was installed in both products on the development machine; installation and authentication are machine-specific, not guarantees for another user.
-- License: MIT. No npm dependencies. Node.js 18+; CI covers Node 22 and 24.
+- License: MIT. No npm dependencies. Node.js 18+; CI covers Node 18, 22 and 24.
 - Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
@@ -54,19 +55,22 @@ The user explicitly requested suitability for both small features and big-projec
 | `references/project-assessment.md` | Evidence gathering, deployment/readiness distinctions, direction gates and assessment JSON. |
 | `scripts/council.mjs` | Dependency-free runner and CLI adapters. |
 | `scripts/assessment.mjs` | Strict assessment validation and readable Markdown context. |
+| `scripts/adapters.mjs` | Native executable discovery and shared compatibility/authentication preflight. |
+| `scripts/state.mjs` | Flushed current-state checkpoint, manifest checksums and process-identity locks. |
 | `scripts/process.mjs` | Bounded child process invocation, streaming logs and termination diagnostics. |
 | `scripts/install.mjs` | Installs both product copies by default; does not overwrite different existing files. |
 | `tests/council.test.mjs` | Automated state, transport, timeout, and installer tests. |
+| `tests/adapters.test.mjs`, `tests/state.test.mjs`, `tests/install-compat.test.mjs` | Compatibility, recovery, contention and line-ending regressions. |
 | `tests/process.test.mjs` | Real local subprocess tests for output, timeouts, aborts, descendants and failures. |
 | `agents/openai.yaml` | Codex skill name and suggested invocation. |
-| `.github/workflows/test.yml` | Windows/Ubuntu tests on Node 22/24. |
+| `.github/workflows/test.yml` | Windows/Ubuntu tests on Node 18/22/24. |
 | `README.md` | User setup and usage. |
 | `docs/SETUP.md` | Troubleshooting, selective installation, upgrades, uninstall and usage details. |
 | `docs/assets/*.svg` | Responsive README cover and independent-planning workflow, with desktop and mobile variants. |
 
 ## Workflow and persisted evidence
 
-The runner commands are `doctor`, `prepare`, `ask`, `status`, and `finish`. The coordinator writes the intermediate reports and final plan; the runner does not autonomously perform the entire discussion.
+The runner commands are `version`, `doctor`, `prepare`, `ask`, `status`, `finish`, and inspected `recover-lock`. The coordinator writes the intermediate reports and final plan; the runner does not autonomously perform the entire discussion.
 
 - **Before planning:** inspect relevant evidence and write the required assessment. `prepare --assessment FILE` rejects missing/malformed assessments or `needs_user_input` direction before creating the run. Unknown deployment and bounded discovery remain valid.
 - Version 3 saves sealed `project-assessment.json` and `PROJECT_CONTEXT.md` alongside the assessment in `snapshot.json`. Status, every peer packet and completion preserve that initial assessment; later findings belong in the final plan and decisions. The assessment participates in source-drift, secret and context-size checks. Version 1/2 runs remain readable without retroactive assessment claims.
@@ -78,7 +82,7 @@ The runner commands are `doctor`, `prepare`, `ask`, `status`, and `finish`. The 
 - The optional coordinator-authored `IMPLEMENTATION_BRIEF.md` carries a selected milestone and actual/unknown check commands. It does not install or execute a delegate automatically.
 - Defaults: 300 seconds per peer call, 900 seconds cumulative peer runtime, four model-launch attempts. Failed model calls count. Preflight checks do not. These are not billing/token caps.
 - A run retains `snapshot.json`, `run.json`, schemas, report files, attempt inputs/logs, `final-plan.md`, and `decisions.json`. Successful completion also produces `completion.json` and `RESULT.md`.
-- The coordinator maintains a concise `HANDOFF.md` in the run directory. It is a navigation summary, not the authority for stage success or permission to retry.
+- New runs receive a generated `HANDOFF.md` after preparation and state transitions; optional coordinator context lives in `NOTES.md`. Existing handwritten handoffs remain untouched. These are navigation aids, not the authority for stage success or permission to retry.
 - The coordinator writes `TASK_ASSESSMENT.md` before the first peer call. It records task size, complexity/risk/uncertainty, confidence, model advice, evidence, actual unchanged selections, and reassessment triggers. It is not parsed by the runner or shared in independent peer packets. Advice-only requests do not launch a council.
 - Resume by reading `HANDOFF.md` and running `status`, then inspect only the relevant evidence. Do not replay successful stages. Start a new run only when justified by changed task/evidence; do not reset a run to escape its budget.
 
@@ -88,6 +92,7 @@ Observed on 2026-10-06:
 
 | Check | Result and limit |
 |---|---|
+| Version 0.5.0 validation | All 108 tests passed locally on Windows / Node 24, including real subprocess contention, checkpoint recovery, malformed locks, linked invocation, preflight attempt accounting and CRLF compatibility. Metadata-only checks correctly reject npm Codex 0.146.0 and accept the installed 0.160.1 binary; Claude 2.1.291 preflight also passes. Two offline instruction scenarios preserved explicit exchange authorization and the small-feature plan-only boundary. No paid calls were made. |
 | Version 0.4.0 command identity | The complete eight-file package was discovered as exact `C2C` by Codex CLI 0.160.1 (`skills/list`, enabled, no load errors) and Claude Code 2.1.291 (initialize-only command list). Source and both installed copies match byte-for-byte; old discovery folders were backed up outside skill roots. These were discovery checks without model prompts, not paid skill executions or desktop autocomplete tests. |
 | Version 0.4.0 automated validation | All 59 tests passed on Windows / Node 24, including legacy-directory preservation, all-target preflight, selected-provider isolation and exact installed name. README/setup checks passed 25 local links, anchors and assets. An initial run failed when the system drive ran out of space; the successful rerun used a separate temporary directory. |
 | Earlier frontmatter validation | The lowercase identifier in versions through 0.3.0 passed the bundled validator. See the uppercase compatibility limit below for 0.4.0. |
@@ -115,6 +120,27 @@ Observed on 2026-10-06:
 
 No model override was used for those live calls. Do not infer a precise model identity from CLI version or product name. No real application was built or browser-tested as part of the synthetic planning exercise.
 
+## Version 0.5 reliability review
+
+The submitted review referred to 56 tests; version 0.4 had 59. Its two-call, 70-second Claude-to-Codex exchange is user-reported evidence, not a live test independently rerun for this update. Some pasted sentences were truncated; only independently confirmed behavior informed fixes.
+
+| Finding | Change or qualification |
+|---|---|
+| Windows npm Codex was not found | Resolve known npm shim layouts to native executables without executing shell wrappers. An explicit binary override remains authoritative. |
+| Unsupported Codex feature burned attempts | Both doctor and ask probe required flags and feature controls before reservation. Codex 0.146.0 lacks a way to disable local image reading and is rejected clearly; simply dropping its unsupported flag would weaken the boundary. 0.160.1 passed final metadata checks. No global CLI upgrade or new paid call was made. |
+| Linked skill did nothing | Compare real entrypoint paths; linked help, version and invalid commands are exercised. |
+| Claude could default to Claude as peer | Require an explicit coordinator; do not guess from a mutable environment marker. |
+| Lock/state damage blocked recovery | Publish complete locks with process-start identity and preserve two checksummed current-state copies. Recover newest valid state without losing charged attempts or completed stages. Empty/ambiguous locks use inspected-hash recovery; both copies damaged still fail closed. |
+| Context repeated assessment and host paths | Share one assessment and relative/neutral input labels; retain absolute source locations only in the local snapshot. Authored prose is not blindly rewritten. |
+| Result/provenance wording was confusing | Separate successful calls from attempts, changed plan from changed decisions, and changed bytes from unavailable originals. Retain exact artifact hashes and the existing any-artifact change flag. |
+| Windows line endings appeared like edits | Repository text uses LF. Installer accepts CRLF-only differences without rewriting existing content; real changes still stop all selected writes. |
+| Secret coverage was narrow | Existing PEM/OpenAI/AWS checks now also cover common GitHub, Slack and Google credentials and password-bearing connection strings. This remains incomplete detection. |
+| Planning overhead | Entry instructions dropped from 2,463 to about 1,323 words and load reference sections progressively. Mechanical handoff progress is generated. Task sizing/model advice stays advisory, preserving the requested feature. |
+| Implicit peer calls | Description and body now require an explicit C2C or Codex–Claude exchange request before sending context or using quota. Existing authorization need not be requested again. |
+| Version and runtime support | Installed copies include package metadata and expose a version command. CI adds Node 18 coverage alongside 22/24. |
+
+Read-only repository access is deferred: it would need a separate least-privilege transport, permission boundary and evidence-capture design. Automatic upgrades are also deferred; changed installation contents remain protected by the documented backup procedure. The peer is instructed to use supplied evidence; CLI tool availability and host sandbox enforcement are described accurately rather than claiming every project tool is absent.
+
 ## Reliability fixes already made
 
 - Windows timeout cleanup handles a nonzero `taskkill` exit and falls back to terminating the owned direct child process.
@@ -138,14 +164,14 @@ No model override was used for those live calls. Do not infer a precise model id
 5. Source paths/content and local run logs can contain private project information. Keep live run records out of the public repository unless separately sanitized and authorized.
 6. Project classification is the coordinator's evidence-based assessment, not an automated infrastructure audit. Runtime validation cannot verify truthful observations or adequate readiness scope. Artifact seals detect accidental changes; the local run manifest is trusted. Production use and workflow completion are never readiness certifications.
 
-7. The exact uppercase identifier `C2C` is verified in the local Codex and Claude Code versions above. The generic [Agent Skills name specification](https://agentskills.io/specification#name-field) and bundled `quick_validate.py` require lowercase, so this package intentionally does not pass that name rule. Do not describe it as passing the generic validator or assume compatibility with other skill upload systems. Keep the requested command consistent in frontmatter, folder names, metadata and examples; check actual host discovery when those hosts change.
+7. Durable recovery needs at least one intact current-state copy. Locks require a local filesystem supporting hard links. A crash during reclamation may leave `.lock.reclaim`; inspect its owner before preserving/moving the marker. Neither checksums nor fsync guarantee recovery after arbitrary disk/hardware damage.
+8. The exact uppercase identifier `C2C` is verified in the local Codex and Claude Code versions above. The generic [Agent Skills name specification](https://agentskills.io/specification#name-field) and bundled `quick_validate.py` require lowercase, so this package intentionally does not pass that name rule. Do not describe it as passing the generic validator or assume compatibility with other skill upload systems. Keep the requested command consistent in frontmatter, folder names, metadata and examples; check actual host discovery when those hosts change.
 
 ## Commands for continuing development
 
 ```sh
 node scripts/council.mjs doctor
-node --test tests/council.test.mjs
-node --test tests/process.test.mjs
+npm test
 node scripts/council.mjs status --run /absolute/path/to/existing/run
 git status --short
 ```

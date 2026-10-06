@@ -10,10 +10,11 @@ Open a terminal in the downloaded `codex-claude-council` folder and run:
 
 ```sh
 node --version
+node scripts/council.mjs version
 node scripts/council.mjs doctor
 ```
 
-Node must be 18 or newer. `doctor` checks CLI availability, supported flags, and sign-in. Read its readiness values even if the command itself finishes successfully:
+Node must be 18 or newer. `doctor` checks CLI availability, required flags and feature controls, and sign-in. Read its readiness values even if the command itself finishes successfully:
 
 - `codex_chat_ready: true`: a Codex chat can call Claude.
 - `claude_chat_ready: true`: a Claude Code chat can call Codex.
@@ -29,6 +30,7 @@ A missing or signed-out CLI for the direction you are not using is okay. A succe
 | Cannot find `scripts/install.mjs` | You are in the wrong folder. Open a terminal in the extracted or cloned repository folder, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Install the required CLI using the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) setup guide. Reopen the terminal and check again. |
 | `doctor` reports signed out | For the required peer, run `claude auth login` or `codex login` in your terminal, then rerun `doctor`. |
+| Codex is missing the required `view_image` control | Upgrade Codex or select a compatible binary using `COUNCIL_CODEX_BIN`. Version 0.146.0 lacks this control; 0.160.1 passed local checks. C2C blocks before spending an attempt. |
 | A required CLI flag is missing | Update that CLI using its official setup guide, then rerun `doctor`. |
 | The installer finds a legacy skill | Follow [Update the skill](#update-the-skill) to move the old `codex-claude-council` installation outside all skill directories, then rerun installation. |
 | A different installation already exists | Follow [Update the skill](#update-the-skill). The installer protects existing files instead of overwriting them. |
@@ -36,7 +38,9 @@ A missing or signed-out CLI for the direction you are not using is okay. A succe
 | Terminal setup works, but the chat reports signed out | The chat's restricted environment may not see the normal credential store. Use the host's approved execution path or follow its access prompt. Do not copy credential files. |
 | A discussion times out or fails | Ask the AI to read the run's `HANDOFF.md`, check its status, and inspect the saved failure logs. A partial response is not a completed review; successful stages should not be repeated. |
 
-The installer does not install either provider CLI, create accounts, or sign in for you.
+The installer does not install either provider CLI, create accounts, or sign in for you. Windows npm Codex installations are discovered through their native package binary. When multiple versions are installed, you can set `COUNCIL_CODEX_BIN` to the chosen executable for your terminal session; see [compatibility and recovery](../references/protocol.md#compatibility-and-recovery).
+
+For a damaged or stale run lock, ask the AI to inspect the saved state and follow the [recovery procedure](../references/protocol.md#compatibility-and-recovery). Never delete a live lock or reset attempts to make a run continue.
 
 ## Install for one app only
 
@@ -70,7 +74,7 @@ If you already use `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, the installer uses that 
 
 The commands are now `$C2C` in Codex and `/C2C` in Claude Code. The repository folder can keep its original name.
 
-Downloading updates alone does not update the installed copies. If their files already match, the installer reports `Already installed` and leaves them alone. Keep your backup until the new installation works.
+Downloading updates alone does not update the installed copies. If their files already match (including harmless LF/CRLF differences), the installer reports `Already installed` and leaves them alone. Keep your backup until the new installation works.
 
 ## Uninstall
 
@@ -94,7 +98,7 @@ These are runtime and attempt limits, **not spending or token caps**. A timeout 
 
 Your current chat selects the brief and relevant context to send to the other provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
 
-The peer works with the supplied context and has project tools disabled. These restrictions are not an operating-system security boundary. The current chat gathers evidence and performs any work you have authorized.
+The peer is instructed to use supplied evidence. Calls disable applicable shell, image, browser, connector and agent features, use a neutral working directory and request read-only permissions. Some CLI tools may remain present but subject to those permissions. These settings are not a substitute for the host sandbox or managed policy. The current chat gathers evidence and performs any work you have authorized.
 
 Model recommendations are advice. The current chat's model stays unchanged; the peer uses its CLI default unless you explicitly choose another supported model. Codex peer calls ignore ordinary user configuration for isolation, so do not assume their default matches another Codex session.
 
@@ -107,7 +111,7 @@ Read [PROJECT_NOTES.md](../PROJECT_NOTES.md) before changing the skill. The [pro
 For runtime or installer changes, run:
 
 ```sh
-node --test tests/council.test.mjs tests/process.test.mjs
+npm test
 ```
 
 For documentation-only changes, check links and examples without starting paid planning calls.

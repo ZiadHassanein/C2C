@@ -8,8 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { runProcess } from './process.mjs';
 import { ASSESSMENT_SCHEMA, validateAssessment, assessmentMarkdown } from './assessment.mjs';
 export { runProcess } from './process.mjs';
+import { resolveExecutable, probeProvider, buildCodexArgs } from './adapters.mjs';
+export { resolveExecutable } from './adapters.mjs';
+import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock } from './state.mjs';
 
 const VERSION = 3;
+const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const LIMIT = 1024 * 1024;
 const CONTEXT_LIMIT = 240000;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -77,12 +81,7 @@ function cleanupScratch(dir) {
   try { fs.rmSync(resolved, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }
   catch { process.stderr.write(`Council: temporary directory could not be removed: ${resolved}\n`); }
 }
-function write(file, value) {
-  const data = typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n';
-  const temp = `${file}.${crypto.randomUUID()}.tmp`;
-  fs.writeFileSync(temp, data, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-  fs.renameSync(temp, file);
-}
+const write = atomicWriteFile;
 function boundedNumber(value, fallback, min, max, label) {
   const n = value === undefined ? fallback : Number(value);
   required(Number.isInteger(n) && n >= min && n <= max, `${label} must be an integer between ${min} and ${max}`);
@@ -90,7 +89,10 @@ function boundedNumber(value, fallback, min, max, label) {
 }
 function notPeer() { required(process.env.CODEX_CLAUDE_COUNCIL_PEER !== '1', 'A council peer cannot launch another council.'); }
 function checkSecrets(content) {
-  required(!/-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|\b(?:sk-[A-Za-z0-9_-]{24,}|AKIA[A-Z0-9]{16})\b/.test(content), 'Possible credential in outbound content; supply sanitized evidence');
+  const token = /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|\b(?:sk-[A-Za-z0-9_-]{24,}|AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{20,}|AIza[A-Za-z0-9_-]{35}|ya29\.[A-Za-z0-9_-]{20,})\b/;
+  const uriPassword = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?|mssql|amqps?):\/\/[^\s:/@]+:[^\s/@]+@/i;
+  const connectionPassword = /\b(?:server|data source|host)\s*=[^\r\n]+;[^\r\n]*\b(?:password|pwd)\s*=\s*[^;\s]+|\b(?:password|pwd)\s*=\s*[^;\s]+;[^\r\n]*\b(?:server|data source|host)\s*=/i;
+  required(!token.test(content) && !uriPassword.test(content) && !connectionPassword.test(content), 'Possible credential in outbound content; supply sanitized evidence');
 }
 function source(file, kind) {
   const real = fs.realpathSync(path.resolve(file));
@@ -106,8 +108,8 @@ export function prepare(options) {
   required(options.project && options.brief && options.out && options.assessment, 'prepare requires --project, --brief, --assessment, and --out');
   const project = fs.realpathSync(path.resolve(options.project));
   required(fs.statSync(project).isDirectory(), 'Project must be a directory');
-  const coordinator = options.coordinator || 'codex';
-  required(['codex', 'claude'].includes(coordinator), 'Coordinator must be codex or claude');
+  const coordinator = options.coordinator;
+  required(['codex', 'claude'].includes(coordinator), 'prepare requires --coordinator codex or --coordinator claude; specify the product running this chat');
   const mode = options.mode || 'plan';
   required(['plan', 'review'].includes(mode), 'Mode must be plan or review');
   const contexts = options.context || [];
@@ -127,7 +129,7 @@ export function prepare(options) {
     timeout_ms: boundedNumber(options['timeout-seconds'], 300, 10, 900, 'timeout-seconds') * 1000,
     budget_ms: boundedNumber(options['budget-seconds'], 900, 10, 3600, 'budget-seconds') * 1000,
     max_attempts: boundedNumber(options['max-attempts'], 4, 1, 6, 'max-attempts'),
-    elapsed_ms: 0, attempts: [], stages: {}, seals: {}, status: 'prepared',
+    elapsed_ms: 0, attempts: [], stages: {}, seals: {}, status: 'prepared', generated_handoff: true,
   };
   if (state.peer_model) required(typeof state.peer_model === 'string' && /^[A-Za-z0-9_.:/-]{1,120}$/.test(state.peer_model), 'Invalid peer model name');
   required(!fs.existsSync(out), `Output directory already exists; choose a fresh run directory: ${out}`);
@@ -141,14 +143,14 @@ export function prepare(options) {
   write(path.join(out, 'project-assessment.schema.json'), ASSESSMENT_SCHEMA);
   write(path.join(out, 'report.schema.json'), REPORT_SCHEMA);
   write(path.join(out, 'decisions.schema.json'), DECISIONS_SCHEMA);
-  write(path.join(out, 'run.json'), state);
+  saveRun(out, state);
   return { run: out, coordinator, peer: state.peer, mode, context: inputs.map(({ content, ...f }) => f), next: 'Write coordinator-draft.json using report.schema.json, then follow SKILL.md.' };
 }
 
 function loadRun(run) {
   required(run, '--run is required');
   const dir = fs.realpathSync(path.resolve(run));
-  const state = readJSON(path.join(dir, 'run.json'));
+  const state = readRunState(dir);
   required([1, 2, VERSION].includes(state.version) && ['codex', 'claude'].includes(state.peer), 'Unsupported run manifest');
   for (const [file, hash] of Object.entries(state.seals)) {
     required(!file.includes('/') && !file.includes('\\') && file !== '..', 'Invalid sealed artifact name');
@@ -162,54 +164,45 @@ function loadRun(run) {
   }
   return { dir, state };
 }
-const saveRun = (dir, state) => write(path.join(dir, 'run.json'), state);
+function saveRun(dir, state) {
+  writeRunState(dir, state);
+  if (state.generated_handoff) {
+    try { writeHandoff(dir, state); }
+    catch (error) { process.stderr.write('Council: state saved, but generated HANDOFF.md could not be refreshed: ' + error.message + '\n'); }
+  }
+}
+function writeHandoff(dir, state) {
+  const stages = state.mode === 'review' ? ['review', 'verify'] : ['draft', 'review', 'verify'];
+  const next = stages.find(stage => state.stages[stage]?.status !== 'succeeded');
+  const latest = state.attempts.at(-1);
+  const lines = ['# C2C run progress', '', 'Generated by the runner; use NOTES.md for additional coordinator context. Confirm current state with the status command before continuing.', '',
+    'Run: ' + state.id, 'Coordinator: ' + state.coordinator + '. Peer: ' + state.peer + '. Mode: ' + state.mode + '.',
+    'Status: ' + state.status, 'Attempts: ' + state.attempts.length + '/' + state.max_attempts + '; successful responses: ' + state.attempts.filter(a => a.status === 'succeeded').length + '.',
+    'Peer runtime used: ' + Math.round(state.elapsed_ms / 1000) + ' / ' + Math.round(state.budget_ms / 1000) + ' seconds.', '',
+    ...stages.map(stage => '- ' + stage + ': ' + (state.stages[stage]?.status || 'pending')),
+    '', 'Next: ' + (state.status === 'complete' ? 'Read RESULT.md and preserve unresolved findings and post-verification changes.' : next ? 'Prepare the required coordinator artifacts, inspect saved evidence, then request the ' + next + ' stage if authorized and within the remaining budget.' : 'Address verification findings, complete decisions.json, then run finish.'),
+    latest?.error ? 'Last attempt: ' + latest.status + '. ' + latest.error : '', '',
+    '## Evidence', '', '- [Run state](run.json) and [checkpoint](run.checkpoint.json)', '- [Frozen inputs](snapshot.json)',
+    ...(state.version >= 3 ? ['- [Project context and direction](PROJECT_CONTEXT.md)'] : []),
+    ...['TASK_ASSESSMENT.md','NOTES.md','final-plan.md','decisions.json','security-review.json','RESULT.md'].filter(file => fs.existsSync(path.join(dir,file))).map(file => '- [' + file + '](' + file + ')'), '',
+    'Do not repeat successful stages or reset attempts. Proposed tests and completed peer review are not implementation-test results.', ''];
+  write(path.join(dir, 'HANDOFF.md'), lines.join('\n') + '\n');
+}
 function seal(dir, state, file) {
   const hash = sha(readText(path.join(dir, file)));
   if (state.seals[file]) required(state.seals[file] === hash, `Sealed artifact changed: ${file}`);
   state.seals[file] = hash;
 }
-function lock(dir) {
-  const file = path.join(dir, '.lock');
-  try { fs.writeFileSync(file, JSON.stringify({ pid: process.pid, at: now() }), { flag: 'wx' }); }
-  catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-    const previous = readJSON(file);
-    let alive = true;
-    try { process.kill(previous.pid, 0); } catch (e) { if (e.code === 'ESRCH') alive = false; }
-    required(!alive, 'Another process is using this run. Wait for it to finish.');
-    fs.unlinkSync(file);
-    fs.writeFileSync(file, JSON.stringify({ pid: process.pid, at: now() }), { flag: 'wx' });
-  }
-  return () => fs.unlinkSync(file);
-}
+const lock = acquireRunLock;
 
-export function resolveExecutable(name) {
-  const candidates = [];
-  const override = process.env[name === 'codex' ? 'COUNCIL_CODEX_BIN' : 'COUNCIL_CLAUDE_BIN'];
-  if (override) candidates.push(path.resolve(override));
-  for (const dir of (process.env.PATH || '').split(path.delimiter).filter(Boolean)) {
-    candidates.push(path.join(dir.replace(/^"|"$/g, ''), process.platform === 'win32' ? `${name}.exe` : name));
-  }
-  if (name === 'claude') candidates.push(path.join(os.homedir(), '.local', 'bin', process.platform === 'win32' ? 'claude.exe' : 'claude'));
-  const found = candidates.find(p => fs.existsSync(p) && fs.statSync(p).isFile());
-  required(found, `${name} executable not found. Install its native CLI or set COUNCIL_${name.toUpperCase()}_BIN to its executable (not a .cmd shim).`);
-  required(!/\.(cmd|bat|ps1)$/i.test(found), 'Shell wrappers are unsupported; point to a native executable');
-  return found;
-}
-
-export function buildPeerArgs(provider, { schemaPath, model }) {
+export function buildPeerArgs(provider, { schemaPath, model, codexFeatures }) {
   if (provider === 'claude') {
     const args = ['-p', '--safe-mode', '--tools', '', '--permission-mode', 'plan', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--disable-slash-commands', '--no-session-persistence', '--output-format', 'stream-json', '--verbose', '--json-schema', JSON.stringify(REPORT_SCHEMA)];
     if (model) args.push('--model', model);
     return args;
   }
   required(provider === 'codex', 'Unknown peer provider');
-  const args = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--json', '--color', 'never', '--output-schema', schemaPath,
-    '-c', 'approval_policy="never"', '-c', 'web_search="disabled"'];
-  for (const feature of ['shell_tool', 'unified_exec', 'multi_agent', 'hooks', 'apps', 'plugins', 'browser_use', 'computer_use', 'image_generation', 'in_app_browser', 'code_mode', 'code_mode_host', 'view_image', 'memories']) args.push('--disable', feature);
-  if (model) args.push('--model', model);
-  args.push('-');
-  return args;
+  return buildCodexArgs({ schemaPath, model, codexFeatures });
 }
 
 export function parsePeerResponse(provider, stdout) {
@@ -234,28 +227,13 @@ export function parsePeerResponse(provider, stdout) {
   return { report: validateReport(report), session_id: events.find(e => e.type === 'thread.started')?.thread_id || null, usage: events.findLast(e => e.type === 'turn.completed')?.usage || null, estimated_cost_usd: null };
 }
 
-async function probe(provider, cwd) {
-  const exe = resolveExecutable(provider);
-  const version = await runProcess(exe, ['--version'], { cwd });
-  required(version.code === 0, `${provider} version check failed`);
-  const help = await runProcess(exe, provider === 'codex' ? ['exec', '--help'] : ['--help'], { cwd });
-  const flags = provider === 'codex' ? ['--ignore-user-config', '--output-schema', '--sandbox', '--ephemeral'] : ['--safe-mode', '--tools', '--strict-mcp-config', '--json-schema', '--no-session-persistence', '--verbose'];
-  for (const flag of flags) required(help.stdout.includes(flag), `${provider} is missing required ${flag}; update its CLI before using this skill`);
-  const auth = await runProcess(exe, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd });
-  let authenticated;
-  if (provider === 'claude') {
-    try { authenticated = JSON.parse(auth.stdout).loggedIn === true; } catch { authenticated = false; }
-  } else authenticated = auth.code === 0 && /logged in/i.test(auth.stdout + auth.stderr) && !/not logged in/i.test(auth.stdout + auth.stderr);
-  return { provider, executable: exe, version: version.stdout.trim(), authenticated, login_command: provider === 'codex' ? 'codex login' : 'claude auth login' };
-}
-
 export async function doctor(options = {}) {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'council-doctor-'));
   try {
     const providers = await Promise.all(['codex', 'claude'].map(async provider => {
-      try { return await probe(provider, cwd); } catch (error) { return { provider, error: error.message, authenticated: false }; }
+      try { return await probeProvider(provider, cwd); } catch (error) { return { provider, error: error.message, authenticated: false }; }
     }));
-    return { node: process.version, providers, codex_chat_ready: providers[1].authenticated, claude_chat_ready: providers[0].authenticated, note: 'Readiness checks executable, required CLI flags and auth only. A successful ask proves a model invocation.' };
+    return { skill_version: PACKAGE_VERSION, node: process.version, providers, codex_chat_ready: providers[1].authenticated, claude_chat_ready: providers[0].authenticated, note: 'Readiness checks executable, required CLI flags, supported feature controls and auth only. A successful ask proves a model invocation.' };
   } finally { cleanupScratch(cwd); }
 }
 
@@ -309,7 +287,18 @@ function stagePrompt(dir, state, stage) {
   const snapshot = readJSON(path.join(dir, 'snapshot.json'));
   const host = hostReport(dir, state, 'coordinator-draft.json', 'C-D');
   required(host.proposal_markdown.trim(), 'Coordinator draft must contain a plan in proposal_markdown');
-  const packet = { run_id: state.id, stage, mode: state.mode, shared_context: snapshot };
+  // Absolute source locations remain in the local snapshot for drift checks.
+  // The peer receives useful labels and one assessment, without host path metadata.
+  const shared = {
+    project: '.',
+    inputs: snapshot.inputs.filter(input => !(snapshot.project_assessment && input.kind === 'assessment')).map((input, index) => {
+      const relative = path.relative(snapshot.project, input.path);
+      const inside = relative && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`);
+      return { ...input, path: inside ? relative.split(path.sep).join('/') : `${input.kind}-${index + 1}${path.extname(input.path)}` };
+    }),
+    ...(snapshot.project_assessment ? { project_assessment: snapshot.project_assessment } : {}),
+  };
+  const packet = { run_id: state.id, stage, mode: state.mode, shared_context: shared };
   if (stage !== 'draft') {
     hostReport(dir, state, 'coordinator-review.json', 'C-R');
     packet.coordinator_proposal = host;
@@ -372,11 +361,11 @@ export async function ask(options, injectedInvoker) {
     write(schemaPath, REPORT_SCHEMA);
     let executable, info;
     if (!injectedInvoker) {
-      info = await probe(state.peer, scratch);
+      info = await probeProvider(state.peer, scratch);
       required(info.authenticated, `${state.peer} CLI is signed out. Run ${info.login_command} once, then retry this stage.`);
       executable = info.executable;
     }
-    const args = buildPeerArgs(state.peer, { schemaPath, model: state.peer_model });
+    const args = buildPeerArgs(state.peer, { schemaPath, model: state.peer_model, codexFeatures: info?.codex_features });
     const attempt = { number: state.attempts.length + 1, stage, status: 'running', started_at: now(), timeout_ms: Math.min(state.timeout_ms, remaining), input_sha256: sha(prompt), version: info?.version || 'injected-test' };
     state.attempts.push(attempt); state.status = 'running';
     const promptFile = `attempt-${attempt.number}-${stage}-input.txt`;
@@ -446,8 +435,12 @@ function assessmentSummary(dir, state) {
 export function status(options) {
   const { dir, state } = loadRun(options.run);
   const snapshot = readJSON(path.join(dir, 'snapshot.json'));
-  const changed = snapshot.inputs.filter(f => { try { return sha(readText(f.path)) !== f.sha256; } catch { return true; } }).map(f => f.path);
-  return { run: dir, coordinator: state.coordinator, peer: state.peer, mode: state.mode, status: state.status, stages: state.stages, attempts_used: state.attempts.length, attempts_remaining: Math.max(0, state.max_attempts - state.attempts.length), peer_seconds_used: Math.round(state.elapsed_ms / 1000), peer_seconds_remaining: Math.max(0, Math.round((state.budget_ms - state.elapsed_ms) / 1000)), changed_source_files: changed, project_assessment: assessmentSummary(dir, state), completion: state.completion || null };
+  const changed = [], unavailable = [];
+  for (const input of snapshot.inputs) {
+    try { if (sha(readText(input.path)) !== input.sha256) changed.push(input.path); }
+    catch (error) { unavailable.push({ path: input.path, reason: error.code === 'ENOENT' ? 'missing' : 'unreadable' }); }
+  }
+  return { run: dir, coordinator: state.coordinator, peer: state.peer, mode: state.mode, status: state.status, stages: state.stages, attempts_used: state.attempts.length, successful_peer_calls: state.attempts.filter(a => a.status === 'succeeded').length, attempts_remaining: Math.max(0, state.max_attempts - state.attempts.length), peer_seconds_used: Math.round(state.elapsed_ms / 1000), peer_seconds_remaining: Math.max(0, Math.round((state.budget_ms - state.elapsed_ms) / 1000)), changed_source_files: changed, unavailable_source_files: unavailable, project_assessment: assessmentSummary(dir, state), completion: state.completion || null };
 }
 
 export function finish(options) {
@@ -473,18 +466,22 @@ export function finish(options) {
     const peerVerdict = readJSON(path.join(dir, 'peer-verify.json')).verdict;
     const completion = { completed_at: now(), outcome: unresolved.length ? 'complete_with_unresolved_findings' : 'complete_with_recorded_decisions',
       changedSinceVerification: changes.length > 0, changed_artifacts: changes, reviewed_hashes: reviewedHashes, final_hashes: finalHashes,
+      plan_changed_since_verification: changes.includes('final-plan.md'), decisions_changed_since_verification: changes.includes('decisions.json'),
       unresolved, questions_raised_during_review: openQuestions, source_changes: status(options).changed_source_files,
+      unavailable_sources: status(options).unavailable_source_files,
+      successful_peer_calls: state.attempts.filter(a => a.status === 'succeeded').length, attempts_used: state.attempts.length,
       peer_verdict: peerVerdict,
       project_assessment: assessmentSummary(dir, state),
       security_review: security ? { required: true, verdict: security.report.verdict, limitations: security.report.limitations, open_questions: security.report.open_questions, changed_since_verification: changes.includes('security-review.json'), plan_changed_since_verification: changes.includes('final-plan.md') } : { required: false, verdict: 'not_required_by_legacy_run', limitations: ['Legacy run: the mandatory security-review artifact was not enforced.'] },
       note: 'Workflow completion is not a correctness guarantee or permission to implement. Any post-review edits have not been reviewed by the peer again.' };
     write(path.join(dir, 'completion.json'), completion);
-    const lines = ["# C2C — result", '', `Coordinator: ${state.coordinator}. Peer: ${state.peer}.`, `Outcome: ${completion.outcome}.`, `Peer calls: ${state.attempts.length}; runtime: ${Math.round(state.elapsed_ms / 1000)} seconds.`, '',
+    const lines = ["# C2C — result", '', `Coordinator: ${state.coordinator}. Peer: ${state.peer}.`, `Outcome: ${completion.outcome}.`, `Successful peer calls: ${completion.successful_peer_calls}; attempts: ${state.attempts.length}; runtime: ${Math.round(state.elapsed_ms / 1000)} seconds.`, '',
       changes.includes('final-plan.md') ? 'The final plan was revised after peer verification. See the recorded hashes and finding dispositions; the delivered revision has not had another peer review.' : 'The delivered plan matches the version used for the final peer review.',
       changes.includes('decisions.json') ? 'The decision record was updated after peer verification.' : '',
       changes.includes('security-review.json') ? 'The security review was updated by the coordinator after peer verification; this revision has not been peer-reviewed.' : '',
       `Final peer verdict: ${peerVerdict}. Security review: ${completion.security_review.verdict}.`,
-      completion.source_changes.length ? 'Source inputs have changed since the snapshot. This plan is based on the saved snapshot.' : '', '', '## Final plan', '', plan, '', '## Finding decisions', '', ...decisions.map(d => `- **${d.finding_id} — ${d.disposition}:** ${d.rationale}`), '', '## Questions raised during review', '', ...openQuestions.map(q => `- ${q.question} (${q.source})`), '', completion.note, ''];
+      completion.source_changes.length ? 'Source inputs have changed since the snapshot. This plan is based on the saved snapshot.' : '',
+      completion.unavailable_sources.length ? 'Some original inputs are missing or unreadable. Their current contents could not be compared; the saved snapshot remains the evidence used for this plan.' : '', '', '## Final plan', '', plan, '', '## Finding decisions', '', ...decisions.map(d => `- **${d.finding_id} — ${d.disposition}:** ${d.rationale}`), '', '## Questions raised during review', '', ...openQuestions.map(q => `- ${q.question} (${q.source})`), '', completion.note, ''];
     lines.push('## Security review', '', security ? security.report.proposal_markdown : completion.security_review.limitations[0], '', ...completion.security_review.limitations.map(item => `- Limitation: ${item}`), '', 'Security review assesses the plan; it does not certify the implementation or prove proposed tests passed.');
     lines.push('', state.version >= 3 ? readText(path.join(dir, 'PROJECT_CONTEXT.md')).replace(/^# Project context and planning direction/, '## Project assessment before planning') : 'Legacy run: no mandatory project assessment was recorded; deployment and readiness were not established by this workflow.');
     write(path.join(dir, 'RESULT.md'), lines.filter(line => line !== undefined).join('\n'));
@@ -494,10 +491,16 @@ export function finish(options) {
   } finally { release(); }
 }
 
+export function recoverLock(options) {
+  const { dir } = loadRun(options.run);
+  return recoverRunLock(dir, { expectedHash: options['expected-sha256'], confirmedStopped: options['confirm-owner-stopped'] === 'yes' });
+}
+
 function parseArgs(argv) {
-  const [command = 'help', ...args] = argv;
+  const [rawCommand = 'help', ...args] = argv;
+  const command = rawCommand === '--version' ? 'version' : rawCommand === '--help' ? 'help' : rawCommand;
   const options = {};
-  const allowed = { doctor: [], prepare: ['project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'peer-model', 'timeout-seconds', 'budget-seconds', 'max-attempts'], ask: ['run', 'stage'], status: ['run'], finish: ['run'], help: [] };
+  const allowed = { doctor: [], version: [], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'peer-model', 'timeout-seconds', 'budget-seconds', 'max-attempts'], ask: ['run', 'stage'], status: ['run'], finish: ['run'], help: [] };
   required(Object.hasOwn(allowed, command), `Unknown command: ${command}`);
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i].replace(/^--/, '');
@@ -507,13 +510,18 @@ function parseArgs(argv) {
   }
   return { command, options };
 }
-const HELP = `C2C (Node.js 18+; native CLIs)\n\nCommands:\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--peer-model NAME]\n          [--timeout-seconds 300] [--budget-seconds 900] [--max-attempts 4]\n  ask --run DIR --stage draft|review|verify\n  status --run DIR\n  finish --run DIR\n\nThe current chat assesses project context and direction before preparing a run.\nOnly the other CLI is launched. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--peer-model NAME]\n          [--timeout-seconds 300] [--budget-seconds 900] [--max-attempts 4]\n  ask --run DIR --stage draft|review|verify\n  status --run DIR\n  finish --run DIR\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nThe current chat assesses project context and direction before preparing a run.\nOnly the other CLI is launched. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isMainModule() {
+  try { return process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+}
+if (isMainModule()) {
   try {
     const { command, options } = parseArgs(process.argv.slice(2));
-    const handlers = { prepare, ask, status, finish, doctor };
+    const handlers = { prepare, ask, status, finish, doctor, 'recover-lock': recoverLock };
     if (command === 'help') process.stdout.write(HELP);
+    else if (command === 'version') process.stdout.write(JSON.stringify({ name: 'C2C', version: PACKAGE_VERSION, run_format: VERSION }) + '\n');
     else process.stdout.write(JSON.stringify(await handlers[command](options), null, 2) + '\n');
   } catch (error) {
     process.stderr.write(`Council: ${error.message}\n`); process.exitCode = 1;

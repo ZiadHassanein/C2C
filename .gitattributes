@@ -1,0 +1,7 @@
+# Keep packaged text stable across fresh Windows and Unix checkouts.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary

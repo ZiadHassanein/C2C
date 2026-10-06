@@ -54,7 +54,7 @@ Look for the readiness value matching your starting app:
 |---|---|
 | `"codex_chat_ready": true` | `"claude_chat_ready": true` |
 
-Only your chosen direction needs to be ready. This checks setup and sign-in without sending a planning request. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
+Only your chosen direction needs to be ready. Older CLIs can be found but still lack required safety controls; follow the reported upgrade or binary-selection guidance. This checks setup and sign-in without sending a planning request. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
 
 ### 4. Start a project chat
 
@@ -125,7 +125,7 @@ The chat links to the run folder. These are the main files to read:
 | **`final-plan.md`** | Scope, chosen approach, ordered steps, and acceptance checks. |
 | **`RESULT.md`** | After completion: review outcome, remaining issues, and changes since verification. |
 | **`TASK_ASSESSMENT.md`** | Task size, risk, uncertainty, and model recommendations. |
-| **`HANDOFF.md`** | Current progress, evidence links, and the next action. |
+| **`HANDOFF.md`** | Generated progress, evidence links, and the next action. |
 
 The run also retains detailed decisions and the security review. An optional `IMPLEMENTATION_BRIEF.md` hands off one selected milestone.
 

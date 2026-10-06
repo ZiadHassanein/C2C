@@ -12,6 +12,7 @@ import {
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
+import { writeRunState } from '../scripts/state.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(tempParent, 'council-test-'));
@@ -21,7 +22,7 @@ after(async () => {
   assert.ok(path.basename(resolved).startsWith('council-test-'));
   await fs.rm(resolved, { recursive: true, force: true });
 });
-const write = (p, value) => fs.writeFile(p, typeof value === 'string' ? value : JSON.stringify(value, null, 2), 'utf8');
+const write = async (p, value) => path.basename(p) === 'run.json' && typeof value === 'object' ? writeRunState(path.dirname(p),value) : fs.writeFile(p, typeof value === 'string' ? value : JSON.stringify(value, null, 2), 'utf8');
 const read = async (p) => JSON.parse(await fs.readFile(p, 'utf8'));
 function assessment() {
   return {
@@ -305,7 +306,7 @@ test('assessment secrets and combined input size are rejected before a run is cr
 
 test('prepare CLI accepts an explicit assessment and persists the preflight without launching a peer', async () => {
   const f=await inputFixture('assessment-cli');
-  const result=spawnSync(process.execPath,[path.join(packageRoot,'scripts','council.mjs'),'prepare','--project',f.project,'--brief',f.brief,'--assessment',f.assessment,'--out',f.out],{cwd:f.root,encoding:'utf8',windowsHide:true,timeout:5000});
+  const result=spawnSync(process.execPath,[path.join(packageRoot,'scripts','council.mjs'),'prepare','--project',f.project,'--brief',f.brief,'--assessment',f.assessment,'--coordinator','codex','--out',f.out],{cwd:f.root,encoding:'utf8',windowsHide:true,timeout:5000});
   assert.equal(result.status,0,result.stderr);
   assert.equal(JSON.parse(result.stdout).run,f.out);
   const manifest=await read(path.join(f.out,'run.json'));
@@ -766,7 +767,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -902,4 +903,157 @@ test('legacy preflight preserves an already installed C2C directory', async () =
   assert.equal((await fs.stat(path.join(f.codexSkill,'SKILL.md'))).mtimeMs,original.mtimeMs);
   await assert.rejects(()=>fs.access(f.claudeSkill));
   assert.equal(await fs.readFile(path.join(f.claudeLegacy,'SKILL.md'),'utf8'),'Existing Claude legacy skill.\n');
+});
+
+test('prepare requires an explicit coordinator and routes Claude to Codex', async () => {
+  const f=await inputFixture('explicit-coordinator');
+  const options=prepareOptions(f);
+  delete options.coordinator;
+  assert.throws(()=>prepare(options),/requires --coordinator/);
+  await assert.rejects(()=>fs.access(f.out));
+  const prepared=prepare({...options,coordinator:'claude'});
+  assert.equal(prepared.peer,'codex');
+  assert.equal(status({run:f.out}).coordinator,'claude');
+});
+
+test('linked skill entrypoint executes commands and reports invalid input', async () => {
+  const root=await fs.mkdtemp(path.join(testRoot,'linked-cli-'));
+  const linked=path.join(root,'linked-skill');
+  await fs.symlink(packageRoot,linked,process.platform==='win32'?'junction':'dir');
+  const runner=path.join(linked,'scripts','council.mjs');
+  const help=spawnSync(process.execPath,[runner,'help'],{encoding:'utf8',windowsHide:true,timeout:5000});
+  assert.equal(help.status,0,help.stderr);
+  assert.match(help.stdout,/C2C/);
+  const invalid=spawnSync(process.execPath,[runner,'not-a-command'],{encoding:'utf8',windowsHide:true,timeout:5000});
+  assert.equal(invalid.status,1);
+  assert.match(invalid.stderr,/Unknown command/);
+  const version=spawnSync(process.execPath,[runner,'--version'],{encoding:'utf8',windowsHide:true,timeout:5000});
+  assert.equal(version.status,0,version.stderr);
+  assert.equal(JSON.parse(version.stdout).version,(await read(path.join(packageRoot,'package.json'))).version);
+});
+
+test('peer packet minimizes host paths and includes the assessment only once', async () => {
+  const f=await fixture('minimal-packet');
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},async req=>{
+    const packet=JSON.parse(req.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    assert.equal(packet.shared_context.project,'.');
+    assert.equal(packet.shared_context.inputs.length,2);
+    assert.ok(packet.shared_context.inputs.every(input=>!path.isAbsolute(input.path)));
+    assert.equal(packet.shared_context.inputs.find(input=>input.kind==='context').path,'context.txt');
+    assert.equal(req.prompt.split('ASSESSMENT_CONTEXT_TOKEN').length-1,1);
+    assert.ok(!req.prompt.includes(JSON.stringify(f.project)));
+    return invocation()(req);
+  });
+  assert.equal((await read(path.join(f.out,'snapshot.json'))).project,await fs.realpath(f.project));
+});
+
+test('source status distinguishes modified content from unavailable original inputs', async () => {
+  const f=await fixture('unavailable-input');
+  await fs.rename(f.brief,path.join(f.root,'moved-brief.txt'));
+  await write(f.context,'Changed context bytes.');
+  const result=status({run:f.out});
+  assert.deepEqual(result.changed_source_files,[f.context]);
+  assert.deepEqual(result.unavailable_source_files,[{path:f.brief,reason:'missing'}]);
+  await hostDraft(f);
+  await assert.doesNotReject(()=>ask({run:f.out,stage:'draft'},invocation()));
+});
+
+test('common provider tokens and password-bearing connection strings are rejected', async () => {
+  const values=[
+    'ghp_'+'a'.repeat(36), 'github_pat_'+'b'.repeat(60),
+    'xoxb-'+'1'.repeat(12)+'-'+'z'.repeat(24), 'xapp-'+'a'.repeat(30),
+    'AIza'+'A'.repeat(35), 'ya29.'+'B'.repeat(45),
+    'postgres://fixture:synthetic-pass@db.invalid/app',
+    'Server=db.invalid;User ID=fixture;Password=synthetic-pass;',
+    'Pwd=synthetic-pass;Host=db.invalid;',
+  ];
+  for (const [index,value] of values.entries()) {
+    const f=await inputFixture(`credential-${index}`);
+    await write(f.context,value);
+    assert.throws(()=>prepare(prepareOptions(f)),/Possible credential/);
+    await assert.rejects(()=>fs.access(f.out));
+  }
+  const f=await fixture('credential-in-report',{mode:'review'});
+  await hostDraft(f,[],values[0]);
+  await hostReview(f);
+  let called=false;
+  await assert.rejects(()=>ask({run:f.out,stage:'review'},async req=>{called=true;return invocation()(req);}),/Possible credential/);
+  assert.equal(called,false);
+  assert.equal(status({run:f.out}).attempts_used,0);
+});
+
+test('new verification dispositions do not imply the plan changed', async () => {
+  const f=await readyForVerify('decision-only-change',{mode:'review'});
+  await ask({run:f.out,stage:'verify'},invocation(report(['some-id'])));
+  const decisions=await read(path.join(f.out,'decisions.json'));
+  decisions.push({finding_id:'P-V1',disposition:'rejected',rationale:'The cited fixture evidence already addresses this concern.'});
+  await write(path.join(f.out,'decisions.json'),decisions);
+  const completed=finish({run:f.out});
+  assert.equal(completed.changedSinceVerification,true);
+  assert.equal(completed.plan_changed_since_verification,false);
+  assert.equal(completed.decisions_changed_since_verification,true);
+  assert.equal(completed.successful_peer_calls,2);
+  assert.match(await fs.readFile(path.join(f.out,'RESULT.md'),'utf8'),/delivered plan matches/);
+});
+
+test('result counts successful responses separately from failed attempts', async () => {
+  const f=await fixture('attempt-count',{mode:'review'});
+  await hostDraft(f);
+  await hostReview(f);
+  await assert.rejects(()=>ask({run:f.out,stage:'review'},async()=>({code:1,stdout:'',stderr:'Synthetic launch failure'})),/exited with code/);
+  await ask({run:f.out,stage:'review'},invocation());
+  await write(path.join(f.out,'final-plan.md'),'Plan: verify escaped output.');
+  await write(path.join(f.out,'security-review.json'),report());
+  await write(path.join(f.out,'decisions.json'),[]);
+  await ask({run:f.out,stage:'verify'},invocation());
+  const completed=finish({run:f.out});
+  assert.equal(completed.attempts_used,3);
+  assert.equal(completed.successful_peer_calls,2);
+  assert.match(await fs.readFile(path.join(f.out,'RESULT.md'),'utf8'),/Successful peer calls: 2; attempts: 3/);
+});
+
+test('an incompatible peer executable fails preflight without consuming an attempt', async () => {
+  const f=await fixture('preflight-attempt',{coordinator:'claude'});
+  await hostDraft(f);
+  const previous=process.env.COUNCIL_CODEX_BIN;
+  try {
+    process.env.COUNCIL_CODEX_BIN=process.execPath;
+    await assert.rejects(()=>ask({run:f.out,stage:'draft'}),/flag|help|missing|required|check failed|features/i);
+    assert.equal(status({run:f.out}).attempts_used,0);
+  } finally {
+    if(previous===undefined) delete process.env.COUNCIL_CODEX_BIN;
+    else process.env.COUNCIL_CODEX_BIN=previous;
+  }
+});
+
+test('corrupt manifest recovers completed stages without permitting a repeat call', async () => {
+  const f=await fixture('recover-stage');
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},invocation());
+  await fs.writeFile(path.join(f.out,'run.json'),Buffer.alloc(200));
+  assert.equal(status({run:f.out}).attempts_used,1);
+  let called=false;
+  await assert.rejects(()=>ask({run:f.out,stage:'draft'},async req=>{called=true;return invocation()(req);}),/already succeeded/);
+  assert.equal(called,false);
+});
+
+test('generated handoff reflects progress and leaves additional notes and legacy handoffs alone', async () => {
+  const f=await fixture('generated-handoff');
+  assert.match(await fs.readFile(path.join(f.out,'HANDOFF.md'),'utf8'),/Status: prepared/);
+  await write(path.join(f.out,'NOTES.md'),'A coordinator decision that must be preserved.');
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},invocation());
+  const handoff=await fs.readFile(path.join(f.out,'HANDOFF.md'),'utf8');
+  assert.match(handoff,/draft: succeeded/);
+  assert.match(handoff,/Attempts: 1\/4/);
+  assert.match(handoff,/NOTES.md/);
+  assert.equal(await fs.readFile(path.join(f.out,'NOTES.md'),'utf8'),'A coordinator decision that must be preserved.');
+  const state=await read(path.join(f.out,'run.json'));
+  delete state.generated_handoff;
+  await write(path.join(f.out,'run.json'),state);
+  await write(path.join(f.out,'HANDOFF.md'),'Legacy handwritten handoff.');
+  await hostReview(f);
+  await ask({run:f.out,stage:'review'},invocation());
+  assert.equal(await fs.readFile(path.join(f.out,'HANDOFF.md'),'utf8'),'Legacy handwritten handoff.');
 });

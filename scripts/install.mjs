@@ -19,7 +19,12 @@ const skillRoots = [
   ...(target !== 'codex' ? [path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'skills')] : []),
 ];
 const targets = skillRoots.map(root => path.join(root, 'C2C'));
-const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'LICENSE'];
+const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'package.json', 'LICENSE'];
+function sameInstalledText(existing, packaged) {
+  // Latin-1 preserves every byte, including BOMs and invalid UTF-8. Only
+  // Windows line endings are equivalent; other edits still require a backup.
+  return existing.equals(packaged) || existing.toString('latin1').replace(/\r\n/g, '\n') === packaged.toString('latin1').replace(/\r\n/g, '\n');
+}
 try {
   for (const file of files) if (!fs.statSync(path.join(source, file)).isFile()) throw new Error(`Missing package file: ${file}`);
   for (const root of skillRoots) {
@@ -32,7 +37,7 @@ try {
     if (fs.existsSync(dest)) {
       for (const file of files) {
         const existing = path.join(dest, file);
-        if (!fs.existsSync(existing) || !fs.readFileSync(existing).equals(fs.readFileSync(path.join(source, file)))) {
+        if (!fs.existsSync(existing) || !sameInstalledText(fs.readFileSync(existing), fs.readFileSync(path.join(source, file)))) {
           throw new Error(`A different installation exists at ${dest}. Back it up and move that named skill directory outside all Codex and Claude Code skill roots before installing this version.`);
         }
       }

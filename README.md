@@ -49,7 +49,18 @@ In Claude Code:
 Find rollout and rollback risks, then give me a revised plan and decision record.
 ```
 
-It also supports non-code planning. Supply a brief, constraints, and success criteria just as you would for a normal planning conversation. You can request a specific peer model or smaller time allowance in your prompt; the coordinator passes supported settings to the runner.
+It also supports non-code planning. Supply a brief, constraints, and success criteria just as you would for a normal planning conversation. You can explicitly choose a peer model or smaller time allowance in your prompt; the coordinator passes supported settings to the runner.
+
+Before the discussion, the coordinator assesses task size (small to extra-large), complexity, risk, and uncertainty, then recommends suitable models for planning and review with a brief rationale and confidence level. A small security change can need deeper review than a large repetitive edit. It checks current model information before naming candidates and labels unverified availability clearly.
+
+**Recommendations do not change your settings.** Your chosen models or CLI defaults remain in use unless you explicitly ask to change them. Advice does not pause already-authorized work. You can also request only an assessment:
+
+```text
+Use $codex-claude-council to assess this task's size and recommend
+models for planning and review. Keep my current models; advice only.
+```
+
+The coordinator saves this in `TASK_ASSESSMENT.md`, links it from the handoff, and summarizes it in the final plan. This is an agent-authored recommendation; the runner does not automatically select a model from the file.
 
 | Mode | Workflow | Successful peer calls |
 |---|---|---:|

@@ -6,6 +6,8 @@ Last updated: 2026-10-06. This is the maintained project summary, not a transcri
 
 Build a reusable skill that lets Codex and Claude Code contribute independent proposals, critique each other, and produce one actionable plan with a decision record. The user requested Markdown notes to make later sessions faster and more accurate.
 
+The user also requested task-size assessment and task-appropriate model recommendations, expressly as advice. The coordinator now records this in `TASK_ASSESSMENT.md`; it never turns a recommendation into a model/effort override or a new approval pause. Existing user choices and CLI defaults are preserved unless the user explicitly changes them. This is a skill-instruction update; runner behavior and report schemas are unchanged.
+
 - Version 0.1.0 is implemented and published at [Ziad501/codex-claude-council](https://github.com/Ziad501/codex-claude-council).
 - The initial published implementation is commit `6343b8b4b3efa5dd96b02b048185d8c6889299fb`.
 - The skill was installed in both products on the development machine; installation and authentication are machine-specific, not guarantees for another user.
@@ -26,6 +28,7 @@ Build a reusable skill that lets Codex and Claude Code contribute independent pr
 | One successful response per stage and bounded attempts/runtime | Prevents accidental loops and silently repeated paid calls. |
 | Keep post-verification edits visible | A revised plan must not be represented as the exact version the peer reviewed. |
 | Scope collaboration by task | Support substantial planning and requested reviews without making every small edit require two agents. |
+| Model advice is separate from execution | Assess size, complexity, risk and uncertainty independently; recommend from verified current information without changing actual settings. |
 
 ## File map
 
@@ -51,6 +54,7 @@ The runner commands are `doctor`, `prepare`, `ask`, `status`, and `finish`. The 
 - Defaults: 300 seconds per peer call, 900 seconds cumulative peer runtime, four model-launch attempts. Failed model calls count. Preflight checks do not. These are not billing/token caps.
 - A run retains `snapshot.json`, `run.json`, schemas, report files, attempt inputs/logs, `final-plan.md`, and `decisions.json`. Successful completion also produces `completion.json` and `RESULT.md`.
 - The coordinator maintains a concise `HANDOFF.md` in the run directory. It is a navigation summary, not the authority for stage success or permission to retry.
+- The coordinator writes `TASK_ASSESSMENT.md` before the first peer call. It records task size, complexity/risk/uncertainty, confidence, model advice, evidence, actual unchanged selections, and reassessment triggers. It is not parsed by the runner or shared in independent peer packets. Advice-only requests do not launch a council.
 - Resume by reading `HANDOFF.md` and running `status`, then inspect only the relevant evidence. Do not replay successful stages. Start a new run only when justified by changed task/evidence; do not reset a run to escape its budget.
 
 ## Validation actually performed
@@ -60,6 +64,7 @@ Observed on 2026-10-06:
 | Check | Result and limit |
 |---|---|
 | Skill frontmatter validation | Passed for source and both installed copies. |
+| Advisory instructions | An independent offline evaluation covered five scenarios: a small permission fix, a mechanical change across 200 files, an underspecified platform replacement, an unverified model catalogue, and new security scope. All preserved actual settings, avoided unsupported model names, and stopped after the requested advice. An early advice-only routing clarification resolved an ordering ambiguity. No new paid peer calls were made; runner and tests were unchanged. |
 | Automated suite | All 24 tests passed locally on Windows. Tests use fixtures, except actual child-process timeout behavior. |
 | Initial GitHub CI | [Run 37416553250](https://github.com/Ziad501/codex-claude-council/actions/runs/37416553250) passed all four Windows/Ubuntu × Node 22/24 jobs at the initial implementation commit. |
 | Real Claude draft | Passed in about 78 seconds using Claude Code 2.1.291. |

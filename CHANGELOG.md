@@ -2,6 +2,14 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.8.1 — Headless workers and clearer authentication failures
+
+- Clarifies that only the coordinating chat needs to remain open. C2C already launches Claude and Codex non-interactively; no peer app, panel, or terminal is required.
+- Authentication preflight uses the same filtered environment as worker calls. Readiness reports visible saved authentication, not live token validity or model access.
+- Recognized runtime authentication failures, including Claude errors returned on stdout, now explain credential renewal and resuming the existing stage. No automatic retries, account changes, or billing changes are introduced.
+- Two synthetic live transport checks succeeded with saved authentication, one per provider, without creating a peer terminal. These were not full councils or tests with all other apps closed.
+- All **155 automated tests** passed locally, including non-TTY worker execution, preserved login context, authentication failures and explicit resumption. All 93 local documentation targets passed.
+
 ## 0.8.0 — Clearer plans and a choice of participants
 
 - Plans lead with review status, a recommendation, prioritized decisions, and a concrete next action. MVP boundaries, milestone dependencies, exit gates, and test status stay readable; technical depth moves into the same plan's appendix.

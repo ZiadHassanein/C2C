@@ -27,7 +27,7 @@ Read the `doctor` field for the selected route, even when the command exits succ
 | Codex, `same` (Codex peer) | `codex_only_ready` |
 | Claude Code, `same` (Claude peer) | `claude_only_ready` |
 
-Other routes need not be ready. These fields check the CLI and authentication, not access to a particular model or runtime identity.
+Other routes need not be ready. These fields check the CLI and visible saved authentication, not provider acceptance, model access, or runtime identity.
 
 `prepare` options:
 
@@ -299,9 +299,11 @@ Peer packets retain exact selected evidence, assessment and applicable full repo
 
 ## Authentication, permissions, and limits
 
-The runner reuses existing CLI authentication. If needed, the user signs in through `claude auth login` or `codex login` in their terminal. Never read, copy, or include token files in context. Availability checks are diagnostics; a successful peer response is the proof that the end-to-end call worked.
+Workers run non-interactively through `claude -p` or `codex exec`, with piped input/output and hidden Windows process windows. Only the coordinating chat needs to remain open; never require a peer app, panel, or terminal. The runner reuses saved CLI authentication and probes with the same filtered environment used for peer calls. `authenticated` and readiness fields indicate locally visible authentication, not live token validation.
 
-A restricted host process can report signed out even when the normal terminal is signed in, because it cannot access the operating system credential store. If these results differ, use the host's approved execution path for the peer CLI and retain the runner's own restrictions. Do not ask the user to sign in again unnecessarily, copy credentials, or disable managed policy. The runner itself never elevates privileges.
+If the provider rejects authentication, explain the runtime error and identify the selected source without revealing credentials. Renew a saved CLI login through `claude auth login` or `codex login` when needed; the browser flow may require user interaction. An environment key/token may take precedence and needs repair through its own authorized source. Then inspect status and resume the failed stage within the remaining allowance. Never repeat successful stages, automatically retry a rejected login, or switch account/billing. A successful response proves only that call worked. Never read, copy, or include token files in context.
+
+A restricted host may not access the normal credential store. Different OS accounts, CLI/config paths, or inherited credential environment variables can also select different authentication. Check those differences without exposing secrets before asking a signed-in user to log in again. Use the host's approved execution path while retaining runner restrictions; never copy credentials, silently change authentication settings, or disable managed policy. The runner never elevates privileges. See [Claude login renewal](https://code.claude.com/docs/en/authentication#renew-an-expiring-login).
 
 Peer calls disable shell, browser, image, connector and agent features where supported, use a neutral working directory, and request read-only permissions. Claude also receives an empty tools list; Codex may retain tools that its read-only sandbox must deny. Calls reduce inherited configuration and instruct the peer to use supplied evidence only. They do not run in `PROJECT` and do not automatically inspect its files. Managed organization policies still apply. This is an application-level collaboration boundary, not a promise of OS-level isolation or a substitute for the host's permissions.
 

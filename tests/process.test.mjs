@@ -21,6 +21,30 @@ async function rejection(promise) {
   assert.fail('Expected the process invocation to reject');
 }
 
+test('peer workers need no terminal and retain configured login context without inheriting a Claude session', async () => {
+  const fixture = {
+    CLAUDECODE: 'parent-session', CODEX_CLAUDE_COUNCIL_PEER: 'parent-value',
+    HOME: path.join(root, 'test-home'), USERPROFILE: path.join(root, 'test-profile'),
+    CODEX_HOME: path.join(root, 'test-codex'), CLAUDE_CONFIG_DIR: path.join(root, 'test-claude'),
+    CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-not-a-token', OPENAI_API_KEY: 'synthetic-not-a-key',
+    ANTHROPIC_AUTH_TOKEN: 'synthetic-auth-token', HTTPS_PROXY: 'http://127.0.0.1:9',
+  };
+  const previous = Object.fromEntries(Object.keys(fixture).map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, fixture);
+    const source = `const expected=${JSON.stringify(fixture)};const keep=Object.keys(expected).filter(k=>!['CLAUDECODE','CODEX_CLAUDE_COUNCIL_PEER'].includes(k));console.log(JSON.stringify({stdinTTY:Boolean(process.stdin.isTTY),stdoutTTY:Boolean(process.stdout.isTTY),claudeSessionPresent:Object.hasOwn(process.env,'CLAUDECODE'),peer:process.env.CODEX_CLAUDE_COUNCIL_PEER,contextPreserved:keep.every(k=>process.env[k]===expected[k])}));`;
+    const result = await node(source, { peer: true });
+    assert.equal(result.code, 0);
+    assert.deepEqual(JSON.parse(result.stdout), { stdinTTY: false, stdoutTTY: false, claudeSessionPresent: false, peer: '1', contextPreserved: true });
+    assert.equal(process.env.CLAUDECODE, fixture.CLAUDECODE, 'launch must not mutate the coordinator environment');
+    assert.equal(process.env.CODEX_CLAUDE_COUNCIL_PEER, fixture.CODEX_CLAUDE_COUNCIL_PEER);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
 test('successful calls return stdout, stderr and exit status while streaming files', async () => {
   const stdoutPath = path.join(root, 'success-stdout.txt');
   const stderrPath = path.join(root, 'success-stderr.txt');

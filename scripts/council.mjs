@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { runProcess } from './process.mjs';
 import { ASSESSMENT_SCHEMA, validateAssessment, assessmentMarkdown } from './assessment.mjs';
 export { runProcess } from './process.mjs';
-import { resolveExecutable, probeProvider, buildCodexArgs } from './adapters.mjs';
+import { resolveExecutable, probeProvider, buildCodexArgs, peerAuthenticationFailure } from './adapters.mjs';
 export { resolveExecutable } from './adapters.mjs';
 import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock } from './state.mjs';
 import { renderDiscussion } from './discussion.mjs';
@@ -262,7 +262,7 @@ export async function doctor(options = {}) {
     const providers = await Promise.all(['codex', 'claude'].map(async provider => {
       try { return await probeProvider(provider, cwd); } catch (error) { return { provider, error: error.message, authenticated: false }; }
     }));
-    return { skill_version: PACKAGE_VERSION, node: process.version, providers, codex_chat_ready: providers[1].authenticated, claude_chat_ready: providers[0].authenticated, codex_only_ready: providers[0].authenticated, claude_only_ready: providers[1].authenticated, note: 'Readiness checks executable, required CLI flags, supported feature controls and auth only. Model availability and distinct identities are not attested. A successful ask proves a model invocation.' };
+    return { skill_version: PACKAGE_VERSION, node: process.version, providers, codex_chat_ready: providers[1].authenticated, claude_chat_ready: providers[0].authenticated, codex_only_ready: providers[0].authenticated, claude_only_ready: providers[1].authenticated, note: 'Readiness checks executable, required CLI flags, supported feature controls and local credential status only. Token freshness, refresh success, model availability and distinct identities are not attested. A successful ask proves a model invocation. The peer CLI starts automatically; no peer terminal or app needs to stay open.' };
   } finally { cleanupScratch(cwd); }
 }
 
@@ -468,7 +468,7 @@ export async function ask(options, injectedInvoker) {
     let executable, info;
     if (!injectedInvoker) {
       info = await probeProvider(state.peer, scratch);
-      required(info.authenticated, `${state.peer} CLI is signed out. Run ${info.login_command} once, then retry this stage.`);
+      required(info.authenticated, `${state.peer} CLI did not report an accessible login. Check its account/configuration and host credential access; if signed out, run ${info.login_command} once, then retry this stage. No peer terminal or app needs to stay open.`);
       executable = info.executable;
     }
     const args = buildPeerArgs(state.peer, { schemaPath, model: state.peer_model, codexFeatures: info?.codex_features });
@@ -496,7 +496,13 @@ export async function ask(options, injectedInvoker) {
         : await runProcess(executable, args, { prompt, cwd: scratch, timeoutMs: attempt.timeout_ms, peer: true, stdoutPath, stderrPath });
       if (injectedInvoker) { write(stdoutPath, result.stdout || ''); write(stderrPath, result.stderr || ''); }
       for (const key of ['code', 'signal', 'outputFiles', 'termination']) if (result[key] !== undefined) attempt[key] = result[key];
-      required(result.code === 0, `${state.peer} exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}; see attempt-${attempt.number}-stderr.txt`);
+      const authFailure = peerAuthenticationFailure(state.peer, result);
+      if (authFailure) {
+        const error = new Error(`${authFailure.message} See attempt-${attempt.number}-stdout.txt and attempt-${attempt.number}-stderr.txt for local diagnostics.`);
+        error.reason = authFailure.reason;
+        throw error;
+      }
+      required(result.code === 0, `${state.peer} exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ''}; see attempt-${attempt.number}-stdout.txt and attempt-${attempt.number}-stderr.txt`);
       const parsed = parsePeerResponse(state.peer, result.stdout);
       attempt.reported_models = parsed.reported_models;
       attempt.model_identity_status = parsed.reported_models.length ? 'cli_reported' : 'unreported';

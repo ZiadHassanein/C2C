@@ -43,7 +43,7 @@ Install [Node.js 18 or newer](https://nodejs.org/en/download) and the **peer's c
 | Codex | [Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login` |
 | Claude Code | [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) | `codex login` |
 
-Install both CLIs to use the skill in both directions. For Codex-only discussion, install and sign in to Codex CLI; for Claude-only discussion, use Claude Code CLI. The skill installer does not install these prerequisites or sign you in.
+Install both CLIs to use the skill in both directions. For Codex-only discussion, install and sign in to Codex CLI; for Claude-only discussion, use Claude Code CLI. **You do not need the peer app or its terminal open.** C2C launches it without a window and reuses saved CLI authentication. Keep working in your starting chat. The installer does not install these prerequisites or sign you in.
 
 ### 2. Download and install
 
@@ -73,7 +73,7 @@ Look for the readiness value matching your starting app:
 |---|---|
 | `"codex_chat_ready": true` | `"claude_chat_ready": true` |
 
-Only your chosen direction needs to be ready. For same-provider options, see [setup checks](docs/SETUP.md#check-your-setup). Older CLIs can be found but still lack required safety controls; follow the reported upgrade or binary-selection guidance. This checks setup and sign-in without sending a planning request. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
+Only your chosen direction needs to be ready. For same-provider options, see [setup checks](docs/SETUP.md#check-your-setup). Older CLIs may lack required controls; follow the reported guidance. This checks setup and visible saved authentication without a model request; credentials may still expire or be rejected. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
 
 ### 4. Start a project chat
 

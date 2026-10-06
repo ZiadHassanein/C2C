@@ -10,6 +10,10 @@ Install C2C, install and authenticate the other provider's CLI, then start a new
 
 For default cross-provider collaboration, Codex needs the Claude Code CLI and Claude Code needs the Codex CLI. Install both to use either direction. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. C2C itself requires Node.js 18 or newer and has no npm dependencies. Its installer does not install the CLIs or sign you in.
 
+## Must I keep Claude or Codex open while it works as the peer?
+
+No. Only your coordinating chat needs to stay open. C2C starts the peer CLI non-interactively and reuses its saved authentication; no second app, panel, or terminal is needed. Expired or rejected credentials require native CLI login renewal, which may open a browser. A ready `doctor` result means authentication was visible locally, not that the provider accepted a fresh request. See [headless operation and login help](SETUP.md#do-i-need-another-terminal-open).
+
 ## Does C2C really ask the other AI?
 
 Yes. A requested council launches the chosen peer's CLI and saves its actual reports. In plan mode, the peer proposes an approach before seeing the coordinator's draft, then reviews the coordinator's proposal and verifies the synthesis. In focused review mode, both critique one candidate plan before peer verification. [The workflow](../README.md#how-it-works) uses three or two successful peer calls respectively. An assessment-only request makes no peer calls.

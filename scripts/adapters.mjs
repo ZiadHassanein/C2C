@@ -99,13 +99,49 @@ export function buildCodexArgs({ schemaPath, model, codexFeatures = CODEX_DISABL
   return args;
 }
 
+const CLAUDE_AUTH_METHODS = new Set(['none', 'claude.ai', 'oauth_token', 'api_key', 'api_key_helper', 'third_party']);
+const AUTH_FAILURE = /\b(?:authentication[_ -](?:failed|error)|invalid[_ -](?:api[_ -]?key|grant)|token[_ -](?:expired|invalid|revoked|reused)|(?:oauth(?:[_ -]token)?|access[_ -]token|refresh[_ -]token|login|session)[\s\S]{0,60}(?:expired|invalid|revoked|rejected|already used)|(?:expired|invalid|revoked|rejected)[\s\S]{0,60}(?:oauth|access[_ -]token|refresh[_ -]token)|not logged in|please (?:run )?\/login|(?:http|status|api error)\s*:?\s*401)\b/i;
+
+// Inspect failure envelopes, never successful report prose. Return a static
+// diagnostic so credentials or account details in provider errors cannot leak.
+export function peerAuthenticationFailure(provider, { code, stdout = '', stderr = '' } = {}) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  let events;
+  try { events = [JSON.parse(stdout.trim())]; }
+  catch {
+    events = stdout.split(/\r?\n/).flatMap(line => {
+      try { return [JSON.parse(line)]; } catch { return []; }
+    });
+  }
+  const failed = events.filter(event => event && typeof event === 'object' && (
+    ['error', 'turn.failed'].includes(event.type)
+    || (event.type === 'result' && (event.is_error === true || String(event.subtype).startsWith('error_')))
+    || (event.type === 'assistant' && typeof event.error === 'string')
+  ));
+  const errorText = (value, depth = 0) => {
+    if (depth > 3) return '';
+    if (typeof value === 'string') return value.slice(0, 8192);
+    if (!value || typeof value !== 'object') return '';
+    const entries = Array.isArray(value) ? value.slice(0, 20) : [value.type, value.code, value.message, value.error];
+    return entries.map(entry => errorText(entry, depth + 1)).join('\n');
+  };
+  const isAuth = failed.some(event => {
+    const error = event.error;
+    const status = event.status ?? event.status_code ?? error?.status ?? error?.status_code;
+    return status === 401 || AUTH_FAILURE.test([event.message, error, event.errors, event.result].map(value => errorText(value)).join('\n'));
+  }) || (Number.isInteger(code) && code !== 0 && AUTH_FAILURE.test(stderr));
+  if (!isAuth) return null;
+  const login = provider === 'claude' ? 'claude auth login' : 'codex login';
+  return { reason: 'authentication_error', message: `${provider} authentication was rejected or its saved login expired. Renew the configured credential; for a saved CLI login, run ${login} once in the same account/configuration, then resume this stage. A credential environment override must be repaired at its source; signing in does not replace it. No peer terminal or app needs to stay open. No automatic retry was made.` };
+}
+
 // Only metadata and authentication-status commands run here, never a model turn.
 // doctor and ask share this preflight; ask must call it before reserving an attempt.
 export async function probeProvider(provider, cwd, { run = runProcess, resolve = resolveExecutable } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
   const executable = resolve(provider);
   const check = async (args, label) => {
-    const result = await run(executable, args, { cwd, timeoutMs: 15000 });
+    const result = await run(executable, args, { cwd, timeoutMs: 15000, peer: true });
     required(result.code === 0, `${provider} ${label} failed; update or repair its CLI before using this skill`);
     return result;
   };
@@ -117,13 +153,20 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve =
   for (const flag of flags) required(help.stdout.includes(flag), `${provider} is missing required ${flag}; update its CLI before using this skill`);
   let codexFeatures;
   if (provider === 'codex') codexFeatures = parseCodexFeatures((await check(['features', 'list'], 'feature discovery')).stdout);
-  const auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000 });
+  const auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000, peer: true });
   let authenticated = false;
+  let authMethod = 'unknown';
   if (provider === 'claude') {
-    try { authenticated = auth.code === 0 && JSON.parse(auth.stdout).loggedIn === true; } catch { /* Signed out or unsupported response. */ }
+    try {
+      const status = JSON.parse(auth.stdout);
+      authenticated = auth.code === 0 && status.loggedIn === true;
+      if (CLAUDE_AUTH_METHODS.has(status.authMethod)) authMethod = status.authMethod;
+    } catch { /* Signed out or unsupported response. */ }
   } else authenticated = auth.code === 0 && /logged in/i.test(auth.stdout + auth.stderr) && !/not logged in/i.test(auth.stdout + auth.stderr);
   return {
     provider, executable, version: version.stdout.trim(), authenticated,
+    auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,
+    authentication_note: 'CLI credential status does not validate token freshness, refresh success, or model access. No peer terminal or app needs to stay open.',
     login_command: provider === 'codex' ? 'codex login' : 'claude auth login',
     ...(codexFeatures ? { codex_features: codexFeatures, disabled_features: CODEX_DISABLED_FEATURES.filter(name => codexFeatures.includes(name)) } : {}),
   };

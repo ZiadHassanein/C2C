@@ -23,7 +23,7 @@ Write neutral JSON using the [assessment contract](references/project-assessment
 
 ## Prepare a proportional exchange
 
-Resolve this skill's `scripts/council.mjs`, run `node RUNNER doctor`, and check peer readiness beyond exit status. If unavailable, explain why and preserve work. See [commands](references/protocol.md#commands).
+Resolve this skill's `scripts/council.mjs`, run `node RUNNER doctor`, and check peer readiness beyond exit status. Peers run non-interactively; never require an open peer app/terminal. Readiness sees saved authentication, not token validity. If unavailable, explain why and preserve work; follow [authentication guidance](references/protocol.md#authentication-permissions-and-limits) before requesting another login. See [commands](references/protocol.md#commands).
 
 Use `--compact` for routine CLI commands: it minifies output without dropping fields. Use the validated report returned by `ask`; read saved peer JSON only if that return is missing or truncated.
 

@@ -14,14 +14,20 @@ node scripts/council.mjs version
 node scripts/council.mjs doctor
 ```
 
-Node must be 18 or newer. `doctor` checks CLI availability, required flags and feature controls, and sign-in. Read its readiness values even if the command itself finishes successfully:
+Node must be 18 or newer. `doctor` checks CLI availability, required flags and feature controls, and visible saved authentication. Read its readiness values even if the command itself finishes successfully:
 
 - `codex_chat_ready: true`: a Codex chat can call Claude.
 - `claude_chat_ready: true`: a Claude Code chat can call Codex.
 - `codex_only_ready: true`: a Codex chat can call the Codex CLI for an explicitly requested same-provider run.
 - `claude_only_ready: true`: a Claude Code chat can call the Claude CLI for an explicitly requested same-provider run.
 
-A missing or signed-out CLI for the direction you are not using is okay. Readiness checks do not establish model availability or distinct runtime identities. A successful real discussion is the final check that model access works.
+A missing or signed-out CLI for the direction you are not using is okay. Readiness does not validate credentials with the provider or establish model access or identity. A successful response confirms that particular call worked.
+
+## Do I need another terminal open?
+
+No. Keep your coordinating chat open; C2C runs the peer non-interactively using `claude -p` or `codex exec`, with piped input/output and hidden Windows process windows. Claude can work for Codex without an open Claude panel, and Codex can work for Claude without an open Codex app. The peer CLI must be installed, accessible to the coordinator, and authenticated.
+
+Sign in through the native CLI once when needed. If the saved CLI login expires or is rejected, renew it with `claude auth login` or `codex login`; the browser flow may require your interaction. An environment-supplied key or token may instead be the selected credential; native login does not replace it. After fixing the selected authentication source, ask C2C to inspect the existing run and resume its failed stage within the remaining allowance. Opening a peer terminal alone does not renew a login. See [Claude's non-interactive mode](https://code.claude.com/docs/en/headless) and [login renewal](https://code.claude.com/docs/en/authentication#renew-an-expiring-login).
 
 ## Troubleshooting
 
@@ -31,13 +37,14 @@ A missing or signed-out CLI for the direction you are not using is okay. Readine
 | `git` is not recognized or not found | Use the [ZIP download](https://github.com/ZiadHassanein/codex-claude-council/archive/refs/heads/main.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/install.mjs` | You are in the wrong folder. Open a terminal in the extracted or cloned repository folder, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Install the required CLI using the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) setup guide. Reopen the terminal and check again. |
-| `doctor` reports signed out | For the required peer, run `claude auth login` or `codex login` in your terminal, then rerun `doctor`. |
+| `doctor` reports signed out | If the same CLI works in your normal terminal, check the environment/access row below first. Otherwise run `claude auth login` or `codex login` for the required peer, then rerun `doctor`. |
+| `doctor` is ready, but a call reports expired/rejected authentication | Authentication was visible; the provider rejected it during the call. Repair the selected credential source or renew native CLI login, then resume within the remaining allowance. C2C does not retry automatically or switch accounts/billing. |
 | Codex is missing the required `view_image` control | Upgrade Codex or select a compatible binary using `COUNCIL_CODEX_BIN`. Version 0.146.0 lacks this control; 0.160.1 passed local checks. C2C blocks before spending an attempt. |
 | A required CLI flag is missing | Update that CLI using its official setup guide, then rerun `doctor`. |
 | The installer finds a legacy skill | Follow [Update the skill](#update-the-skill) to move the old `codex-claude-council` installation outside all skill directories, then rerun installation. |
 | A different installation already exists | Follow [Update the skill](#update-the-skill). The installer protects existing files instead of overwriting them. |
 | The skill does not appear in chat | Confirm installation, then start a new chat or restart the app. Use the Codex `$C2C` or Claude `/C2C` prompt. |
-| Terminal setup works, but the chat reports signed out | The chat's restricted environment may not see the normal credential store. Use the host's approved execution path or follow its access prompt. Do not copy credential files. |
+| Terminal setup works, but the chat reports signed out | Check that the chat uses the same OS account, CLI, and config directory; a restricted host may not see its credential store. Credential environment variables may select another authentication source. Use the approved host execution path; do not copy credentials or change accounts/billing automatically. |
 | A discussion times out or fails | Ask the AI to read the run's `HANDOFF.md`, check its status, and inspect the saved failure logs. A partial response is not a completed review; successful stages should not be repeated. |
 
 The installer does not install either provider CLI, create accounts, or sign in for you. Windows npm Codex installations are discovered through their native package binary. When multiple versions are installed, you can set `COUNCIL_CODEX_BIN` to the chosen executable for your terminal session; see [compatibility and recovery](../references/protocol.md#compatibility-and-recovery).

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES } from '../scripts/adapters.mjs';
+import { resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-adapters-test-'));
@@ -100,6 +100,7 @@ function fakeProbe({ help = codexHelp, featureOutput = features(CODEX_DISABLED_F
     run: async (executable, args, options) => {
       assert.equal(executable, '/fake/native-executable');
       assert.equal(options.timeoutMs, 15000);
+      assert.equal(options.peer, true, 'Preflight must use the same peer environment as a model invocation');
       calls.push(args);
       let stdout, code = 0;
       if (args.join(' ') === '--version') stdout = 'codex-cli 0.160.1';
@@ -173,4 +174,59 @@ test('Claude preflight validates flags and successful authentication status with
   assert.deepEqual(fixture.calls, [['--version'], ['--help'], ['auth', 'status']]);
   assert.equal((await probeProvider('claude', root, fakeProbe({ ...options, authCode: 1 }))).authenticated, false);
   await assert.rejects(() => probeProvider('claude', root, fakeProbe({ ...options, help: claudeHelp.replace('--safe-mode', '') })), /required --safe-mode/);
+});
+
+test('authentication metadata distinguishes local credential status from request validation and excludes private fields', async () => {
+  for (const method of ['claude.ai', 'oauth_token', 'api_key', 'api_key_helper', 'third_party', 'unsupported-private-value']) {
+    const fixture = fakeProbe({ provider: 'claude', help: claudeHelp, auth: JSON.stringify({
+      loggedIn: true, authMethod: method, email: 'private-account@example.invalid', orgId: 'private-org-id',
+      accessToken: 'private-auth-value', configDirectory: '/private-config-directory',
+    }) });
+    const result = await probeProvider('claude', root, fixture);
+    assert.equal(result.authenticated, true);
+    assert.equal(result.authentication_check, 'local_status_only');
+    assert.equal(result.request_auth_verified, false);
+    assert.equal(result.auth_method, method === 'unsupported-private-value' ? 'unknown' : method);
+    assert.match(result.authentication_note, /does not validate token freshness/);
+    assert.doesNotMatch(JSON.stringify(result), /private-/);
+  }
+  for (const auth of ['not-json', 'null', '{}', '{"loggedIn":"true"}', '{"loggedIn":false}']) {
+    const result = await probeProvider('claude', root, fakeProbe({ provider: 'claude', help: claudeHelp, auth }));
+    assert.equal(result.authenticated, false);
+    assert.equal(result.request_auth_verified, false);
+  }
+});
+
+test('authentication failures use static guidance for failed envelopes and nonzero stderr only', () => {
+  const cases = [
+    ['claude', { code: 1, stdout: JSON.stringify({ type: 'result', is_error: true, result: 'OAuth token has expired. private-secret' }) }],
+    ['claude', { code: 0, stdout: [ { type: 'system', subtype: 'init' }, { type: 'result', subtype: 'error_during_execution', errors: ['Login expired · Please run /login'] } ].map(JSON.stringify).join('\n') }],
+    ['claude', { code: 1, stdout: JSON.stringify({ type: 'assistant', error: 'authentication_failed', message: { content: [{ type: 'text', text: 'private-secret' }] } }) }],
+    ['codex', { code: 0, stdout: JSON.stringify({ type: 'turn.failed', error: { message: 'Your refresh token was already used. private-secret' } }) }],
+    ['codex', { code: 1, stdout: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'private-secret' } }) }],
+    ['codex', { code: 1, stdout: JSON.stringify({ type: 'error', status: 401, message: 'private-secret' }) }],
+    ['codex', { code: 1, stderr: 'API Error: 401 Unauthorized; private-secret' }],
+    ['claude', { code: 2, stderr: 'Invalid API key private-secret' }],
+  ];
+  for (const [provider, failure] of cases) {
+    const diagnostic = peerAuthenticationFailure(provider, failure);
+    assert.equal(diagnostic?.reason, 'authentication_error');
+    assert.match(diagnostic.message, /No peer terminal or app needs to stay open/);
+    assert.match(diagnostic.message, /No automatic retry/);
+    assert.match(diagnostic.message, provider === 'claude' ? /claude auth login/ : /codex login/);
+    assert.doesNotMatch(JSON.stringify(diagnostic), /private-secret/);
+  }
+});
+
+test('authentication classifier ignores successful report prose and unrelated process errors', () => {
+  const phrase = 'OAuth token has expired; test the authentication failed case.';
+  for (const response of [
+    { code: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: phrase }), stderr: phrase },
+    { code: 1, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: phrase }), stderr: 'Process ran out of memory' },
+    { code: 0, stdout: JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: phrase } }) },
+    { code: 1, stdout: phrase, stderr: '' },
+    { code: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: 'Too many requests', status: 429 } }) },
+    { code: 1, stdout: JSON.stringify({ type: 'error', error: { message: 'Permission denied', status: 403 } }) },
+    { code: null, stderr: phrase },
+  ]) assert.equal(peerAuthenticationFailure('claude', response), null);
 });

@@ -375,6 +375,51 @@ test('failed and malformed peer calls cannot create successful peer reports', as
   assert.ok(state);
 });
 
+test('expired peer authentication preserves a failed attempt and resumes only on an explicit retry', async () => {
+  for (const peer of ['claude', 'codex']) {
+    const f = await fixture(`expired-${peer}`, { coordinator: peer === 'claude' ? 'codex' : 'claude' });
+    await hostDraft(f);
+    const failure = peer === 'claude'
+      ? { code: 1, stdout: JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['OAuth token has expired. private-provider-detail'] }), stderr: '' }
+      : { code: 0, stdout: JSON.stringify({ type: 'turn.failed', error: { message: 'Your refresh token was already used. private-provider-detail' } }), stderr: '' };
+    let calls = 0;
+    await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async () => { calls++; return failure; }), error => {
+      assert.equal(error.reason, 'authentication_error');
+      assert.match(error.message, /No peer terminal or app needs to stay open/);
+      assert.match(error.message, /attempt-1-stdout\.txt and attempt-1-stderr\.txt/);
+      assert.doesNotMatch(error.message, /private-provider-detail/);
+      return true;
+    });
+    assert.equal(calls, 1, 'An authentication rejection must not trigger an automatic paid retry');
+    const failed = await read(path.join(f.out, 'run.json'));
+    assert.equal(failed.status, 'peer_failed');
+    assert.equal(failed.attempts.length, 1);
+    assert.equal(failed.attempts[0].status, 'failed');
+    assert.equal(failed.attempts[0].reason, 'authentication_error');
+    assert.notEqual(failed.stages.draft?.status, 'succeeded');
+    await assert.rejects(() => fs.access(path.join(f.out, 'peer-draft.json')));
+    assert.equal(await fs.readFile(path.join(f.out, 'attempt-1-stdout.txt'), 'utf8'), failure.stdout);
+    // This simulates a user repairing authentication and explicitly resuming.
+    await ask({ run: f.out, stage: 'draft' }, invocation());
+    const resumed = await read(path.join(f.out, 'run.json'));
+    assert.equal(resumed.attempts.length, 2);
+    assert.equal(resumed.attempts[0].status, 'failed');
+    assert.equal(resumed.stages.draft.status, 'succeeded');
+    assert.equal(resumed.stages.draft.attempt, 2);
+  }
+});
+
+test('successful peer reports about expired authentication are not mistaken for transport failures', async () => {
+  const f = await fixture('auth-report-prose');
+  await hostDraft(f);
+  const peerReport = report([], 'Test the OAuth token has expired and authentication failed scenarios.');
+  const result = await ask({ run: f.out, stage: 'draft' }, async request => ({
+    ...await invocation(peerReport)(request), stderr: 'A supplied test case mentions OAuth token has expired.',
+  }));
+  assert.equal(result.report.summary, peerReport.summary);
+  assert.equal((await read(path.join(f.out, 'run.json'))).stages.draft.status, 'succeeded');
+});
+
 test('all findings require a disposition before verification', async () => {
   const f = await readyForVerify('decisions');
   const decisionsPath = path.join(f.out,'decisions.json');

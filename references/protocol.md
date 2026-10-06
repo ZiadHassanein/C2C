@@ -1,0 +1,108 @@
+# Runner protocol
+
+Resolve `RUNNER` to the absolute path of this skill's `scripts/council.mjs`. Resolve `PROJECT`, `BRIEF`, each `CONTEXT`, and `RUN` to actual absolute filesystem paths. Quote each path in shell commands. `PROJECT` identifies the task's project; peer processes execute in isolated temporary directories.
+
+## Commands
+
+```text
+node RUNNER doctor
+node RUNNER prepare --project PROJECT --brief BRIEF --context CONTEXT --coordinator codex --mode plan --out RUN
+node RUNNER ask --run RUN --stage draft
+node RUNNER ask --run RUN --stage review
+node RUNNER ask --run RUN --stage verify
+node RUNNER status --run RUN
+node RUNNER finish --run RUN
+```
+
+`prepare` options:
+
+| Option | Meaning |
+|---|---|
+| `--project` | Absolute project/workspace directory. |
+| `--brief` | UTF-8 task brief file to snapshot. |
+| `--context` | Explicit UTF-8 context file to snapshot; repeat for multiple files, omit when the brief suffices. |
+| `--coordinator` | `codex` calls Claude Code; `claude` calls Codex. |
+| `--mode` | `plan` includes draft, review, and verify; `review` includes review and verify. |
+| `--out` | Absolute directory for this new run and its artifacts. |
+| `--timeout-seconds` | Per-call timeout; default `300`. |
+| `--budget-seconds` | Cumulative peer subprocess runtime allowance; default `900`. |
+| `--max-attempts` | Attempt allowance, including failures; default `4`. |
+| `--peer-model` | Optional peer CLI model identifier; omit to use its default. |
+
+`prepare` freezes selected inputs. It does not invoke a model, read the whole repository, or automatically follow references in documents. Supply excerpts when full files contain unrelated or private content. An incomplete brief/context may correctly result in `insufficient_context`.
+
+Calls run sequentially. Do not edit reports while a call is running. Use `status` to inspect an existing run before resuming. A timeout, malformed response, or model-process failure consumes an attempt. Preflight executable/authentication checks do not launch a model and do not consume an attempt; their errors remain explicit. A successful stage cannot be repeated. Start a new run when the task or evidence materially changes, retaining the old record.
+
+## File contract
+
+All coordinator-authored JSON is UTF-8 and follows the report schema below. `prepare` also creates `report.schema.json` and `decisions.schema.json` in the run directory; read these as needed when authoring reports. Write the specified files directly inside `RUN` using normal file tools; the runner reads them at the next stage.
+
+| File | Author | Required by |
+|---|---|---|
+| `coordinator-draft.json` | Coordinator | Before peer draft in plan mode; before peer review in review mode. |
+| `peer-draft.json` | Runner from peer | Created by successful draft in plan mode. |
+| `coordinator-review.json` | Coordinator | Before peer review. In plan mode, critique the peer draft; in review mode, independently critique the existing plan. |
+| `peer-review.json` | Runner from peer | Created by successful review of the coordinator draft. |
+| `final-plan.md` | Coordinator | Before peer verification; revise afterward when warranted. |
+| `decisions.json` | Coordinator | Before verification, then updated with verification findings before finish. |
+| `peer-verify.json` | Runner from peer | Created by successful verification. |
+
+Do not rewrite successful peer reports or earlier coordinator reports to erase disagreements. Use the final plan and decision record for synthesis. `finish` records the plan hash presented for verification and the final plan hash, including whether it changed. Completion does not mean that post-verification edits received another peer check or that every recommendation is factually correct.
+
+## Report schema
+
+Each draft, review, and verification report uses this complete object shape:
+
+```json
+{
+  "summary": "Concise account of the proposal or review result.",
+  "verdict": "needs_changes",
+  "proposal_markdown": "The independent proposal, reviewed plan, or proposed revisions.",
+  "findings": [
+    {
+      "id": "C-R1",
+      "severity": "major",
+      "claim": "The proposed migration has no tested rollback path.",
+      "evidence": "The supplied migration plan lists only forward migration steps.",
+      "action": "Add a backup-and-restore checkpoint before data conversion.",
+      "verification": "Run a restore rehearsal against representative test data."
+    }
+  ],
+  "assumptions": [],
+  "open_questions": [],
+  "limitations": []
+}
+```
+
+- `verdict`: `ready`, `needs_changes`, or `insufficient_context`.
+- `severity`: `blocker`, `major`, or `minor`.
+- All top-level keys and all finding keys are required. Empty arrays are valid; do not manufacture findings merely to fill them.
+- Coordinator draft IDs use `C-D1`, `C-D2`, and so on; coordinator review IDs use `C-R1`, `C-R2`, and so on. Peer IDs use `P-D1`, `P-R1`, or `P-V1` with increasing numbers within that report. Keep IDs unique and stable.
+- Cite relevant supplied sources or observed experiment results in `evidence`. An assumption or hypothetical failure must be labeled as such. An absence of evidence is not proof of a defect.
+- `proposal_markdown` carries the independent plan for a draft and useful proposed changes for a review; do not claim that proposed tests have already run.
+
+## Decision record
+
+`decisions.json` is a JSON array with one entry for every finding from every report in the run, including coordinator findings and the final peer verification findings. Before verification, it covers all reports available at that point.
+
+```json
+[
+  {
+    "finding_id": "C-R1",
+    "disposition": "accepted",
+    "rationale": "Added the restore checkpoint and a rehearsal acceptance criterion in final-plan.md."
+  }
+]
+```
+
+`disposition` is `accepted`, `rejected`, or `unresolved`. Record a specific reason for each choice. A rejection should explain why the finding is incorrect, inapplicable, or outweighed by a concrete constraint; "disagree" is inadequate. For unresolved findings, explain the missing evidence or decision and its effect on proceeding. Related or duplicate findings retain separate IDs and may reference the same resolution. With no findings, use `[]`.
+
+## Authentication, permissions, and limits
+
+The runner reuses existing CLI authentication. If needed, the user signs in through `claude auth login` or `codex login` in their terminal. Never read, copy, or include token files in context. Availability checks are diagnostics; a successful peer response is the proof that the end-to-end call worked.
+
+A restricted host process can report signed out even when the normal terminal is signed in, because it cannot access the operating system credential store. If these results differ, use the host's approved execution path for the peer CLI and retain the runner's own restrictions. Do not ask the user to sign in again unnecessarily, copy credentials, or disable managed policy. The runner itself never elevates privileges.
+
+Peer calls disable project tools, isolate their working directory, and reduce inherited configuration. They do not run in `PROJECT` and do not automatically inspect its files. Managed organization policies still apply. This is an application-level collaboration boundary, not a promise of OS-level isolation or a substitute for the host's permissions.
+
+The runner bounds stages, attempts, and subprocess runtime, not provider charges. A single run permits at most three successful peer calls in plan mode or two in review mode. A peer outage produces a partial run, never simulated consensus. The coordinator must tell the user what was actually reviewed, what remains unresolved, and whether the final plan changed after verification.

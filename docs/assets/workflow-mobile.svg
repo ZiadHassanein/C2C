@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="1000" viewBox="0 0 480 1000" role="img" aria-labelledby="workflow-title workflow-description">
+  <title id="workflow-title">Codex–Claude Council: independent planning workflow</title>
+  <desc id="workflow-description">In independent plan mode, a shared brief informs separate Codex and Claude proposals. Both agents review the other's proposal. The coordinating chat synthesizes the plan with a security review and acceptance checks. The peer verifies it. The final plan records decisions and retains unresolved questions. Follow the six numbered stages from top to bottom. The diagram shows separate viewpoints, not concurrent execution or completed implementation tests.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 1 1 L 8 5 L 1 9" fill="none" stroke="#7b918d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="480" height="1000" rx="20" fill="#f5f7f5"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="24" y="39" fill="#596c70" font-size="16" font-weight="600" letter-spacing="1.5">INDEPENDENT PLAN MODE</text>
+    <text x="24" y="86" fill="#14252b" font-size="32" font-weight="600" letter-spacing="-0.6">Two perspectives.</text>
+    <text x="24" y="126" fill="#14252b" font-size="32" font-weight="600" letter-spacing="-0.6">One actionable plan.</text>
+
+    <g fill="none" stroke="#7b918d" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)">
+      <path d="M 240 268 V 284"/>
+      <path d="M 240 428 V 444"/>
+      <path d="M 240 564 V 580"/>
+      <path d="M 240 700 V 716"/>
+      <path d="M 240 836 V 852"/>
+    </g>
+
+    <g fill="#ffffff" stroke="#d4ddda" stroke-width="1.2">
+      <rect x="24" y="156" width="432" height="112" rx="12"/>
+      <rect x="24" y="292" width="432" height="136" rx="12"/>
+      <rect x="24" y="452" width="432" height="112" rx="12"/>
+      <rect x="24" y="588" width="432" height="112" rx="12"/>
+      <rect x="24" y="724" width="432" height="112" rx="12"/>
+    </g>
+    <rect x="24" y="860" width="432" height="116" rx="12" fill="#e8f1ec" stroke="#adc9bc" stroke-width="1.2"/>
+
+    <g fill="#596c70" font-size="15" font-weight="600" letter-spacing="1.5">
+      <text x="46" y="183">01 / CONTEXT</text>
+      <text x="46" y="319">02 / PROPOSALS</text>
+      <text x="46" y="479">03 / CRITIQUE</text>
+      <text x="46" y="615">04 / SYNTHESIS</text>
+      <text x="46" y="751">05 / VERIFICATION</text>
+      <text x="46" y="887" fill="#3d6253">06 / DELIVERABLE</text>
+    </g>
+
+    <g fill="#14252b" font-size="26" font-weight="600" letter-spacing="-0.4">
+      <text x="46" y="218">Shared brief</text>
+      <text x="46" y="354">Independent proposals</text>
+      <text x="46" y="514">Cross-review</text>
+      <text x="46" y="650">Coordinator plan</text>
+      <text x="46" y="786">Peer verification</text>
+      <text x="46" y="922">One final plan</text>
+    </g>
+
+    <g fill="#596c70" font-size="20">
+      <text x="46" y="249">Scope, evidence and constraints</text>
+      <text x="46" y="545">Both agents critique the other's proposal</text>
+      <text x="46" y="681">Security review + acceptance checks</text>
+      <text x="46" y="817">Challenges the plan and remaining gaps</text>
+      <text x="46" y="955" fill="#3d6253">Decisions + open questions retained</text>
+    </g>
+
+    <rect x="46" y="371" width="185" height="40" rx="8" fill="#e6f1ed"/>
+    <rect x="249" y="371" width="185" height="40" rx="8" fill="#f7ece6"/>
+    <text x="138.5" y="399" text-anchor="middle" fill="#0d7a73" font-size="24" font-weight="600">Codex</text>
+    <text x="341.5" y="399" text-anchor="middle" fill="#a05238" font-size="24" font-weight="600">Claude</text>
+  </g>
+</svg>

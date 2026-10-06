@@ -36,6 +36,7 @@ The user explicitly requested suitability for both small features and big-projec
 | Preserve submitted security findings and actual reviewed versions | Each submission is sealed; findings remain unchanged and are resolved through decisions. Post-verification changes remain visible. |
 | Stream process diagnostics and bound cleanup | Preserve available output on timeouts/errors without claiming that forced pipe closure proves descendant termination. |
 | Separate onboarding from technical reference | The README provides four installation steps, copyable chat prompts and a visual workflow; setup options and troubleshooting live in docs/SETUP.md. |
+| Use self-contained graphics for public documentation | A coordinated SVG cover and workflow provide consistent typography and colors. Dedicated mobile variants preserve readability; captions and alternative text explain both planning modes. No image generator, vendor logo or external font is required. |
 
 ## File map
 
@@ -52,6 +53,7 @@ The user explicitly requested suitability for both small features and big-projec
 | `.github/workflows/test.yml` | Windows/Ubuntu tests on Node 22/24. |
 | `README.md` | User setup and usage. |
 | `docs/SETUP.md` | Troubleshooting, selective installation, upgrades, uninstall and usage details. |
+| `docs/assets/*.svg` | Responsive README cover and independent-planning workflow, with desktop and mobile variants. |
 
 ## Workflow and persisted evidence
 
@@ -77,6 +79,7 @@ Observed on 2026-10-06:
 |---|---|
 | Skill frontmatter validation | Passed for source and both installed copies. |
 | Simplified onboarding documentation | README and setup-guide local links, section anchors, code fences, command paths and readiness field names were checked. Independent review confirmed examples against the installer and runner. Official prerequisite setup links were checked. Runtime and installed skill files were unchanged; no paid council call was needed. |
+| Public README presentation | SVGs were rasterized and inspected, and a local Markdown preview was checked at desktop and mobile widths with light and dark page backgrounds. Mobile source selection was confirmed. Independent review found no accuracy or onboarding regression. Runtime behavior and installed skill files remain unchanged. |
 | Advisory instructions | An independent offline evaluation covered five scenarios: a small permission fix, a mechanical change across 200 files, an underspecified platform replacement, an unverified model catalogue, and new security scope. All preserved actual settings, avoided unsupported model names, and stopped after the requested advice. An early advice-only routing clarification resolved an ordering ambiguity. No new paid peer calls were made; runner and tests were unchanged. |
 | Planning depth instructions | A separate independent offline evaluation routed six scenarios: focused small feature, explicit independent proposals, existing project roadmap, new whole-project plan, assessment only, and a small high-risk candidate review. Expected scopes and required stages were preserved without automatic model changes or milestone councils. No blocking routing ambiguity was found. Skill metadata, UI prompt and local Markdown targets passed checks; runtime and installer code were unchanged, and no live council was performed for this update. |
 | Automated suite | All 47 current tests passed locally on Windows, including real local subprocesses and fixtures. The earlier 24-test result belongs to the initial implementation. |

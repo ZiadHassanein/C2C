@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="320" viewBox="0 0 1120 320" role="img" aria-labelledby="title desc">
+  <title id="title">Codex–Claude Council — Two perspectives. One clearer plan.</title>
+  <desc id="desc">An ink-colored banner with Codex and Claude cards connected to one plan. Teal and terracotta distinguish the two perspectives.</desc>
+  <rect x="1" y="1" width="1118" height="318" rx="20" fill="#142a2f" stroke="#29484d" stroke-width="2"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="52" y="46" width="7" height="18" rx="3.5" fill="#64c5b3"/>
+    <rect x="64" y="46" width="7" height="18" rx="3.5" fill="#e0a085"/>
+    <text x="86" y="61" font-size="17" font-weight="600" letter-spacing="2.2" fill="#c0d1d1">CODEX–CLAUDE COUNCIL</text>
+    <text x="50" y="140" font-size="54" font-weight="600" letter-spacing="-1.5" fill="#fbfaf6">Two perspectives.</text>
+    <text x="50" y="205" font-size="54" font-weight="600" letter-spacing="-1.5" fill="#fbfaf6">One clearer plan.</text>
+    <text x="53" y="264" font-size="21" fill="#b6cbcc">Plan with intent. Review with evidence.</text>
+    <path d="M684 49V271" stroke="#355155" stroke-width="1"/>
+    <rect x="731" y="60" width="151" height="65" rx="12" fill="#1b3e40" stroke="#538b82" stroke-width="1.5"/>
+    <text x="806.5" y="102" text-anchor="middle" font-size="25" font-weight="600" fill="#a4e2d4">Codex</text>
+    <rect x="731" y="195" width="151" height="65" rx="12" fill="#3b3434" stroke="#966d5b" stroke-width="1.5"/>
+    <text x="806.5" y="237" text-anchor="middle" font-size="25" font-weight="600" fill="#f2bc9f">Claude</text>
+    <g fill="none" stroke-width="2">
+      <path d="M882 92H901Q928 92 928 119V145Q928 160 943 160H964" stroke="#7aafa3"/>
+      <path d="M882 227H901Q928 227 928 200V175Q928 160 943 160" stroke="#bc927b"/>
+    </g>
+    <circle cx="948" cy="160" r="4" fill="#e9e6db"/>
+    <rect x="963" y="104" width="107" height="113" rx="12" fill="#f4f2e9"/>
+    <text x="982" y="137" font-size="16" font-weight="700" letter-spacing="1.6" fill="#28474d">PLAN</text>
+    <path d="M983 154H1050M983 168H1050M983 182H1033" stroke="#91a39d" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

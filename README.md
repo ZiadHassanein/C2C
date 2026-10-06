@@ -1,121 +1,129 @@
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/cover-mobile.svg">
+  <img src="docs/assets/cover.svg" alt="Codex–Claude Council. Two perspectives. One clearer plan." width="1120">
+</picture>
+
 # Codex–Claude Council
 
-**Let Codex and Claude review each other's ideas before you build.**
+A shared skill for planning and review with **Codex and Claude Code**. Bring a feature, an existing plan, or a whole project. Leave with an actionable plan, a security review, and a clear record of the decisions.
 
-Start in either app. Describe a feature or project. Get one plan with security considerations, test checks, and a record of the decisions. The skill recommends suitable models but keeps your settings unchanged unless you ask.
+[![Tests](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml)
 
-[Install](#install) · [Use it](#use-it) · [How it works](#how-it-works) · [Help](docs/SETUP.md)
+**Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+
+[Quick start](#install) · [Usage](#use-it) · [Workflow](#how-it-works) · [Documentation](#documentation)
 
 ## Install
 
-### 1. Get the required tools
+### 1. Prepare your tools
 
-Install [Node.js](https://nodejs.org/en/download) **18 or newer**, then install and sign in to the **other AI's command-line tool (CLI)**:
+Install [Node.js 18 or newer](https://nodejs.org/en/download) and the **other provider's command-line tool (CLI)**. Use its official setup guide, then sign in if needed:
 
-| Where you will use the skill | What must work in your terminal | Sign in if needed |
+| Your starting app | Required CLI | Sign-in command |
 |---|---|---|
-| Codex | [Claude Code CLI](https://code.claude.com/docs/en/quickstart) | `claude auth login` |
+| Codex | [Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login` |
 | Claude Code | [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) | `codex login` |
-| Both directions | Both CLIs above | Both commands above |
 
-Already have these tools installed and signed in? Continue below. The skill installer only installs the skill; it does not install these tools or sign you in.
+Install both CLIs to use the skill in both directions. The skill installer does not install these prerequisites or sign you in.
 
-### 2. Download this skill
+### 2. Download and install
 
-With Git installed, paste this into **PowerShell on Windows** or **Terminal on macOS/Linux**:
+With Git installed, run these commands in **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
 git clone https://github.com/ZiadHassanein/codex-claude-council.git
 cd codex-claude-council
+node scripts/install.mjs
 ```
 
-Without Git, [download the ZIP](https://github.com/ZiadHassanein/codex-claude-council/archive/refs/heads/main.zip), extract it, and open a terminal in the extracted folder containing `README.md` and `scripts`.
+Alternatively, [download the ZIP](https://github.com/ZiadHassanein/codex-claude-council/archive/refs/heads/main.zip), extract it, open a terminal in the folder containing `scripts`, and run `node scripts/install.mjs`.
 
-### 3. Install and check
+The installer adds the skill to both apps for your current user. No `npm install` is needed. [Install for only one app →](docs/SETUP.md#install-for-one-app-only)
 
-In that same terminal, run:
+### 3. Check the connection
+
+In the same terminal, run:
 
 ```sh
-node scripts/install.mjs
 node scripts/council.mjs doctor
 ```
 
-No `npm install` is needed. The installer adds the skill for both apps for your current user.
+Look for the readiness value matching your starting app:
 
-The setup check prints a report. Look for the line matching the app you will use:
-
-| Starting from | Required result |
+| Starting from Codex | Starting from Claude Code |
 |---|---|
-| Codex | `"codex_chat_ready": true` |
-| Claude Code | `"claude_chat_ready": true` |
+| `"codex_chat_ready": true` | `"claude_chat_ready": true` |
 
-You only need your chosen direction to be ready. This checks setup and sign-in; it does not send a planning request. If it says `false`, use the [troubleshooting guide](docs/SETUP.md#troubleshooting).
+Only your chosen direction needs to be ready. This checks setup and sign-in without sending a planning request. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
 
-### 4. Open a new chat
+### 4. Start a project chat
 
-Open **your project** in Codex or Claude Code and start a new chat so it can discover the skill. Paste one of the prompts below **into the chat**, not the terminal.
+Open your project in Codex or Claude Code and start a **new chat** to discover the skill. Paste a request below into that chat.
 
 ## Use it
 
-**In Codex:**
+### From Codex
 
 ```text
 Use $codex-claude-council to plan a search filter for this app.
-Keep it focused. Include security checks and acceptance tests.
+Keep it focused, with security considerations and acceptance tests.
 ```
 
-**In Claude Code:**
+### From Claude Code
 
 ```text
 /codex-claude-council Plan a search filter for this app with Codex.
-Keep it focused. Include security checks and acceptance tests.
+Keep it focused, with security considerations and acceptance tests.
 ```
 
-Replace “a search filter” with your task. Include useful files, constraints, and what success should look like. The AI handles the discussion commands and saves the results.
+Replace the example with your task. Include relevant files, constraints, and success criteria. Your current chat coordinates the exchange and saves the results.
 
-| Your task | Add this to your request |
+| Planning need | What to ask for |
 |---|---|
-| Small feature | “Give me concise steps, edge cases, and acceptance checks.” |
-| A design with alternatives | “Have both agents draft independently and compare approaches.” |
-| A whole project | “Define the MVP, architecture, milestones, and a detailed first milestone.” |
-| An existing plan | “Review the plan in `docs/plan.md` and explain what should change.” |
+| **Small feature** | Concise implementation steps, edge cases, and acceptance checks. |
+| **Design decision** | Independent proposals, a comparison of approaches, and mutual review. |
+| **Whole project** | MVP scope, architecture, milestone dependencies, and a detailed first milestone. |
+| **Existing plan** | Review of a named plan file, with proposed changes and reasons. |
 
-For model advice without starting a discussion: “Assess this task and recommend models. Keep my settings; advice only.”
+**Model advice stays advisory.** Recommendations do not change your settings. For advice without a peer discussion, add: “Assess the task and recommend models. Keep my settings; advice only.”
 
 ## How it works
 
-```mermaid
-flowchart TD
-    A["You describe the task"] --> B["Assess size and recommend models"]
-    B --> C["Codex and Claude draft or review"]
-    C --> D["Combine ideas, security review and test checks"]
-    D --> E["The other AI checks the combined plan"]
-    E --> F["Save the plan, decisions and unresolved questions"]
-```
+<picture>
+  <source media="(max-width: 640px)" srcset="docs/assets/workflow-mobile.svg">
+  <img src="docs/assets/workflow.svg" alt="Independent plan mode: shared brief, separate Codex and Claude proposals, mutual critique, coordinator synthesis with security and test checks, peer verification, then a final plan with decisions and open questions." width="960">
+</picture>
 
-Your current chat leads the process and calls the other AI. A focused review uses **2 successful peer calls**; independent design or project planning uses **3**. Both include a security review. Model advice does not switch models automatically.
+**Independent planning** follows the six stages above and uses **3 successful peer calls**. **Focused review** starts with one candidate plan, followed by independent critiques, synthesis, and peer verification; it uses **2 successful peer calls**. Both include a security review.
 
-## What you get
+The final decision record explains which findings were accepted, rejected, or left unresolved. Edits made after peer verification are marked clearly. Agreement is not required to finish.
 
-The AI gives you links to a saved run folder. Start with these files:
+## What you receive
 
-| File | What it tells you |
+The chat links to the run folder. These are the main files to read:
+
+| File | Purpose |
 |---|---|
-| `final-plan.md` | What to build, in what order, and how to check it. |
-| `RESULT.md` | After completion: review outcome, remaining issues, and edits made after review. |
-| `TASK_ASSESSMENT.md` | Task size, risk, and model recommendations. |
-| `HANDOFF.md` | Where work stopped and how to continue. |
+| **`final-plan.md`** | Scope, chosen approach, ordered steps, and acceptance checks. |
+| **`RESULT.md`** | After completion: review outcome, remaining issues, and changes since verification. |
+| **`TASK_ASSESSMENT.md`** | Task size, risk, uncertainty, and model recommendations. |
+| **`HANDOFF.md`** | Current progress, evidence links, and the next action. |
 
-The folder also keeps the security review and detailed decisions. An optional implementation brief can hand off one milestone.
+The run also retains detailed decisions and the security review. An optional `IMPLEMENTATION_BRIEF.md` hands off one selected milestone.
 
-**Planning does not build or deploy your project.** Tests in a plan are proposed checks unless explicitly reported as executed. Security review highlights risks and unknowns; it does not certify the implementation.
+> **Review completion describes the planning exchange.** The result distinguishes proposed checks from executed results and preserves unresolved issues. Security review records risks and unknowns. Implementation and deployment require their own authorization and verification.
 
-## Help and details
+## Documentation
 
-- [Setup, troubleshooting, updates, and usage limits](docs/SETUP.md)
-- [Agent instructions](SKILL.md) · [Technical protocol](references/protocol.md)
-- [Development notes and recorded test results](PROJECT_NOTES.md)
+| Guide | Start here when you need to… |
+|---|---|
+| [Setup and troubleshooting](docs/SETUP.md) | Install, update, uninstall, or resolve a failed check. |
+| [Agent instructions](SKILL.md) | Understand how either AI coordinates a discussion. |
+| [Technical protocol](references/protocol.md) | Inspect commands, schemas, and saved evidence. |
+| [Development and validation](PROJECT_NOTES.md) | Review design decisions and dated test results. |
 
-Peer calls use your provider account and its usage limits. Only selected context is sent to the other provider; exclude secrets and unrelated private information. See the [usage details](docs/SETUP.md#usage-and-privacy).
+Peer calls use your provider account and its usage limits. Only selected context is sent to the other provider; exclude secrets and unrelated private data. Runtime limits are not spending caps. [Usage and privacy details →](docs/SETUP.md#usage-and-privacy)
 
-[MIT license](LICENSE).
+---
+
+Built for Codex and Claude Code. Distributed under the [MIT license](LICENSE).

@@ -1,6 +1,6 @@
 {
   "name": "codex-claude-council",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A shared Codex and Claude Code skill for independent planning and mutual review.",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test tests/council.test.mjs"
+    "test": "node --test tests/council.test.mjs tests/process.test.mjs"
   },
   "license": "MIT"
 }

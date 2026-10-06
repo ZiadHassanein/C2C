@@ -63,6 +63,7 @@ async function readyForVerify(label, options = {}) {
   await ask({run:f.out,stage:'review'},invocation(report(['peer-any-id'])));
   const ids = ['C-D1','C-R1','P-R1'];
   if ((options.mode ?? 'plan') === 'plan') ids.push('P-D1');
+  await write(path.join(f.out,'security-review.json'),report([], 'SECURITY_REVIEW_PRIVATE_481: synthetic review of input handling; tests remain proposed'));
   await write(path.join(f.out,'final-plan.md'),'# Final plan\nImplement escaping and deterministic ordering.\n');
   await write(path.join(f.out,'decisions.json'),ids.map(finding_id=>({finding_id,disposition:'accepted',rationale:'Covered by final plan acceptance criteria.'})));
   return f;
@@ -92,10 +93,12 @@ test('preconditions prevent invented stages and incomplete completion', async ()
 test('draft and mutual critique remain independent', async () => {
   const f = await fixture('independence');
   await hostDraft(f);
+  await write(path.join(f.out,'security-review.json'), report([], 'SECURITY_PRIVATE_BEFORE_VERIFICATION'));
   let draftRequest;
   await ask({run:f.out,stage:'draft'},async req=>{ draftRequest=req; return invocation(report(['untrusted-id']))(req); });
   assert.ok(draftRequest.prompt.includes('INPUT_CONTEXT_TOKEN'));
   assert.ok(!draftRequest.prompt.includes('HOST_DRAFT_SECRET_714'),'peer independent draft saw the coordinator draft');
+  assert.ok(!draftRequest.prompt.includes('SECURITY_PRIVATE_BEFORE_VERIFICATION'));
   assert.notEqual(path.resolve(draftRequest.cwd),path.resolve(f.project));
   assert.deepEqual((await read(path.join(f.out,'peer-draft.json'))).findings.map(x=>x.id),['P-D1']);
   await hostReview(f);
@@ -103,6 +106,7 @@ test('draft and mutual critique remain independent', async () => {
   await ask({run:f.out,stage:'review'},async req=>{ reviewRequest=req; return invocation()(req); });
   assert.ok(reviewRequest.prompt.includes('HOST_DRAFT_SECRET_714'),'peer review did not receive coordinator proposal');
   assert.ok(!reviewRequest.prompt.includes('HOST_REVIEW_SECRET_952'),'peer review saw the coordinator critique');
+  assert.ok(!reviewRequest.prompt.includes('SECURITY_PRIVATE_BEFORE_VERIFICATION'));
 });
 
 test('sealed coordinator and peer reports cannot be silently rewritten', async () => {
@@ -162,6 +166,17 @@ test('review mode skips independent peer draft while retaining verification', as
 test('parsers reject error responses even when result text looks valid', () => {
   assert.throws(()=>parsePeerResponse('claude',JSON.stringify({type:'result',is_error:true,result:JSON.stringify(report())})));
   assert.throws(()=>parsePeerResponse('codex','an ordinary paragraph is not a structured review'));
+});
+
+test('Claude streaming results retain structured reports and reject incomplete or failed streams', () => {
+  const events=[{type:'system',subtype:'init',session_id:'live-session'},{type:'assistant',message:{content:[]}},{type:'result',subtype:'success',is_error:false,structured_output:report(),session_id:'live-session',usage:{output_tokens:20}}];
+  const stream=events.map(event=>JSON.stringify(event)).join('\n');
+  const parsed=parsePeerResponse('claude',stream);
+  assert.equal(parsed.report.summary,'A useful report');
+  assert.equal(parsed.session_id,'live-session');
+  assert.equal(parsed.usage.output_tokens,20);
+  assert.throws(()=>parsePeerResponse('claude',events.slice(0,-1).map(event=>JSON.stringify(event)).join('\n')),/successful result/);
+  assert.throws(()=>parsePeerResponse('claude',stream+'\n'+JSON.stringify({type:'result',is_error:true})),/failed stream/);
 });
 
 test('peer CLI arguments never enable unrestricted execution', async () => {
@@ -328,8 +343,170 @@ test('interrupted recovery is persisted before attempt or runtime budget rejecti
   }
 });
 
+test('new runs require substantive security review with C-S IDs before verification', async () => {
+  const f = await readyForVerify('security-required');
+  const securityPath = path.join(f.out,'security-review.json');
+  await fs.unlink(securityPath);
+  let invoked = false;
+  const fake = async req => { invoked = true; return invocation()(req); };
+  await assert.rejects(()=>ask({run:f.out,stage:'verify'},fake),/security-review/);
+  await write(securityPath, {...report(),proposal_markdown:'   '});
+  await assert.rejects(()=>ask({run:f.out,stage:'verify'},fake),/Security review must explain/);
+  await write(securityPath, report(['C-R9']));
+  await assert.rejects(()=>ask({run:f.out,stage:'verify'},fake),/Finding ID must start with C-S/);
+  assert.equal(invoked,false);
+  assert.equal((await status({run:f.out})).attempts_used,2);
+});
+
+test('security findings need decisions and the exact review reaches final verification', async () => {
+  const f = await readyForVerify('security-decisions');
+  const security = report(['C-S1'],'EXACT_SECURITY_REVIEW');
+  await write(path.join(f.out,'security-review.json'),security);
+  await assert.rejects(()=>ask({run:f.out,stage:'verify'},invocation()),/Missing decision for C-S1/);
+  const dp = path.join(f.out,'decisions.json');
+  await write(dp,[...await read(dp),{finding_id:'C-S1',disposition:'unresolved',rationale:'Missing authorization evidence must be gathered before implementation.'}]);
+  let packet;
+  await ask({run:f.out,stage:'verify'},async req=>{
+    packet=JSON.parse(req.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    return invocation()(req);
+  });
+  assert.deepEqual(packet.security_review,security);
+  assert.deepEqual(await read(path.join(f.out,'security-review-submitted.json')),security);
+  const result=await finish({run:f.out});
+  assert.equal(result.security_review.required,true);
+  assert.equal(result.security_review.verdict,'needs_changes');
+  assert.equal(result.changedSinceVerification,false);
+  assert.ok(result.unresolved.some(f=>f.finding_id==='C-S1'));
+});
+
+test('security findings cannot be erased or rewritten after submission but new findings can be added', async () => {
+  const f = await readyForVerify('security-history');
+  const sp=path.join(f.out,'security-review.json'), dp=path.join(f.out,'decisions.json');
+  const first=report(['C-S1'],'Original security scope');
+  await write(sp,first);
+  const base=[...await read(dp),{finding_id:'C-S1',disposition:'accepted',rationale:'The plan now includes a scoped authorization invariant and negative test.'}];
+  await write(dp,base);
+  await ask({run:f.out,stage:'verify'},invocation());
+  await write(sp,report());
+  await assert.rejects(async()=>finish({run:f.out}),/Preserve submitted security finding C-S1/);
+  await write(sp,{...first,findings:[{...first.findings[0],claim:'Rewritten claim'}]});
+  await assert.rejects(async()=>finish({run:f.out}),/Preserve submitted security finding C-S1/);
+  const second={...first,proposal_markdown:'Coordinator recheck after new evidence; the original finding remains.',findings:[...first.findings,...report(['C-S2']).findings]};
+  await write(sp,second);
+  await assert.rejects(async()=>finish({run:f.out}),/Missing decision for C-S2/);
+  await write(dp,[...base,{finding_id:'C-S2',disposition:'unresolved',rationale:'New evidence needs another investigation before implementation.'}]);
+  const completed=await finish({run:f.out});
+  assert.ok(completed.changed_artifacts.includes('security-review.json'));
+  assert.equal(completed.security_review.changed_since_verification,true);
+  await write(sp,first);
+  await assert.rejects(async()=>status({run:f.out}),/Sealed artifact changed/);
+});
+
+test('security edits during verification are reported against the submitted hash', async () => {
+  const f=await readyForVerify('security-concurrent');
+  const sp=path.join(f.out,'security-review.json');
+  await ask({run:f.out,stage:'verify'},async req=>{
+    const current=await read(sp);
+    await write(sp,{...current,proposal_markdown:'Coordinator updated the security scope while peer verification was running.'});
+    return invocation()(req);
+  });
+  const completed=await finish({run:f.out});
+  assert.deepEqual(completed.changed_artifacts,['security-review.json']);
+  assert.notEqual(completed.final_hashes['security-review.json'],completed.reviewed_hashes['security-review.json']);
+});
+
+test('security findings added for a verification retry also remain immutable', async () => {
+  const f=await readyForVerify('security-retry');
+  await assert.rejects(()=>ask({run:f.out,stage:'verify'},async()=>{throw new Error('One simulated transport failure');}),/transport failure/);
+  const sp=path.join(f.out,'security-review.json'),dp=path.join(f.out,'decisions.json');
+  const next=report(['C-S1'],'New evidence before retry');
+  await write(sp,next);
+  await write(dp,[...await read(dp),{finding_id:'C-S1',disposition:'unresolved',rationale:'New authorization evidence remains unresolved before implementation.'}]);
+  await ask({run:f.out,stage:'verify'},invocation());
+  const manifest=await read(path.join(f.out,'run.json'));
+  assert.equal(manifest.attempts[3].security_report_file,'attempt-4-security-review.json');
+  await write(sp,report());
+  await assert.rejects(async()=>finish({run:f.out}),/Preserve submitted security finding C-S1/);
+});
+
+test('uncommitted security snapshot from interrupted preparation can be replaced', async () => {
+  const f=await readyForVerify('security-orphan-snapshot');
+  await write(path.join(f.out,'security-review-submitted.json'),report(['C-S99'],'Orphan file never submitted or reserved'));
+  await ask({run:f.out,stage:'verify'},invocation());
+  assert.equal((await read(path.join(f.out,'security-review-submitted.json'))).findings.length,0);
+  await finish({run:f.out});
+});
+
+test('insufficient security evidence stays visible even with no findings', async () => {
+  const f=await readyForVerify('security-unknown');
+  await write(path.join(f.out,'security-review.json'),{...report(),verdict:'insufficient_context',limitations:['Authorization design is absent; protection cannot be assessed.']});
+  await ask({run:f.out,stage:'verify'},invocation({...report(),verdict:'insufficient_context'}));
+  const completed=await finish({run:f.out});
+  assert.equal(completed.security_review.verdict,'insufficient_context');
+  assert.equal(completed.peer_verdict,'insufficient_context');
+  assert.match(await fs.readFile(path.join(f.out,'RESULT.md'),'utf8'),/Authorization design is absent/);
+});
+
+test('legacy version 1 runs finish without a new security claim', async () => {
+  const f=await readyForVerify('legacy-security',{mode:'review'});
+  const manifest=await read(path.join(f.out,'run.json'));
+  manifest.version=1;
+  await write(path.join(f.out,'run.json'),manifest);
+  await fs.unlink(path.join(f.out,'security-review.json'));
+  await ask({run:f.out,stage:'verify'},invocation());
+  const completed=await finish({run:f.out});
+  assert.equal(completed.security_review.required,false);
+  assert.equal(completed.security_review.verdict,'not_required_by_legacy_run');
+});
+
+test('obvious credentials in final plan are rejected before peer launch', async () => {
+  const f=await readyForVerify('outbound-secret');
+  await write(path.join(f.out,'final-plan.md'),'# Plan\nExample credential: sk-'+ 'x'.repeat(28));
+  let invoked=false;
+  await assert.rejects(()=>ask({run:f.out,stage:'verify'},async req=>{invoked=true;return invocation()(req);}),/Possible credential in outbound content/);
+  assert.equal(invoked,false);
+  assert.equal((await status({run:f.out})).attempts_used,2);
+});
+
+test('disposition capacity supports findings aggregated from multiple reports', async () => {
+  const f=await fixture('many-findings',{mode:'review'});
+  const draftIds=Array.from({length:100},(_,i)=>`C-D${i+1}`);
+  const reviewIds=Array.from({length:100},(_,i)=>`C-R${i+1}`);
+  await hostDraft(f,draftIds);
+  await hostReview(f,reviewIds);
+  await ask({run:f.out,stage:'review'},invocation());
+  await write(path.join(f.out,'final-plan.md'),'# Plan\nAll fixture concerns are represented in the acceptance checks.');
+  await write(path.join(f.out,'security-review.json'),report());
+  await write(path.join(f.out,'decisions.json'),[...draftIds,...reviewIds].map(finding_id=>({finding_id,disposition:'accepted',rationale:'The final plan includes the corresponding acceptance condition.'})));
+  await ask({run:f.out,stage:'verify'},invocation());
+  await finish({run:f.out});
+});
+
+test('failed invocations persist attached partial diagnostics and stay failed', async () => {
+  const f=await fixture('partial-diagnostics');
+  await hostDraft(f);
+  const failure=Object.assign(new Error('Peer deadline exceeded'),{stdout:'Partial model output',stderr:'Partial diagnostic',reason:'timeout',code:null,signal:'SIGKILL'});
+  await assert.rejects(()=>ask({run:f.out,stage:'draft'},async()=>{throw failure;}),/deadline/);
+  assert.equal(await fs.readFile(path.join(f.out,'attempt-1-stdout.txt'),'utf8'),'Partial model output');
+  assert.equal(await fs.readFile(path.join(f.out,'attempt-1-stderr.txt'),'utf8'),'Partial diagnostic');
+  const manifest=await read(path.join(f.out,'run.json'));
+  assert.equal(manifest.attempts[0].reason,'timeout');
+  assert.equal(manifest.attempts[0].status,'failed');
+  await assert.rejects(()=>fs.access(path.join(f.out,'peer-draft.json')));
+});
+
+test('ordinary unsuccessful child exits retain signal and termination evidence', async () => {
+  const f=await fixture('exit-metadata');
+  await hostDraft(f);
+  await assert.rejects(()=>ask({run:f.out,stage:'draft'},async()=>({code:null,signal:'SIGKILL',stdout:'Started',stderr:'Stopped',termination:{directExitObserved:true}})),/signal SIGKILL/);
+  const attempt=(await read(path.join(f.out,'run.json'))).attempts[0];
+  assert.equal(attempt.signal,'SIGKILL');
+  assert.equal(attempt.code,null);
+  assert.equal(attempt.termination.directExitObserved,true);
+});
+
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','scripts/council.mjs','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','scripts/council.mjs','scripts/process.mjs','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -353,6 +530,9 @@ async function assertInstalled(dest) {
     assert.deepEqual(await fs.readFile(path.join(dest,file)),await fs.readFile(path.join(packageRoot,file)),`Installed ${file} differs from package`);
   }
   await assert.rejects(()=>fs.access(path.join(dest,'tests')));
+  const launched=spawnSync(process.execPath,[path.join(dest,'scripts','council.mjs'),'help'],{encoding:'utf8',windowsHide:true,timeout:5000});
+  assert.equal(launched.status,0,launched.stderr);
+  assert.match(launched.stdout,/Codex-Claude Council/);
 }
 
 test('installer puts identical skill files in both isolated configuration directories', async () => {

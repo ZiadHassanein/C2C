@@ -96,31 +96,39 @@ and detail the first milestone. Recommend models without changing mine.
 
 In Claude Code, start the same request with `/codex-claude-council`.
 
+### Security, tests, and implementation
+
+Every actual plan gets a proportionate security review, including small features. The coordinator records applicable threats, data exposure, access control, input handling, dependencies, and operational risks in `security-review.json`, with evidence, necessary checks, and explicit unknowns. Version 2 runs require this report before peer verification, and the peer reviews it with the final plan. The first verification launch seals `security-review-submitted.json`; submitted finding objects stay unchanged in the current report, with resolutions recorded in decisions and new findings appended when needed. Results show the security verdict and limitations, never a blanket security pass. Legacy version 1 completion does not establish that this new check occurred.
+
+Plans specify relevant feature and security tests, using real project commands where known. Proposed checks, checks actually run with results, and blocked checks stay distinct. Reviewing a plan does not test the implementation, and assessment-only advice does not launch a council or require a security report.
+
+After completing a plan, the coordinator can write `IMPLEMENTATION_BRIEF.md` for a selected milestone, preserving scope, files and evidence, constraints, validation commands, security acceptance checks, and unresolved blockers. Implementation still needs to be within your requested scope. An appropriate separately installed skill can assist authorized implementation; the council does not automatically install one, open chats, commit, or switch models for a handoff.
+
 ### Saved plans and handoffs
 
-The coordinator handles the runner commands and writes a final plan. Each run retains the selected input snapshot, both agents' reports, `final-plan.md`, `decisions.json`, and completion provenance in `RESULT.md`. Decisions record which findings were accepted, rejected with reasons, or remain unresolved. Agreement is not required.
+The coordinator handles the runner commands and writes a final plan. Each run retains the selected input snapshot, both agents' reports, `final-plan.md`, `decisions.json`, the version 2 security review, and completion provenance in `RESULT.md`. Decisions record which findings were accepted, rejected with reasons, or remain unresolved. Agreement is not required.
 
 The coordinator also maintains a concise `HANDOFF.md` in the run directory, including progress, evidence links, unresolved decisions, remaining limits, and the exact next step. On resume, it reads that note and checks current runner state instead of repeating completed work. Failed or partial runs retain the evidence produced so far; they do not have a completed `RESULT.md`.
 
 ## Context and permissions
 
-Only the explicitly selected UTF-8 brief, context files, and relevant reports are transmitted to the peer provider. Projects are not automatically scanned or copied. Select relevant excerpts and exclude secrets before invoking a peer.
+Only the explicitly selected UTF-8 brief, context files, and relevant reports are transmitted to the peer provider. Projects are not automatically scanned or copied. Select relevant excerpts and exclude secrets before invoking a peer. A conservative obvious-secret check covers the complete outbound packet, including reports; it cannot detect all sensitive data or replace your review of what is shared.
 
 Peers run in isolated temporary working directories with project tools disabled and reduced inherited configuration. The coordinator gathers evidence, runs authorized experiments, and makes project edits. Managed organization policies still apply; these controls do not provide an OS-level security boundary. Planning does not grant permission to implement or deploy.
 
 The runner prevents recursive council calls, parallel use of one run, silent changes to sealed reports, and repeated successful stages. Defaults are 300 seconds per peer call, 900 seconds of cumulative peer runtime, and four attempts including failures. These are runtime limits, not token or billing caps; ordinary provider usage applies.
 
-Failures preserve partial results and are reported explicitly. A plan changed after peer verification is marked as changed and has not received another peer review. A completed exchange can still contain unresolved findings; it is not a guarantee that the plan is ready to implement.
+Failures preserve partial results and are reported explicitly. Timeouts and interruptions retain streamed partial logs; any uncertainty about process cleanup is reported. Partial output is not a successful review. A plan, decision record, or version 2 security report changed after peer verification is marked as changed and has not received another peer review. A completed exchange can still contain unresolved findings; it is not a guarantee that the plan is ready to implement.
 
 ## Development and verification
 
 No npm dependencies are required. Run the automated suite with:
 
 ```sh
-node --test tests/council.test.mjs
+node --test tests/council.test.mjs tests/process.test.mjs
 ```
 
-The tests cover independent inputs, report and source integrity, failure paths, stage sequencing, run isolation, and verification provenance. They also exercise a real child-process timeout, including the Windows termination path when run on Windows. Peer response fixtures test the runner without paid model calls; they do not prove that either provider is currently authenticated or available. Use `doctor` and a real task to verify your local setup.
+The suites cover council state and the process transport in `scripts/process.mjs`, including independent inputs, report integrity, failure paths, run isolation, and verification provenance. Process tests exercise real child-process behavior, including the Windows termination path when run on Windows. These are test areas, not a claim that the latest revision has passed; recorded results belong in `PROJECT_NOTES.md`. Peer response fixtures do not prove that either provider is currently authenticated or available. Use `doctor` and a real task to verify your local setup.
 
 See [SKILL.md](SKILL.md) for the agent workflow and [references/protocol.md](references/protocol.md) for runner commands and report formats.
 

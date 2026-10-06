@@ -10,11 +10,11 @@ The user also requested task-size assessment and task-appropriate model recommen
 
 The user explicitly requested suitability for both small features and big-project planning. Instructions now choose focused feature review (2 successful peer calls), feature design (3), or a project roadmap (3 at project level), using the existing runner modes. Small tasks still get a real council when requested. Project plans include MVP boundaries, dependent milestones, acceptance gates and a concrete first milestone; later milestone councils are not started automatically. UI prompt wording now allows proportional planning instead of always requiring independent drafts.
 
-- Version 0.1.0 is implemented and published at [Ziad501/codex-claude-council](https://github.com/Ziad501/codex-claude-council).
+- Version 0.2.0 adds mandatory security reviews for new runs, persistent partial process logs, bounded cleanup, and an optional implementation handoff. Repository: [Ziad501/codex-claude-council](https://github.com/Ziad501/codex-claude-council).
 - The initial published implementation is commit `6343b8b4b3efa5dd96b02b048185d8c6889299fb`.
 - The skill was installed in both products on the development machine; installation and authentication are machine-specific, not guarantees for another user.
 - License: MIT. No npm dependencies. Node.js 18+; CI covers Node 22 and 24.
-- Real CLI calls succeeded in both directions. A complete live planning cycle has **not** been demonstrated: the longer Claude verification stage exhausted its test budget. Preserve that distinction.
+- Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
 
@@ -32,6 +32,9 @@ The user explicitly requested suitability for both small features and big-projec
 | Scope collaboration by task | Support substantial planning and requested reviews without making every small edit require two agents. |
 | Scale planning depth to the task | Reuse review mode for a bounded candidate plan and plan mode for design exploration or a project roadmap; preserve explicit user requests and keep model choices advisory. |
 | Model advice is separate from execution | Assess size, complexity, risk and uncertainty independently; recommend from verified current information without changing actual settings. |
+| Require a security review in version 2 runs | Every plan has scoped security evidence, tests and explicit unknowns before peer verification. Completed legacy runs cannot acquire this claim retroactively. |
+| Preserve submitted security findings and actual reviewed versions | Each submission is sealed; findings remain unchanged and are resolved through decisions. Post-verification changes remain visible. |
+| Stream process diagnostics and bound cleanup | Preserve available output on timeouts/errors without claiming that forced pipe closure proves descendant termination. |
 
 ## File map
 
@@ -40,8 +43,10 @@ The user explicitly requested suitability for both small features and big-projec
 | `SKILL.md` | Instructions used by either coordinator. |
 | `references/protocol.md` | Commands, report schemas, finding decisions, and handoff format. |
 | `scripts/council.mjs` | Dependency-free runner and CLI adapters. |
+| `scripts/process.mjs` | Bounded child process invocation, streaming logs and termination diagnostics. |
 | `scripts/install.mjs` | Installs both product copies by default; does not overwrite different existing files. |
 | `tests/council.test.mjs` | Automated state, transport, timeout, and installer tests. |
+| `tests/process.test.mjs` | Real local subprocess tests for output, timeouts, aborts, descendants and failures. |
 | `agents/openai.yaml` | Codex skill name and suggested invocation. |
 | `.github/workflows/test.yml` | Windows/Ubuntu tests on Node 22/24. |
 | `README.md` | User setup and usage. |
@@ -54,6 +59,8 @@ The runner commands are `doctor`, `prepare`, `ask`, `status`, and `finish`. The 
 - **Review mode:** supplied or newly authored coordinator plan and coordinator critique → peer critique → synthesis → peer verification → finding dispositions → finish. Two successful peer calls; this does not create two independent proposals.
 - Coordinator findings use `C-D…` / `C-R…`; the runner assigns peer IDs `P-D…` / `P-R…` / `P-V…`.
 - Every finding needs an accepted, rejected, or unresolved disposition and a substantive reason.
+- Version 2 runs require `security-review.json` before verification and finish. It uses the report schema with `C-S` findings, is included only in the verification packet, and participates in decisions and reviewed/final hashes. Submitted findings cannot be removed or rewritten, including across retries. Security verdict and limitations remain visible even with no findings.
+- The optional coordinator-authored `IMPLEMENTATION_BRIEF.md` carries a selected milestone and actual/unknown check commands. It does not install or execute a delegate automatically.
 - Defaults: 300 seconds per peer call, 900 seconds cumulative peer runtime, four model-launch attempts. Failed model calls count. Preflight checks do not. These are not billing/token caps.
 - A run retains `snapshot.json`, `run.json`, schemas, report files, attempt inputs/logs, `final-plan.md`, and `decisions.json`. Successful completion also produces `completion.json` and `RESULT.md`.
 - The coordinator maintains a concise `HANDOFF.md` in the run directory. It is a navigation summary, not the authority for stage success or permission to retry.
@@ -69,7 +76,12 @@ Observed on 2026-10-06:
 | Skill frontmatter validation | Passed for source and both installed copies. |
 | Advisory instructions | An independent offline evaluation covered five scenarios: a small permission fix, a mechanical change across 200 files, an underspecified platform replacement, an unverified model catalogue, and new security scope. All preserved actual settings, avoided unsupported model names, and stopped after the requested advice. An early advice-only routing clarification resolved an ordering ambiguity. No new paid peer calls were made; runner and tests were unchanged. |
 | Planning depth instructions | A separate independent offline evaluation routed six scenarios: focused small feature, explicit independent proposals, existing project roadmap, new whole-project plan, assessment only, and a small high-risk candidate review. Expected scopes and required stages were preserved without automatic model changes or milestone councils. No blocking routing ambiguity was found. Skill metadata, UI prompt and local Markdown targets passed checks; runtime and installer code were unchanged, and no live council was performed for this update. |
-| Automated suite | All 24 tests passed locally on Windows. Tests use fixtures, except actual child-process timeout behavior. |
+| Automated suite | All 47 current tests passed locally on Windows, including real local subprocesses and fixtures. The earlier 24-test result belongs to the initial implementation. |
+| Version 2 focused review | Two actual Claude calls completed the small-feature review and verification. The coordinator then added tests based on verification findings; final plan, security report and decision revisions are explicitly marked post-verification. |
+| Version 2 project plan | All three actual Claude stages succeeded under default limits, including final verification using stream-json output. The coordinator addressed six verification findings with explicit post-verification revisions. Completion preserves the peer's needs_changes verdict and an unresolved C-S1 identity-policy gap; it does not claim implementation readiness or that those final edits received another peer review. The synthetic service was not implemented. |
+| Synthetic feature checks | The local pure-filter fixture passed 12 tests. Three deliberate regression mutants were detected (early-return validation bypass, skipped sparse holes, raw-value error disclosure). This demonstrates the workflow's useful feedback on one bounded example, not general plan quality. |
+| Updated reverse adapter | One actual Codex review call succeeded using synthetic coordinator records. This is transport validation, not a full Claude-led council. |
+| Security/handoff instructions | Three additional offline scenarios covered a low-risk button change, missing tenant-authorization evidence and a handoff with unknown commands. No blocking routing ambiguity was found; no live task was executed by that evaluation. |
 | Initial GitHub CI | [Run 37416553250](https://github.com/Ziad501/codex-claude-council/actions/runs/37416553250) passed all four Windows/Ubuntu × Node 22/24 jobs at the initial implementation commit. |
 | Real Claude draft | Passed in about 78 seconds using Claude Code 2.1.291. |
 | Real Claude mutual critique | Passed in about 126 seconds. It supplied concrete transaction, rendering, backup, and offline-test improvements. |
@@ -82,6 +94,10 @@ No model override was used for those live calls. Do not infer a precise model id
 ## Reliability fixes already made
 
 - Windows timeout cleanup handles a nonzero `taskkill` exit and falls back to terminating the owned direct child process.
+- Partial stdout/stderr is bounded and written during execution, with failure/signal/cleanup metadata retained. Claude requests stream-json output so initialization/progress events can survive failed runs; legacy single-result envelopes remain parseable.
+- Windows cleanup avoids PID-based termination after the direct parent has exited. Unconfirmed descendant cleanup is reported; process/tool restrictions are not an OS containment guarantee.
+- Conservative obvious-secret detection checks the full outbound packet, not only initial context. It is not comprehensive secret detection.
+- Security submissions survive retries and prelaunch orphan-file recovery; decision capacity supports the combined findings from all six possible reports.
 - Empty peer drafts and malformed/error responses cannot become successful stage evidence.
 - Evidence modified during a peer call invalidates the result.
 - Verification hashes identify the exact plan and decision record submitted, including edits made during or after the call.
@@ -91,7 +107,7 @@ No model override was used for those live calls. Do not infer a precise model id
 
 ## Known limits and sensible next work
 
-1. Investigate the long Claude verification stage before claiming an entirely successful live council. The root cause is unconfirmed. Smaller verification packets, concise output instructions, and appropriately chosen time allowances are possible experiments, not proven fixes. Do not reopen the exhausted sample run.
+1. The original long Claude verification timeout has no confirmed root cause. New focused-review and project-plan cycles completed under the default limits; this does not prove that all packets will finish. Use preserved/streamed diagnostics for future failures. Do not reopen the exhausted sample run.
 2. The runner inherits provider defaults unless a peer model is explicitly requested. Codex peer runs ignore ordinary user configuration for isolation. Exact model selection and availability require current checks.
 3. Limits bound calls and runtime, not money or tokens. The runner does not implement autonomous coding, continuous monitoring, or unrestricted agent messaging.
 4. The initial CI passed with non-blocking warnings about the action runtime of `checkout@v4` and `setup-node@v4`; updating those actions is optional maintenance, not a failed test.
@@ -102,6 +118,7 @@ No model override was used for those live calls. Do not infer a precise model id
 ```sh
 node scripts/council.mjs doctor
 node --test tests/council.test.mjs
+node --test tests/process.test.mjs
 node scripts/council.mjs status --run /absolute/path/to/existing/run
 git status --short
 ```

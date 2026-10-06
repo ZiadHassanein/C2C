@@ -1,9 +1,9 @@
 <picture>
   <source media="(max-width: 640px)" srcset="docs/assets/cover-mobile.svg">
-  <img src="docs/assets/cover.svg" alt="Ziad's Council. Two perspectives. One clearer plan." width="1120">
+  <img src="docs/assets/cover.svg" alt="C2C. Two perspectives. One clearer plan." width="1120">
 </picture>
 
-# Ziad's Council
+# C2C
 
 A shared skill for planning and review with **Codex and Claude Code**. Start with the project's current state and a clear direction. Then bring both perspectives together into an actionable plan, a security review, and a record of the decisions.
 

@@ -4,7 +4,7 @@ Last updated: 2026-10-06. This is the maintained project summary, not a transcri
 
 ## Objective and current status
 
-Public display name: **Ziad's Council**. The skill/package identifier and repository path are `codex-claude-council`; installation paths and invocation examples use that identifier.
+Public display name: **C2C**. The skill/package identifier and repository path are `codex-claude-council`; installation paths and invocation examples use that identifier.
 
 Build a reusable skill that lets Codex and Claude Code contribute independent proposals, critique each other, and produce one actionable plan with a decision record. The user requested Markdown notes to make later sessions faster and more accurate.
 
@@ -88,7 +88,7 @@ Observed on 2026-10-06:
 | Check | Result and limit |
 |---|---|
 | Skill frontmatter validation | Passed for source and both installed copies. |
-| Public interface presentation | Display metadata, README, CLI/result headings and responsive SVGs use the public display name. The package identifier and commands stay compatible. All 56 automated tests pass; source metadata, 24 local documentation targets and four SVG assets passed validation. Desktop/mobile graphics were rendered and visually inspected. |
+| Public interface presentation | Display metadata, README, CLI/result headings and responsive SVGs use **C2C**. The package identifier and commands stay compatible. All 56 automated tests pass; source and installed metadata, 24 local documentation targets and four SVG assets passed validation. Desktop/mobile graphics were rendered and visually inspected. Both installed copies match all eight package files. |
 | Version 0.3.0 automated suite | All 56 tests passed on Windows with Node 24. New cases cover deployment/readiness evidence, direction gates before output creation or peer launch, real calendar timestamps, new-build/discovery/non-software routes, all-stage frozen context, source drift, sealed artifact changes, retained production gaps, secrets/aggregate size, the CLI assessment argument, and eight-file installation. Legacy v1/v2 runs also resume without assessment artifacts. |
 | Version 0.3.0 independent instruction evaluation | Six offline scenarios covered a production checkout feature with missing policy, a dashboard with deployment configuration but no live evidence, an unspecified empty app, a small mobile-text change, a community workshop without a defined topic, and readiness advice with a known admin-access gap. Assessments preserved unknowns and evidence provenance, allowed useful small-task planning, and identified essential questions. All six JSON records validated. No paid peer calls or project changes occurred in this evaluation. |
 | Version 0.3.0 packaging and documentation | Both installed copies match all eight package files, pass metadata validation, load the assessment helper, and are recognized by the installer. README/setup local targets and command references passed checks; desktop/mobile workflow graphics were rendered and inspected. Independent contract review found no blocking inconsistency. |

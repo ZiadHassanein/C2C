@@ -1,7 +1,7 @@
 {
   "name": "codex-claude-council",
   "version": "0.3.0",
-  "description": "Ziad's Council: a shared Codex and Claude Code skill for independent planning and mutual review.",
+  "description": "C2C: a shared Codex and Claude Code skill for independent planning and mutual review.",
   "private": true,
   "type": "module",
   "engines": {

@@ -3,7 +3,7 @@ name: codex-claude-council
 description: Assess project context and direction, then plan and review small features through large projects with a real Codex and Claude Code exchange. Use when the user requests both agents' input or a design decision benefits from independent proposals or review. Includes scoped security review and advisory model recommendations; supports non-code work without requiring a council for routine edits.
 ---
 
-# Ziad's Council
+# C2C
 
 The agent running this skill is the **coordinator**. Use the bundled Node runner to obtain input from the other product's authenticated CLI. Produce one actionable plan and a decision record. Do not substitute another instance of yourself for the external peer, invent peer responses, or require agreement to finish.
 

@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, ask, finish, status, validateReport, parsePeerResponse,
+  prepare, ask, finish, status, discussion, validateReport, parsePeerResponse,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -767,7 +767,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -1056,4 +1056,151 @@ test('generated handoff reflects progress and leaves additional notes and legacy
   await hostReview(f);
   await ask({run:f.out,stage:'review'},invocation());
   assert.equal(await fs.readFile(path.join(f.out,'HANDOFF.md'),'utf8'),'Legacy handwritten handoff.');
+});
+
+test('discussion refresh shows working proposals without mutating authoritative state', async () => {
+  const f=await fixture('discussion-refresh');
+  const file=path.join(f.out,'DISCUSSION.md');
+  assert.match(await fs.readFile(file,'utf8'),/No validated reports are available yet/);
+  assert.match(await fs.readFile(path.join(f.out,'HANDOFF.md'),'utf8'),/DISCUSSION.md/);
+  await hostDraft(f,[],'A compact candidate proposal');
+  const names=['run.json','run.checkpoint.json','snapshot.json','project-assessment.json'];
+  const before=await Promise.all(names.map(name=>fs.readFile(path.join(f.out,name))));
+  assert.equal(discussion({run:f.out}).discussion,file);
+  assert.match(await fs.readFile(file,'utf8'),/Current working draft; not yet submitted/);
+  assert.match(await fs.readFile(file,'utf8'),/A compact candidate proposal/);
+  const after=await Promise.all(names.map(name=>fs.readFile(path.join(f.out,name))));
+  assert.deepEqual(after,before);
+  const cli=spawnSync(process.execPath,[path.join(packageRoot,'scripts','council.mjs'),'discussion','--run',f.out],{encoding:'utf8',windowsHide:true,timeout:10000});
+  assert.equal(cli.status,0,cli.stderr);
+  assert.equal(JSON.parse(cli.stdout).discussion,file);
+  assert.equal(status({run:f.out}).attempts_used,0);
+});
+
+test('discussion updates before and after a real stage transition without entering peer context', async () => {
+  const f=await fixture('discussion-stage');
+  await hostDraft(f,[],'COORDINATOR_DRAFT_NOT_IN_PEER_INPUT');
+  const result=await ask({run:f.out,stage:'draft'},async request=>{
+    const current=await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8');
+    assert.match(current,/running \(last recorded state\)/);
+    assert.doesNotMatch(current,/Peer public summary/);
+    assert.doesNotMatch(request.prompt,/C2C generated discussion|COORDINATOR_DRAFT_NOT_IN_PEER_INPUT/);
+    return invocation(report(['peer-id'],'Peer public summary'))(request);
+  });
+  assert.equal(result.discussion,path.join(f.out,'DISCUSSION.md'));
+  const current=await fs.readFile(result.discussion,'utf8');
+  assert.match(current,/Independent proposal \| succeeded/);
+  assert.match(current,/Peer public summary/);
+  assert.match(current,/Awaiting a recorded decision/);
+});
+
+test('failed peer output never becomes discussion evidence', async () => {
+  const f=await fixture('discussion-failure');
+  await hostDraft(f);
+  await assert.rejects(()=>ask({run:f.out,stage:'draft'},async()=>({code:1,stdout:'PRIVATE_PARTIAL_ARGUMENT',stderr:'PRIVATE_DIAGNOSTIC'})),/exited with code/);
+  const current=await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8');
+  assert.match(current,/Independent proposal \| failed/);
+  assert.match(current,/Successful peer calls: \*\*0\*\*; attempts: \*\*1\*\*/);
+  assert.doesNotMatch(current,/PRIVATE_PARTIAL_ARGUMENT|PRIVATE_DIAGNOSTIC/);
+});
+
+test('invalid mutable discussion decisions are flagged rather than rendered as agreement', async () => {
+  const f=await readyForVerify('discussion-decisions',{mode:'review'});
+  const good=await read(path.join(f.out,'decisions.json'));
+  for(const invalid of ['{partial',JSON.stringify([...good,good[0]]),JSON.stringify([{finding_id:'unknown',disposition:'accepted',rationale:'UNTRUSTED_RESPONSE_MUST_NOT_RENDER'}])]) {
+    await write(path.join(f.out,'decisions.json'),invalid);
+    const result=discussion({run:f.out});
+    assert.ok(result.warnings.length);
+    const current=await fs.readFile(result.discussion,'utf8');
+    assert.match(current,/current decision record is invalid/);
+    assert.match(current,/Awaiting a recorded decision/);
+    assert.doesNotMatch(current,/UNTRUSTED_RESPONSE_MUST_NOT_RENDER/);
+  }
+  await write(path.join(f.out,'decisions.json'),good);
+  assert.deepEqual(discussion({run:f.out}).warnings,[]);
+});
+
+test('discussion preserves unresolved responses and post-verification revisions at completion', async () => {
+  const f=await readyForVerify('discussion-completion',{mode:'review',coordinator:'claude'});
+  await ask({run:f.out,stage:'verify'},invocation(report(['new-finding'],'Final concern from Codex')));
+  const decisions=await read(path.join(f.out,'decisions.json'));
+  decisions.push({finding_id:'P-V1',disposition:'unresolved',rationale:'The owner must choose this policy before implementation.'});
+  await write(path.join(f.out,'decisions.json'),decisions);
+  await fs.appendFile(path.join(f.out,'final-plan.md'),'\nClarify the outstanding policy first.');
+  discussion({run:f.out});
+  let current=await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8');
+  assert.match(current,/Claude Code coordinates · Codex reviews/);
+  assert.match(current,/plan changed after final peer verification/);
+  assert.match(current,/response — unresolved/);
+  const completed=finish({run:f.out});
+  current=await fs.readFile(completed.discussion,'utf8');
+  assert.match(current,/workflow is complete/);
+  assert.match(current,/Final peer verdict: \*\*needs changes\*\*/);
+  assert.match(current,/owner must choose this policy/);
+  assert.equal(completed.unresolved.length,1);
+});
+
+test('a conflicting discussion file is preserved and cannot turn a successful peer call into failure', async () => {
+  const f=await fixture('discussion-conflict');
+  const file=path.join(f.out,'DISCUSSION.md');
+  await write(file,'User-authored notes that are not a generated view.');
+  assert.throws(()=>discussion({run:f.out}),/not a generated view/);
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},invocation());
+  assert.equal(status({run:f.out}).stages.draft.status,'succeeded');
+  assert.equal(await fs.readFile(file,'utf8'),'User-authored notes that are not a generated view.');
+});
+
+test('discussion retains submitted security concerns when the working copy is missing or invalid', async () => {
+  const f=await readyForVerify('discussion-security-preservation',{mode:'review'});
+  const file=path.join(f.out,'security-review.json');
+  const submitted=report(['C-S1'],'Submitted security concern');
+  submitted.findings[0].claim='Preserve this authorization concern';
+  await write(file,submitted);
+  const decisions=await read(path.join(f.out,'decisions.json'));
+  await write(path.join(f.out,'decisions.json'),[...decisions,{finding_id:'C-S1',disposition:'unresolved',rationale:'Awaiting the owner authorization policy.'}]);
+  await ask({run:f.out,stage:'verify'},invocation());
+  await write(path.join(f.out,'decisions.json'),decisions);
+  const stateBefore=await fs.readFile(path.join(f.out,'run.json'));
+  for (const invalid of [null,'{partial',report([],'Removed the submitted concern'),{...submitted,findings:[{...submitted.findings[0],claim:'Rewritten concern'}]}]) {
+    if (invalid === null) await fs.unlink(file);
+    else await write(file,invalid);
+    const result=discussion({run:f.out});
+    assert.match(result.warnings.join(' '),/changes a submitted finding/);
+    const current=await fs.readFile(result.discussion,'utf8');
+    assert.match(current,/Preserve this authorization concern/);
+    assert.match(current,/Sealed prior submission; current working copy is invalid/);
+    assert.match(current,/\[Report\]\(attempt-2-security-review.json\)/);
+    assert.match(current,/Awaiting a recorded decision/);
+    assert.doesNotMatch(current,/Removed the submitted concern|Rewritten concern/);
+    assert.deepEqual(await fs.readFile(path.join(f.out,'run.json')),stateBefore);
+  }
+});
+
+test('legacy discussion generation remains a view and future stage updates can refresh it', async () => {
+  const f=await fixture('discussion-legacy');
+  const state=await read(path.join(f.out,'run.json'));
+  delete state.generated_discussion;
+  await write(path.join(f.out,'run.json'),state);
+  await fs.unlink(path.join(f.out,'DISCUSSION.md'));
+  const before=await fs.readFile(path.join(f.out,'run.json'));
+  discussion({run:f.out});
+  assert.deepEqual(await fs.readFile(path.join(f.out,'run.json')),before);
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},invocation(report([],'A legacy run public contribution')));
+  assert.match(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8'),/A legacy run public contribution/);
+});
+
+test('legacy continuation without discussion opt-in never returns a nonexistent view link', async () => {
+  const f=await readyForVerify('discussion-not-enabled',{mode:'review'});
+  const state=await read(path.join(f.out,'run.json'));
+  delete state.generated_discussion;
+  await write(path.join(f.out,'run.json'),state);
+  await fs.unlink(path.join(f.out,'DISCUSSION.md'));
+  const verified=await ask({run:f.out,stage:'verify'},invocation());
+  assert.equal(verified.discussion,null);
+  await assert.rejects(()=>fs.access(path.join(f.out,'DISCUSSION.md')));
+  const completed=finish({run:f.out});
+  assert.equal(completed.discussion,null);
+  assert.ok(await fs.readFile(completed.result,'utf8'));
 });

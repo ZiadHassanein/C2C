@@ -11,7 +11,7 @@ A shared skill for planning and review with **Codex and Claude Code**. Start wit
 
 **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
-[Quick start](#install) · [Usage](#use-it) · [Before planning](#before-planning) · [Workflow](#how-it-works) · [Documentation](#documentation)
+[Quick start](#install) · [Usage](#use-it) · [Before planning](#before-planning) · [Workflow](#how-it-works) · [Discussion](#follow-the-discussion) · [Documentation](#documentation)
 
 ## Install
 
@@ -115,6 +115,28 @@ The route can be a new build, an extension, hardening, discovery, or non-softwar
 
 The final decision record explains which findings were accepted, rejected, or left unresolved. Edits made after peer verification are marked clearly. Agreement is not required to finish.
 
+## Follow the discussion
+
+The chat shows concise updates as planning progresses: what each agent proposed, what the other challenged, and how the coordinator changed the plan or kept an issue open. Each update is grounded in a completed report and its decisions. While a peer is working, the chat reports that the response is pending.
+
+```text
+Use $C2C to plan a website for selling cars.
+Show me the main disagreements and plan changes as you go.
+Include security and testing, and show me the plan before coding.
+```
+
+In Claude Code, start the request with `/C2C`. No extra setting is needed. For fewer updates, ask for “quiet mode” or “only the final plan.”
+
+**Illustrative car-site example — not a recorded exchange:**
+
+| Contribution | Point | Outcome |
+|---|---|---|
+| Codex proposes | Include customer accounts and saved cars in the MVP. | Candidate scope for review. |
+| Claude challenges | Browsing and seller contact can work without customer accounts; protect inventory management with authenticated admin access. | Recommends a smaller launch scope. |
+| Codex decides | Defer customer accounts; keep browse, filter, contact, and secured inventory management. | Revises the plan and records the reason. |
+
+Actual exchanges can agree, disagree, or end with unresolved questions. `DISCUSSION.md` preserves the submitted points and decisions, with links to their evidence. Updates arrive between completed stages; private reasoning and token streams are not displayed. [Discussion controls →](docs/SETUP.md#follow-the-discussion)
+
 ## What you receive
 
 The chat links to the run folder. These are the main files to read:
@@ -124,6 +146,7 @@ The chat links to the run folder. These are the main files to read:
 | **`PROJECT_CONTEXT.md`** | Initial project evidence, deployment status, readiness gaps, and planning direction. |
 | **`final-plan.md`** | Scope, chosen approach, ordered steps, and acceptance checks. |
 | **`RESULT.md`** | After completion: review outcome, remaining issues, and changes since verification. |
+| **`DISCUSSION.md`** | Generated account of proposals, challenges, decisions, and open questions as the exchange progresses. |
 | **`TASK_ASSESSMENT.md`** | Task size, risk, uncertainty, and model recommendations. |
 | **`HANDOFF.md`** | Generated progress, evidence links, and the next action. |
 

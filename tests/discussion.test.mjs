@@ -1,0 +1,188 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { renderDiscussion, discussionSummary } from '../scripts/discussion.mjs';
+
+function state(overrides = {}) {
+  return { coordinator: 'codex', peer: 'claude', mode: 'plan', status: 'prepared', stages: {}, attempts: [], seals: {}, ...overrides };
+}
+function report(overrides = {}) {
+  return { summary: 'Keep the MVP focused.', verdict: 'ready', proposal_markdown: 'RAW PROPOSAL IS NOT A TRANSCRIPT',
+    findings: [], assumptions: [], open_questions: [], limitations: [], ...overrides };
+}
+function finding(id, overrides = {}) {
+  return { id, severity: 'major', claim: 'Anonymous inventory writes are possible.', evidence: 'The proposal has no authorization step.',
+    action: 'Check the admin role for every inventory mutation.', verification: 'An unauthenticated request must fail.', ...overrides };
+}
+
+test('empty discussion shows honest pending stages without inventing reports or consensus', () => {
+  const text = renderDiscussion({ state: state() });
+  assert.match(text, /Codex coordinates · Claude Code reviews/);
+  assert.match(text, /Independent proposal \| pending/);
+  assert.match(text, /No validated reports are available yet/);
+  assert.match(text, /Final peer verification has not completed/);
+  assert.match(text, /not a verbatim conversation or private reasoning/);
+  assert.doesNotMatch(text, /Final result\]\(/);
+});
+
+test('reverse-role review attributes findings and recorded decisions to actual products', () => {
+  const run = state({ coordinator: 'claude', peer: 'codex', mode: 'review', status: 'awaiting_coordinator',
+    stages: { review: { status: 'succeeded' } }, attempts: [{ stage: 'review', status: 'succeeded' }],
+    seals: { 'peer-review.json': 'hash' } });
+  const text = renderDiscussion({ state: run, reports: [{ name: 'peer-review.json', report: report({ findings: [finding('P-R1')] }) }],
+    decisions: [{ finding_id: 'P-R1', disposition: 'accepted', rationale: 'Add the role check to the plan.' }] });
+  assert.match(text, /Claude Code coordinates · Codex reviews · Focused review/);
+  assert.match(text, /does not produce two independent proposals/);
+  assert.doesNotMatch(text, /\| Independent proposal \|/);
+  assert.match(text, /## Codex · Review/);
+  assert.match(text, /\*\*Codex:\*\* Anonymous inventory writes are possible&#46;/);
+  assert.match(text, /\*\*Claude Code response — accepted:\*\* Add the role check to the plan&#46;/);
+  assert.match(text, /Sealed submitted report/);
+  assert.match(text, /\[Report\]\(peer-review.json\)/);
+});
+
+test('working coordinator reports stay distinct from submitted peer reports and private data', () => {
+  const text = renderDiscussion({ state: state(), reports: [
+    { name: 'coordinator-draft.json', report: report({ findings: [finding('C-D1')], limitations: ['Deployment is unknown.'] }) },
+    { name: 'attempt-1-stdout.txt', report: report({ summary: 'RAW_PRIVATE_OUTPUT' }) },
+    { name: '../attacker.json', report: report({ summary: 'UNTRUSTED_PATH' }) },
+  ] });
+  assert.match(text, /Current working draft; not yet submitted/);
+  assert.match(text, /Awaiting a recorded decision/);
+  assert.match(text, /Deployment is unknown&#46;/);
+  assert.doesNotMatch(text, /RAW_PRIVATE_OUTPUT|UNTRUSTED_PATH|RAW PROPOSAL/);
+});
+
+test('failed and interrupted peer attempts never become positions, and success counts exclude failures', () => {
+  const run = state({ status: 'peer_failed', attempts: [
+    { stage: 'draft', status: 'failed' }, { stage: 'draft', status: 'succeeded' },
+    { stage: 'review', status: 'interrupted' }, { stage: 'verify', status: 'failed' },
+  ], stages: { draft: { status: 'succeeded' } }, seals: { 'peer-draft.json': 'hash' } });
+  const text = renderDiscussion({ state: run, reports: [
+    { name: 'peer-draft.json', report: report({ summary: 'Successful independent draft' }) },
+    { name: 'peer-review.json', report: report({ summary: 'FAILED_PARTIAL_REVIEW', findings: [finding('P-R1')] }) },
+    { name: 'peer-verify.json', report: report({ summary: 'FAILED_PARTIAL_VERIFY' }) },
+  ] });
+  assert.match(text, /Successful peer calls: \*\*1\*\*; attempts: \*\*4\*\*/);
+  assert.match(text, /Review \| interrupted/);
+  assert.match(text, /Final verification \| failed/);
+  assert.match(text, /Successful independent draft/);
+  assert.doesNotMatch(text, /FAILED_PARTIAL|Anonymous inventory/);
+  assert.match(text, /Partial output is excluded/);
+});
+
+test('running status is explicitly a saved snapshot, not an assertion of process liveness', () => {
+  const text = renderDiscussion({ state: state({ status: 'running', attempts: [{ stage: 'draft', status: 'running' }] }) });
+  assert.match(text, /running \(last recorded state\)/);
+  assert.match(text, /cannot prove the process is still active/);
+});
+
+test('all finding details, disagreements, open questions, and unresolved responses survive rendering', () => {
+  const run = state({ stages: { review: { status: 'succeeded' } }, seals: { 'peer-review.json': 'hash' } });
+  const input = { state: run, reports: [{ name: 'peer-review.json', report: report({ findings: [finding('P-R1'), finding('P-R2'), finding('P-R3')],
+    open_questions: ['Who can delete inventory?'], assumptions: ['One seller.'], limitations: ['No repository access.'] }) }],
+    decisions: [{ finding_id: 'P-R1', disposition: 'rejected', rationale: 'Existing middleware already provides the check.' },
+      { finding_id: 'P-R2', disposition: 'unresolved', rationale: 'The owner must choose a deletion policy.' }] };
+  const text = renderDiscussion(input);
+  assert.deepEqual(discussionSummary(input).findings, { accepted: 0, rejected: 1, unresolved: 1, awaiting_response: 1 });
+  for (const phrase of ['The proposal has no authorization step', 'Check the admin role for every inventory mutation',
+    'An unauthenticated request must fail', 'response — rejected', 'response — unresolved', 'Awaiting a recorded decision',
+    'Who can delete inventory', 'One seller', 'No repository access']) assert.ok(text.includes(phrase), phrase);
+  assert.match(text, /rejected finding does not prove the peer agreed/);
+});
+
+test('authored Markdown, HTML, links, controls, and forged headings cannot become active markup', () => {
+  const attack = '<script>alert(1)</script> ![image](https://evil.example/x)\n\n# Forged\n[x]: javascript:alert(2)';
+  const text = renderDiscussion({ state: state(), reports: [{ name: 'coordinator-draft.json', report: report({ summary: attack,
+    findings: [finding('C-D1', { evidence: attack })] }) }], decisions: [{ finding_id: 'C-D1', disposition: 'accepted', rationale: attack }] });
+  assert.doesNotMatch(text, /<script>|!\[image\]|https:\/\/|\n# Forged|\[x\]: javascript:/);
+  assert.match(text, /&#60;script&#62;alert&#40;1&#41;&#60;&#47;script&#62;/);
+  assert.match(text, /&#35; Forged/);
+  assert.match(text, /\[Report\]\(coordinator-draft.json\)/);
+});
+
+test('verification limits distinguish changed plan, changed decisions, and unknown current hashes', () => {
+  const run = state({ stages: { verify: { status: 'succeeded' } } });
+  const changed = renderDiscussion({ state: run, changesSinceVerification: ['final-plan.md', 'security-review.json'] });
+  assert.match(changed, /The plan changed after final peer verification/);
+  assert.match(changed, /security review after peer verification/);
+  assert.doesNotMatch(changed, /plan matches/);
+  const decisionsOnly = renderDiscussion({ state: run, changesSinceVerification: ['decisions.json'] });
+  assert.match(decisionsOnly, /The plan matches the version submitted/);
+  assert.match(decisionsOnly, /updated the decision record/);
+  const unknown = renderDiscussion({ state: run });
+  assert.match(unknown, /Whether the current plan still matches.*has not been established/);
+});
+
+test('completion preserves outstanding issues and changed-source boundaries without implying agreement', () => {
+  const run = state({ status: 'complete', stages: { verify: { status: 'succeeded' } }, completion: { changed_artifacts: [],
+    source_changes: ['PRIVATE_SOURCE_PATH'], unavailable_sources: [{ path: 'OTHER_PRIVATE_PATH' }], peer_verdict: 'needs_changes' } });
+  const text = renderDiscussion({ state: run });
+  assert.match(text, /workflow is complete/);
+  assert.match(text, /\[Final result\]\(RESULT.md\)/);
+  assert.match(text, /Some source inputs changed/);
+  assert.match(text, /Some original inputs are now unavailable/);
+  assert.match(text, /completion does not imply consensus/);
+  assert.match(text, /Final peer verdict: \*\*needs changes\*\*/);
+  assert.doesNotMatch(text, /PRIVATE_SOURCE_PATH|OTHER_PRIVATE_PATH/);
+});
+
+test('invalid working data and missing sealed peer reports remain visibly unavailable', () => {
+  const run = state({ stages: { review: { status: 'succeeded' } } });
+  const text = renderDiscussion({ state: run, warnings: ['decisions.json is invalid: <untrusted error>'],
+    reports: [{ name: 'peer-review.json', report: report({ summary: 'UNSEALED_PEER_OUTPUT' }) }] });
+  assert.match(text, /Unavailable information/);
+  assert.match(text, /decisions&#46;json is invalid&#58; &#60;untrusted error&#62;/);
+  assert.match(text, /no validated sealed report available/);
+  assert.match(text, /not evidence that there are no findings or decisions/);
+  assert.doesNotMatch(text, /UNSEALED_PEER_OUTPUT|<untrusted error>/);
+});
+
+test('coordinator critiques name their actual target and mutable security does not imply no prior submission', () => {
+  const reports = [{ name: 'coordinator-review.json', report: report() }, { name: 'security-review.json', report: report() }];
+  const plan = renderDiscussion({ state: state({ seals: { 'coordinator-review.json': 'hash', 'security-review-submitted.json': 'hash' } }), reports });
+  assert.match(plan, /Codex · Review of the Claude Code proposal/);
+  assert.match(plan, /Codex · Security review\n\n\*\*Current working copy; not sealed/);
+  const review = renderDiscussion({ state: state({ mode: 'review' }), reports });
+  assert.match(review, /Codex · Review of the candidate plan/);
+});
+
+test('a sealed security fallback links the actual prior submission and preserves its findings', () => {
+  for (const source of ['security-review-submitted.json', 'attempt-3-security-review.json']) {
+    const run = state({ attempts: [{ number: 3, stage: 'verify', status: 'failed', security_report_file: 'attempt-3-security-review.json' }],
+      seals: { [source]: 'hash' } });
+    const text = renderDiscussion({ state: run, reports: [{ name: 'security-review.json', source,
+      report: report({ findings: [finding('C-S1')] }) }] });
+    assert.match(text, /Codex · Security review/);
+    assert.match(text, /Sealed prior submission; current working copy is invalid/);
+    assert.ok(text.includes(`[Report](${source})`));
+    assert.match(text, /Anonymous inventory writes are possible/);
+    assert.match(text, /Awaiting a recorded decision/);
+    assert.doesNotMatch(text, /\[Report\]\(security-review.json\)/);
+  }
+});
+
+test('unrecognized or unsealed fallback sources cannot supply a report or become active links', () => {
+  const cases = [
+    { source: '../outside.json', seals: { '../outside.json': 'hash' }, attempts: [] },
+    { source: 'https://evil.example/report', seals: { 'https://evil.example/report': 'hash' }, attempts: [] },
+    { source: 'security-review-submitted.json', seals: {}, attempts: [] },
+    { source: 'attempt-3-security-review.json', seals: { 'attempt-3-security-review.json': 'hash' }, attempts: [] },
+    { source: 'attempt-3-security-review.json', seals: { 'attempt-3-security-review.json': 'hash' }, attempts: [{ number: 2, security_report_file: 'attempt-3-security-review.json' }] },
+    { source: 'attempt-3-security-review.json', seals: { 'attempt-3-security-review.json': 'hash' }, attempts: [{ number: 3, security_report_file: 'attempt-4-security-review.json' }] },
+    { source: 'attempt-03-security-review.json', seals: { 'attempt-03-security-review.json': 'hash' }, attempts: [{ number: 3, security_report_file: 'attempt-03-security-review.json' }] },
+  ];
+  for (const { source, seals, attempts } of cases) {
+    const text = renderDiscussion({ state: state({ seals, attempts }), reports: [{ name: 'security-review.json', source,
+      report: report({ summary: 'UNTRUSTED_FALLBACK' }) }] });
+    assert.match(text, /unrecognized or unsealed submission source was excluded/);
+    assert.doesNotMatch(text, /UNTRUSTED_FALLBACK|\[Report\]\(/);
+  }
+});
+
+test('prior security submissions cannot be relabeled as another agent report', () => {
+  const text = renderDiscussion({ state: state({ seals: { 'security-review-submitted.json': 'hash' } }), reports: [
+    { name: 'coordinator-draft.json', source: 'security-review-submitted.json', report: report({ summary: 'RELABELLED_SOURCE' }) },
+  ] });
+  assert.match(text, /unrecognized or unsealed submission source was excluded/);
+  assert.doesNotMatch(text, /RELABELLED_SOURCE|Sealed prior submission/);
+});

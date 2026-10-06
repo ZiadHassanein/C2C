@@ -80,6 +80,20 @@ Downloading updates alone does not update the installed copies. If their files a
 
 Remove only the `C2C` folder from the installed locations above, then start a new chat. Your separately saved plans and run folders remain available.
 
+## Follow the discussion
+
+Concise discussion updates are enabled by default. Ask “show the main disagreements and plan changes as you go” for emphasis, or “quiet mode” / “only the final plan” to limit chat updates. The AI handles the runner commands for you.
+
+Updates identify each agent's submitted points, the coordinator's decisions, and unresolved questions after completed stages. A pending call is shown as waiting. C2C does not invent dialogue or stream private reasoning. Both planning modes keep their existing call limits.
+
+Open the run's generated `DISCUSSION.md` to read the evidence-backed account. It stays local and is excluded from peer inputs. To refresh it after local report or decision edits, ask the AI to refresh the discussion. For manual inspection from the repository folder:
+
+```sh
+node scripts/council.mjs discussion --run "/absolute/path/to/run"
+```
+
+Replace the path with the run folder. Run this between stages to refresh the discussion and return its file path, then open that file. You can read the existing file while a peer call is pending. Refreshing does not make another model call or advance the planning stages.
+
 ## Usage and privacy
 
 Before planning, the AI checks the relevant project context and makes the goal, scope, success criteria, and next step explicit. It writes the assessment files for you. It may ask a focused question when an essential requirement is missing; unknown deployment details alone do not prevent a useful plan. Read `PROJECT_CONTEXT.md` for the evidence and limits. For an assessment without a peer discussion, ask for “assessment only.”

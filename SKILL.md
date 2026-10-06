@@ -68,6 +68,14 @@ For **both**:
 2. Call `ask --stage verify`. Read `peer-verify.json`, address warranted changes, and append dispositions for its findings. Preserve earlier findings and disclose post-verification edits; they do not receive another automatic review.
 3. Run `finish`. Report the actionable plan, what peer review changed, unresolved material issues, and artifact links. Completion can still mean a blocked plan; it grants no implementation authority.
 
+## Show the discussion as it develops
+
+Give concise stage updates by default; respect requests for quiet or final-only output. Before each peer call, name the agent and what it will review or propose. While a call is pending, report that it is waiting; do not imply a response has arrived.
+
+After each completed stage, summarize one to three material points from the actual reports: who proposed or challenged what, the coordinator's response, any resulting plan change, and what remains unresolved. Attribute claims to Codex or Claude using the run's roles and link to the relevant finding or report. Distinguish a peer's objection from the coordinator's decision; acceptance of a finding does not establish mutual agreement. Quote only text present in the report. Never invent dialogue, disagreements, or consensus, expose private reasoning traces or raw process logs, or add calls merely to stage a debate.
+
+The runner saves `DISCUSSION.md` from submitted reports and decisions. Run `discussion --run RUN` to refresh and read it after local report or decision edits; link it in progress updates and the final response. Treat it as a readable local summary, not a chat transcript or peer input. Keep it out of peer packets so the independent proposals and critiques stay independent.
+
 ## Security and testing
 
 Before verification, every plan requires `security-review.json` with `C-S…` finding IDs and a nonempty applicability assessment. Cover relevant data exposure, authorization, trust boundaries, untrusted inputs, dependencies, and operations; explain non-applicability and unknowns. Keep small reviews short without manufacturing threats. Use the [security contract](references/protocol.md#security-and-testing) for submission details.

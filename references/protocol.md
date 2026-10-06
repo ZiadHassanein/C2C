@@ -12,6 +12,7 @@ node RUNNER ask --run RUN --stage draft
 node RUNNER ask --run RUN --stage review
 node RUNNER ask --run RUN --stage verify
 node RUNNER status --run RUN
+node RUNNER discussion --run RUN
 node RUNNER finish --run RUN
 ```
 
@@ -56,6 +57,7 @@ All JSON is UTF-8. Reports use the report schema below; the assessment uses its 
 | `security-review-submitted.json` | Runner | Sealed copy saved at the first verification launch; its finding objects must remain unchanged in the current security review. |
 | `decisions.json` | Coordinator | Before verification, then updated with verification findings before finish. |
 | `peer-verify.json` | Runner from peer | Created by successful verification. |
+| `DISCUSSION.md` | Runner | Generated view of available proposals, critiques, findings and coordinator responses; never sent as peer context. |
 | `HANDOFF.md` | Runner for new runs | Generated after preparation and state transitions. Legacy handwritten notes are preserved. |
 | `NOTES.md` | Coordinator | Optional local decisions/context beyond generated progress. |
 | `run.json`, `run.checkpoint.json` | Runner | Checksummed current-state copies; never edit them to reset budgets or revise sealed evidence. |
@@ -169,6 +171,16 @@ Record this task/model assessment after `prepare`, before `ask`, in the compact 
 ```
 
 Keep it short, usually under 250 words. Link it from the handoff and include a short assessment paragraph in `final-plan.md`; this makes the advice visible in the completed `RESULT.md`. Preserve the distinction between a recommendation, an explicit user choice, and the model observed in a real response. Do not pass this task/model advice via `--assessment`, `--context` or other independent peer inputs: shared risk/constraint facts belong in the neutral project assessment and brief, not a coordinator's proposed solution.
+
+## Visible discussion
+
+Give the user brief updates before and after peer stages: name the actual agent and stage, summarize material objections from its report, explain the coordinator's response and plan change, and preserve open disagreements. A pending call has no response yet. Respect quiet/final-only requests. This is presentation of authored arguments and decisions, not a token stream or a new debate loop; the two-/three-call workflows remain unchanged.
+
+New runs create `DISCUSSION.md` and refresh it at saved state transitions, including before a call and after success/failure. It contains report summaries, finding evidence/actions/checks, accepted/rejected/unresolved coordinator dispositions, and current verification limits. It labels unsubmitted working drafts and excludes failed partial output. Decisions belong to the coordinator and do not establish peer agreement. Source report links allow closer inspection.
+
+Between peer calls, use `discussion --run RUN` after editing local reports or decisions to refresh the view. The command returns its path and any validation warnings. It does not change the manifest, seals, successful stages or budgets. It takes the run lock while refreshing; during a peer call, the existing file shows the last saved state. Reading the file needs no lock. Older runs can opt in using the same command, without another peer call. An existing unmarked file is preserved rather than overwritten.
+
+The view uses validated report fields, not raw prompts, provider logs or internal reasoning. Malformed working records are flagged; they are not treated as agreement or an empty review. If a security working copy is missing or invalid, including removal or rewriting of a submitted finding, the view retains the latest sealed security submission with a clear label and source link. `DISCUSSION.md` remains a derived local view outside the sealed evidence set, and a view-write failure cannot turn a successful call into a failed one. Never add it to an independent peer packet.
 
 ## Handoff note
 

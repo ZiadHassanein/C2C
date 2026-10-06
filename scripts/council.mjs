@@ -11,6 +11,7 @@ export { runProcess } from './process.mjs';
 import { resolveExecutable, probeProvider, buildCodexArgs } from './adapters.mjs';
 export { resolveExecutable } from './adapters.mjs';
 import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock } from './state.mjs';
+import { renderDiscussion } from './discussion.mjs';
 
 const VERSION = 3;
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -129,7 +130,7 @@ export function prepare(options) {
     timeout_ms: boundedNumber(options['timeout-seconds'], 300, 10, 900, 'timeout-seconds') * 1000,
     budget_ms: boundedNumber(options['budget-seconds'], 900, 10, 3600, 'budget-seconds') * 1000,
     max_attempts: boundedNumber(options['max-attempts'], 4, 1, 6, 'max-attempts'),
-    elapsed_ms: 0, attempts: [], stages: {}, seals: {}, status: 'prepared', generated_handoff: true,
+    elapsed_ms: 0, attempts: [], stages: {}, seals: {}, status: 'prepared', generated_handoff: true, generated_discussion: true,
   };
   if (state.peer_model) required(typeof state.peer_model === 'string' && /^[A-Za-z0-9_.:/-]{1,120}$/.test(state.peer_model), 'Invalid peer model name');
   required(!fs.existsSync(out), `Output directory already exists; choose a fresh run directory: ${out}`);
@@ -144,7 +145,7 @@ export function prepare(options) {
   write(path.join(out, 'report.schema.json'), REPORT_SCHEMA);
   write(path.join(out, 'decisions.schema.json'), DECISIONS_SCHEMA);
   saveRun(out, state);
-  return { run: out, coordinator, peer: state.peer, mode, context: inputs.map(({ content, ...f }) => f), next: 'Write coordinator-draft.json using report.schema.json, then follow SKILL.md.' };
+  return { run: out, coordinator, peer: state.peer, mode, discussion: availableDiscussion(out), context: inputs.map(({ content, ...f }) => f), next: 'Write coordinator-draft.json using report.schema.json, then follow SKILL.md.' };
 }
 
 function loadRun(run) {
@@ -166,6 +167,10 @@ function loadRun(run) {
 }
 function saveRun(dir, state) {
   writeRunState(dir, state);
+  if (state.generated_discussion || ownsDiscussion(dir)) {
+    try { writeDiscussion(dir, state); }
+    catch (error) { process.stderr.write('Council: state saved, but DISCUSSION.md could not be refreshed: ' + error.message + '\n'); }
+  }
   if (state.generated_handoff) {
     try { writeHandoff(dir, state); }
     catch (error) { process.stderr.write('Council: state saved, but generated HANDOFF.md could not be refreshed: ' + error.message + '\n'); }
@@ -184,7 +189,7 @@ function writeHandoff(dir, state) {
     latest?.error ? 'Last attempt: ' + latest.status + '. ' + latest.error : '', '',
     '## Evidence', '', '- [Run state](run.json) and [checkpoint](run.checkpoint.json)', '- [Frozen inputs](snapshot.json)',
     ...(state.version >= 3 ? ['- [Project context and direction](PROJECT_CONTEXT.md)'] : []),
-    ...['TASK_ASSESSMENT.md','NOTES.md','final-plan.md','decisions.json','security-review.json','RESULT.md'].filter(file => fs.existsSync(path.join(dir,file))).map(file => '- [' + file + '](' + file + ')'), '',
+    ...['DISCUSSION.md','TASK_ASSESSMENT.md','NOTES.md','final-plan.md','decisions.json','security-review.json','RESULT.md'].filter(file => fs.existsSync(path.join(dir,file))).map(file => '- [' + file + '](' + file + ')'), '',
     'Do not repeat successful stages or reset attempts. Proposed tests and completed peer review are not implementation-test results.', ''];
   write(path.join(dir, 'HANDOFF.md'), lines.join('\n') + '\n');
 }
@@ -281,6 +286,76 @@ function validateDecisions(decisions, reports, requireAll) {
   }
   if (requireAll) for (const id of known) required(seen.has(id), `Missing decision for ${id}`);
   return findings;
+}
+
+const DISCUSSION_MARKER = '<!-- C2C generated discussion -->\n';
+const discussionPath = dir => path.join(dir, 'DISCUSSION.md');
+const availableDiscussion = dir => ownsDiscussion(dir) ? discussionPath(dir) : null;
+function ownsDiscussion(dir) {
+  const file = discussionPath(dir);
+  if (!fs.existsSync(file)) return false;
+  try {
+    if (!fs.lstatSync(file).isFile()) return false;
+    const descriptor = fs.openSync(file, 'r');
+    try {
+      const prefix = Buffer.alloc(Buffer.byteLength(DISCUSSION_MARKER));
+      return fs.readSync(descriptor, prefix, 0, prefix.length, 0) === prefix.length && prefix.toString('utf8') === DISCUSSION_MARKER;
+    } finally { fs.closeSync(descriptor); }
+  } catch { return false; }
+}
+function writeDiscussion(dir, state) {
+  const destination = discussionPath(dir);
+  required(!fs.existsSync(destination) || ownsDiscussion(dir), 'DISCUSSION.md already exists and is not a generated view; preserve it under another name before refreshing');
+  const reports = [], warnings = [];
+  const candidates = [['coordinator-draft.json','C-D'], ['coordinator-review.json','C-R']];
+  if (state.version >= 2) {
+    const source = [...state.attempts].reverse()
+      .filter(attempt => attempt.security_report_file === `attempt-${attempt.number}-security-review.json`)
+      .map(attempt => attempt.security_report_file).find(file => state.seals[file])
+      || (state.seals['security-review-submitted.json'] ? 'security-review-submitted.json' : null);
+    if (source || fs.existsSync(path.join(dir,'security-review.json'))) {
+      try { reports.push({name:'security-review.json',report:securityReview(dir,state).report}); }
+      catch {
+        warnings.push('The current security review is missing, invalid, or changes a submitted finding. Its working copy is omitted; preserve submitted concerns and respond through decisions.');
+        if (source) {
+          reports.push({name:'security-review.json',source,report:validateReport(readJSON(path.join(dir,source)),'C-S')});
+          warnings.push('The latest sealed security submission is shown instead of the invalid working copy.');
+        }
+      }
+    }
+  }
+  for (const [stage, prefix] of [['draft','P-D'],['review','P-R'],['verify','P-V']]) {
+    if (state.stages[stage]?.status === 'succeeded' && state.seals[`peer-${stage}.json`]) candidates.push([`peer-${stage}.json`,prefix]);
+  }
+  for (const [name,prefix] of candidates) {
+    if (!fs.existsSync(path.join(dir,name))) continue;
+    try { reports.push({name,report:validateReport(readJSON(path.join(dir,name)),prefix)}); }
+    catch { warnings.push(`${name} is not a valid current report and is omitted from this view.`); }
+  }
+  let decisions = [];
+  if (fs.existsSync(path.join(dir,'decisions.json'))) {
+    try {
+      const current = readJSON(path.join(dir,'decisions.json'));
+      validateDecisions(current,reports,false);
+      decisions = current;
+    } catch { warnings.push('The current decision record is invalid or incomplete; its responses are not displayed. Check decisions.json before continuing.'); }
+  }
+  let changesSinceVerification;
+  if (state.stages.verify?.reviewed_hashes) {
+    try { changesSinceVerification = Object.entries(state.stages.verify.reviewed_hashes).filter(([file,hash]) => sha(readText(path.join(dir,file))) !== hash).map(([file]) => file); }
+    catch { warnings.push('Current artifacts could not all be compared with the verified versions; their revision status is unknown.'); }
+  }
+  write(destination, DISCUSSION_MARKER + renderDiscussion({state,reports,decisions,changesSinceVerification,warnings}));
+  return { run:dir, discussion:destination, warnings };
+}
+
+export function discussion(options) {
+  const initial = loadRun(options.run);
+  const release = lock(initial.dir);
+  try {
+    const {dir,state} = loadRun(options.run);
+    return writeDiscussion(dir,state);
+  } finally { release(); }
 }
 
 function stagePrompt(dir, state, stage) {
@@ -404,7 +479,7 @@ export async function ask(options, injectedInvoker) {
       attempt.status = 'succeeded'; attempt.session_id = parsed.session_id; attempt.usage = parsed.usage;
       attempt.estimated_cost_usd = parsed.estimated_cost_usd; attempt.model_usage = parsed.model_usage || null;
       state.status = 'awaiting_coordinator';
-      return { run: dir, stage, peer: state.peer, report: parsed.report, artifact: path.join(dir, file) };
+      return { run: dir, stage, peer: state.peer, report: parsed.report, artifact: path.join(dir, file), discussion: availableDiscussion(dir) };
     } catch (error) {
       attempt.status = 'failed'; attempt.error = error.message; state.status = 'peer_failed';
       // Real subprocesses stream these files. Injected/test invokers may attach partial output.
@@ -487,7 +562,7 @@ export function finish(options) {
     write(path.join(dir, 'RESULT.md'), lines.filter(line => line !== undefined).join('\n'));
     for (const file of ['final-plan.md', 'decisions.json', 'completion.json', 'RESULT.md', ...(security ? ['security-review.json'] : [])]) seal(dir, state, file);
     state.status = 'complete'; state.completion = completion; saveRun(dir, state);
-    return { run: dir, result: path.join(dir, 'RESULT.md'), ...completion };
+    return { run: dir, result: path.join(dir, 'RESULT.md'), discussion: availableDiscussion(dir), ...completion };
   } finally { release(); }
 }
 
@@ -500,7 +575,7 @@ function parseArgs(argv) {
   const [rawCommand = 'help', ...args] = argv;
   const command = rawCommand === '--version' ? 'version' : rawCommand === '--help' ? 'help' : rawCommand;
   const options = {};
-  const allowed = { doctor: [], version: [], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'peer-model', 'timeout-seconds', 'budget-seconds', 'max-attempts'], ask: ['run', 'stage'], status: ['run'], finish: ['run'], help: [] };
+  const allowed = { doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'peer-model', 'timeout-seconds', 'budget-seconds', 'max-attempts'], ask: ['run', 'stage'], status: ['run'], finish: ['run'], help: [] };
   required(Object.hasOwn(allowed, command), `Unknown command: ${command}`);
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i].replace(/^--/, '');
@@ -510,7 +585,7 @@ function parseArgs(argv) {
   }
   return { command, options };
 }
-const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--peer-model NAME]\n          [--timeout-seconds 300] [--budget-seconds 900] [--max-attempts 4]\n  ask --run DIR --stage draft|review|verify\n  status --run DIR\n  finish --run DIR\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nThe current chat assesses project context and direction before preparing a run.\nOnly the other CLI is launched. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--peer-model NAME]\n          [--timeout-seconds 300] [--budget-seconds 900] [--max-attempts 4]\n  ask --run DIR --stage draft|review|verify\n  status --run DIR\n  discussion --run DIR\n  finish --run DIR\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nThe current chat assesses project context and direction before preparing a run.\nOnly the other CLI is launched. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
 function isMainModule() {
   try { return process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); }
@@ -519,7 +594,7 @@ function isMainModule() {
 if (isMainModule()) {
   try {
     const { command, options } = parseArgs(process.argv.slice(2));
-    const handlers = { prepare, ask, status, finish, doctor, 'recover-lock': recoverLock };
+    const handlers = { prepare, ask, status, finish, doctor, discussion, 'recover-lock': recoverLock };
     if (command === 'help') process.stdout.write(HELP);
     else if (command === 'version') process.stdout.write(JSON.stringify({ name: 'C2C', version: PACKAGE_VERSION, run_format: VERSION }) + '\n');
     else process.stdout.write(JSON.stringify(await handlers[command](options), null, 2) + '\n');

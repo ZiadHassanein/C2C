@@ -310,7 +310,7 @@ test('prepare CLI accepts an explicit assessment and persists the preflight with
   assert.equal(result.status,0,result.stderr);
   assert.equal(JSON.parse(result.stdout).run,f.out);
   const manifest=await read(path.join(f.out,'run.json'));
-  assert.equal(manifest.version,3);
+  assert.equal(manifest.version,4);
   assert.equal(manifest.status,'prepared');
   assert.deepEqual(manifest.attempts,[]);
   assert.deepEqual(await read(path.join(f.out,'project-assessment.json')),assessment());
@@ -690,6 +690,13 @@ test('legacy versions preserve their original security rules and never gain a pr
     const f=await readyForVerify(`legacy-v${version}`,{mode:'review'});
     const manifest=await read(path.join(f.out,'run.json'));
     manifest.version=version;
+    delete manifest.pairing;
+    delete manifest.coordinator_model;
+    const oldSnapshotPath=path.join(f.out,'snapshot.json');
+    const oldSnapshot=await read(oldSnapshotPath);
+    delete oldSnapshot.participants;
+    await write(oldSnapshotPath,oldSnapshot);
+    manifest.seals['snapshot.json']=createHash('sha256').update(await fs.readFile(oldSnapshotPath,'utf8')).digest('hex');
     await write(path.join(f.out,'run.json'),manifest);
     // Even if a v3 assessment artifact is present, legacy completion must not claim
     // that deployment evidence or direction clarity was a required preflight.
@@ -767,7 +774,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -1295,4 +1302,248 @@ test('legacy continuation without discussion opt-in never returns a nonexistent 
   const completed=finish({run:f.out});
   assert.equal(completed.discussion,null);
   assert.ok(await fs.readFile(completed.result,'utf8'));
+});
+
+const sameModels = provider => provider === 'codex'
+  ? { 'coordinator-model':'gpt-5.4', 'peer-model':'gpt-5.4-mini' }
+  : { 'coordinator-model':'claude-opus-4-6', 'peer-model':'claude-sonnet-4-6' };
+
+function invocationWithModels(result, models) {
+  return async request => {
+    const response=await invocation(result)(request);
+    const events=response.stdout.split('\n').map(line=>JSON.parse(line));
+    if(request.provider==='claude') {
+      events.unshift(...models.map(model=>({type:'system',subtype:'init',model})));
+      events.at(-1).modelUsage=Object.fromEntries(models.map(model=>[model,{inputTokens:10,outputTokens:20}]));
+    } else {
+      events.unshift(...models.map(model=>({type:'turn.started',model})));
+    }
+    return {...response,stdout:events.map(event=>JSON.stringify(event)).join('\n')};
+  };
+}
+
+test('same-provider preparation rejects ambiguous identities before creating any run', async () => {
+  const f=await inputFixture('same-invalid');
+  const cases=[
+    {}, {'coordinator-model':'gpt-5.4'}, {'peer-model':'gpt-5.4-mini'},
+    {'coordinator-model':'gpt-5.4','peer-model':'GPT-5.4'},
+    {'coordinator-model':'gpt-5.4','peer-model':'gpt-5.4-high'},
+    {'coordinator-model':'gpt-5.4','peer-model':'gpt-5.4-2026-03-05'},
+    {'coordinator-model':'gpt-5.4-2026-03-05','peer-model':'gpt-5.4-2026-05-05'},
+    {'coordinator-model':'gpt-5.4','peer-model':'gpt-latest'},
+    ...['default','latest','auto','best','fable','sonnet','opus','haiku','opusplan','claude-sonnet-latest','claude-opus-4-6[1m]'].map(alias=>({coordinator:'claude','coordinator-model':'claude-opus-4-6','peer-model':alias})),
+    {coordinator:'claude','coordinator-model':'claude-sonnet-4-6','peer-model':'claude-sonnet-4-6-20260305'},
+  ];
+  for(const invalid of cases) {
+    assert.throws(()=>prepare({...prepareOptions(f),pairing:'same',...invalid}),/model|aliases|effort/i);
+    await assert.rejects(()=>fs.access(f.out));
+  }
+  assert.throws(()=>prepare({...prepareOptions(f),pairing:'unknown'}),/Pairing/);
+  // Even an unavailable project path must not obscure a missing model declaration.
+  assert.throws(()=>prepare({...prepareOptions(f),project:path.join(f.root,'missing'),pairing:'same'}),/coordinator-model/);
+});
+
+test('cross-provider routes retain default-model behavior for both coordinators', async () => {
+  for(const coordinator of ['codex','claude']) {
+    const f=await fixture(`cross-${coordinator}`,{coordinator});
+    const expected=coordinator==='codex'?'claude':'codex';
+    await hostDraft(f);
+    await ask({run:f.out,stage:'draft'},async request=>{
+      assert.equal(request.provider,expected);
+      assert.equal(request.args.includes('--model'),false);
+      return invocation()(request);
+    });
+    const current=status({run:f.out});
+    assert.equal(current.participants.pairing,'cross');
+    assert.equal(current.participants.coordinator_identity,'unknown');
+    assert.equal(current.participants.peer_identity,'provider_default');
+    assert.equal(current.peer,expected);
+  }
+});
+
+test('same-provider plan and review workflows use distinct requested models and preserve independence and security', async () => {
+  for(const coordinator of ['codex','claude']) for(const mode of ['plan','review']) {
+    const ids=sameModels(coordinator);
+    const f=await fixture(`same-${coordinator}-${mode}`,{coordinator,mode,pairing:'same',...ids});
+    const captured=[];
+    const peer=async request=>{
+      assert.equal(request.provider,coordinator);
+      assert.equal(request.args[request.args.indexOf('--model')+1],ids['peer-model']);
+      const packet=JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+      captured.push(packet);
+      assert.equal(packet.participants.coordinator_model,ids['coordinator-model']);
+      assert.equal(packet.participants.peer_model,ids['peer-model']);
+      assert.match(request.prompt,/strongest practical alternative|Challenge unsupported assumptions/);
+      assert.match(request.prompt,/Never force criticism or agreement/);
+      return invocationWithModels(report(),[ids['peer-model']])(request);
+    };
+    await hostDraft(f,[],'PRIVATE_COORDINATOR_PROPOSAL');
+    if(mode==='plan') {
+      await ask({run:f.out,stage:'draft'},peer);
+      assert.equal(captured[0].coordinator_proposal,undefined);
+      assert.doesNotMatch(JSON.stringify(captured[0]),/PRIVATE_COORDINATOR_PROPOSAL/);
+    }
+    await hostReview(f,[],'PRIVATE_COORDINATOR_REVIEW');
+    await ask({run:f.out,stage:'review'},peer);
+    const reviewed=captured.at(-1);
+    assert.equal(reviewed.coordinator_review,undefined);
+    assert.doesNotMatch(JSON.stringify(reviewed),/PRIVATE_COORDINATOR_REVIEW/);
+    assert.equal(Boolean(reviewed.peer_proposal),mode==='plan');
+    await write(path.join(f.out,'final-plan.md'),'# Final plan\nImplement the bounded exporter and proposed negative checks.');
+    await write(path.join(f.out,'decisions.json'),[]);
+    await assert.rejects(()=>ask({run:f.out,stage:'verify'},peer),/security-review/);
+    await write(path.join(f.out,'security-review.json'),report([],'Synthetic security scope and proposed abuse checks'));
+    await ask({run:f.out,stage:'verify'},peer);
+    assert.equal(captured.at(-1).security_review.summary,'Synthetic security scope and proposed abuse checks');
+    const completed=finish({run:f.out});
+    assert.equal(completed.successful_peer_calls,mode==='plan'?3:2);
+    assert.equal(completed.attempts_used,mode==='plan'?3:2);
+    assert.equal(completed.participants.pairing,'same');
+    assert.equal(completed.participants.coordinator_identity,'declared');
+    assert.equal(completed.participants.peer_identity,'requested');
+    assert.equal(completed.security_review.required,true);
+    assert.ok(completed.peer_model_reports.every(item=>item.identity_status==='cli_reported' && item.reported[0]===ids['peer-model']));
+    for(const file of ['HANDOFF.md','RESULT.md']) {
+      const text=await fs.readFile(path.join(f.out,file),'utf8');
+      assert.ok(text.includes(ids['coordinator-model']));
+      assert.ok(text.includes(ids['peer-model']));
+      assert.match(text,/not independent attestation/);
+    }
+  }
+});
+
+test('same-provider positive metadata mismatches fail without creating successful stage evidence', async () => {
+  for(const coordinator of ['codex','claude']) {
+    const ids=sameModels(coordinator);
+    const unexpected=coordinator==='codex'?'gpt-5.3-codex':'claude-haiku-4-5';
+    for(const reported of [[ids['coordinator-model']],[unexpected],[ids['peer-model'],unexpected]]) {
+      const f=await fixture(`model-mismatch-${coordinator}`,{coordinator,pairing:'same',...ids});
+      await hostDraft(f);
+      await assert.rejects(()=>ask({run:f.out,stage:'draft'},invocationWithModels(report(),reported)),/reported.*model/);
+      const current=status({run:f.out});
+      assert.equal(current.attempts_used,1);
+      assert.equal(current.successful_peer_calls,0);
+      assert.equal(current.stages.draft,undefined);
+      await assert.rejects(()=>fs.access(path.join(f.out,'peer-draft.json')));
+      const saved=await read(path.join(f.out,'run.json'));
+      assert.equal(saved.attempts[0].status,'failed');
+      assert.deepEqual(saved.attempts[0].reported_models,reported);
+    }
+  }
+});
+
+test('missing CLI identity metadata stays unreported rather than attested', async () => {
+  for(const coordinator of ['codex','claude']) {
+    const f=await fixture(`unreported-${coordinator}`,{coordinator,pairing:'same',...sameModels(coordinator)});
+    await hostDraft(f);
+    const result=await ask({run:f.out,stage:'draft'},invocation(report([],'The prose says some model; this is not metadata')));
+    assert.deepEqual(result.reported_peer_models,[]);
+    assert.equal(result.peer_identity_status,'unreported');
+    assert.equal((await read(path.join(f.out,'run.json'))).attempts[0].model_identity_status,'unreported');
+  }
+});
+
+test('participant identity and route changes are rejected before resume or model calls', async () => {
+  const cases=[state=>{state.peer_model='gpt-5.3-codex';},state=>{state.coordinator_model='gpt-5.2';},state=>{state.pairing='cross';state.peer='claude';},state=>{state.version=3;},state=>{delete state.pairing;},state=>{state.peer='claude';}];
+  for(const change of cases) {
+    const f=await fixture('mutated-participants',{pairing:'same',...sameModels('codex')});
+    await hostDraft(f);
+    const manifest=await read(path.join(f.out,'run.json'));
+    change(manifest);
+    await write(path.join(f.out,'run.json'),manifest);
+    let called=false;
+    assert.throws(()=>status({run:f.out}),/Participant|participant|pairing|downgrade/i);
+    await assert.rejects(()=>ask({run:f.out,stage:'draft'},async request=>{called=true;return invocation()(request);}),/Participant|participant|pairing|downgrade/i);
+    assert.equal(called,false);
+    assert.equal((await read(path.join(f.out,'run.json'))).attempts.length,0);
+  }
+});
+
+test('a true version 3 cross-provider run remains resumable without identity declarations', async () => {
+  const f=await fixture('legacy-v3');
+  const manifest=await read(path.join(f.out,'run.json'));
+  manifest.version=3;
+  delete manifest.pairing;
+  delete manifest.coordinator_model;
+  const snapshotPath=path.join(f.out,'snapshot.json');
+  const snapshot=await read(snapshotPath);
+  delete snapshot.participants;
+  await write(snapshotPath,snapshot);
+  manifest.seals['snapshot.json']=createHash('sha256').update(await fs.readFile(snapshotPath)).digest('hex');
+  await write(path.join(f.out,'run.json'),manifest);
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},invocation());
+  assert.equal(status({run:f.out}).participants.coordinator_identity,'unknown');
+  assert.equal(status({run:f.out}).successful_peer_calls,1);
+});
+
+test('prepare CLI accepts explicit same-provider flags and reports requested identity provenance', async () => {
+  const f=await inputFixture('same-cli');
+  const result=spawnSync(process.execPath,[path.join(packageRoot,'scripts','council.mjs'),'prepare','--project',f.project,'--brief',f.brief,'--assessment',f.assessment,'--coordinator','claude','--pairing','same','--coordinator-model','claude-opus-4-6','--peer-model','claude-sonnet-4-6','--out',f.out],{encoding:'utf8',windowsHide:true,timeout:5000});
+  assert.equal(result.status,0,result.stderr);
+  const prepared=JSON.parse(result.stdout);
+  assert.equal(prepared.peer,'claude');
+  assert.equal(prepared.participants.coordinator_identity,'declared');
+  assert.equal(prepared.participants.peer_identity,'requested');
+  assert.equal(status({run:f.out}).attempts_used,0);
+});
+
+test('same-provider responses may resolve the requested family to a canonical dated ID', async () => {
+  for(const coordinator of ['codex','claude']) {
+    const ids=sameModels(coordinator);
+    const reported=ids['peer-model']+(coordinator==='codex'?'-2026-03-17':'-20250929');
+    const f=await fixture(`dated-resolution-${coordinator}`,{coordinator,pairing:'same',...ids});
+    await hostDraft(f);
+    const result=await ask({run:f.out,stage:'draft'},invocationWithModels(report(),[reported]));
+    assert.deepEqual(result.reported_peer_models,[reported]);
+    const saved=await read(path.join(f.out,'run.json'));
+    assert.equal(saved.attempts[0].requested_model,ids['peer-model']);
+    assert.deepEqual(saved.attempts[0].reported_models,[reported]);
+    assert.equal(saved.attempts[0].model_identity_status,'cli_reported');
+    const collision=await fixture(`dated-collision-${coordinator}`,{coordinator,pairing:'same',...ids});
+    await hostDraft(collision);
+    const coordinatorSnapshot=ids['coordinator-model']+(coordinator==='codex'?'-2026-03-17':'-20250929');
+    await assert.rejects(()=>ask({run:collision.out,stage:'draft'},invocationWithModels(report(),[coordinatorSnapshot])),/reported the coordinator model/);
+    assert.equal(status({run:collision.out}).successful_peer_calls,0);
+  }
+});
+
+test('untrusted CLI model metadata remains exact JSON evidence and inert Markdown after finish', async () => {
+  const f=await readyForVerify('model-markup',{mode:'review','coordinator-model':'gpt-5.4'});
+  const malicious=['<img src="https://example.invalid/pixel.png">','![click](https://example.invalid/pixel.png)','`model`\n# invented heading'];
+  await ask({run:f.out,stage:'verify'},invocationWithModels(report(),malicious));
+  const result=finish({run:f.out});
+  assert.deepEqual(result.peer_model_reports.at(-1).reported,malicious);
+  assert.deepEqual((await read(path.join(f.out,'completion.json'))).peer_model_reports.at(-1).reported,malicious);
+  for(const name of ['RESULT.md','DISCUSSION.md']) {
+    const markdown=await fs.readFile(path.join(f.out,name),'utf8');
+    assert.doesNotMatch(markdown,/<img src=|!\[click\]\(https:|\n# invented heading/);
+    if(name==='RESULT.md') assert.match(markdown,/&lt;img/);
+  }
+});
+
+test('an explicitly dated peer model cannot resolve to a different snapshot or undated alias', async () => {
+  for(const coordinator of ['codex','claude']) {
+    const ids=sameModels(coordinator);
+    const requested=ids['peer-model']+(coordinator==='codex'?'-2026-03-17':'-20250929');
+    const otherSnapshot=ids['peer-model']+(coordinator==='codex'?'-2026-04-01':'-20251001');
+    for(const reported of [requested.toUpperCase(),otherSnapshot,ids['peer-model']]) {
+      const f=await fixture(`pinned-snapshot-${coordinator}`,{coordinator,pairing:'same',...ids,'peer-model':requested});
+      await hostDraft(f);
+      const invocationResult=()=>ask({run:f.out,stage:'draft'},invocationWithModels(report(),[reported]));
+      if(reported.toLowerCase()===requested) {
+        const result=await invocationResult();
+        assert.deepEqual(result.reported_peer_models,[reported]);
+        assert.equal(status({run:f.out}).successful_peer_calls,1);
+      } else {
+        await assert.rejects(invocationResult,/reported unexpected model/);
+        assert.equal(status({run:f.out}).successful_peer_calls,0);
+        const attempt=(await read(path.join(f.out,'run.json'))).attempts[0];
+        assert.equal(attempt.status,'failed');
+        assert.equal(attempt.requested_model,requested);
+        assert.deepEqual(attempt.reported_models,[reported]);
+        await assert.rejects(()=>fs.access(path.join(f.out,'peer-draft.json')));
+      }
+    }
+  }
 });

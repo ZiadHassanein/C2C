@@ -18,8 +18,10 @@ Node must be 18 or newer. `doctor` checks CLI availability, required flags and f
 
 - `codex_chat_ready: true`: a Codex chat can call Claude.
 - `claude_chat_ready: true`: a Claude Code chat can call Codex.
+- `codex_only_ready: true`: a Codex chat can call the Codex CLI for an explicitly requested same-provider run.
+- `claude_only_ready: true`: a Claude Code chat can call the Claude CLI for an explicitly requested same-provider run.
 
-A missing or signed-out CLI for the direction you are not using is okay. A successful real discussion is the final check that model access works.
+A missing or signed-out CLI for the direction you are not using is okay. Readiness checks do not establish model availability or distinct runtime identities. A successful real discussion is the final check that model access works.
 
 ## Troubleshooting
 
@@ -54,7 +56,7 @@ node scripts/install.mjs --target codex
 node scripts/install.mjs --target claude
 ```
 
-This chooses where the **skill** is installed. A Codex chat still needs the Claude CLI; a Claude Code chat still needs the Codex CLI.
+This chooses where the **skill** is installed. For default cross-provider discussion, a Codex chat needs the Claude CLI and a Claude Code chat needs the Codex CLI. Same-provider discussion uses that provider's own CLI.
 
 Default locations (`~` means your user folder):
 
@@ -94,6 +96,16 @@ node scripts/council.mjs discussion --run "/absolute/path/to/run"
 
 Replace the path with the run folder. Run this between stages to refresh the discussion and return its file path, then open that file. You can read the existing file while a peer call is pending. Refreshing does not make another model call or advance the planning stages.
 
+## Choose the participants
+
+The default is Codex–Claude: your current chat coordinates and the other provider's CLI supplies the peer. To stay within one provider, explicitly ask for “Codex only” or “Claude only” and a different peer model. C2C still makes a real, separate CLI call; it does not write both sides of an imaginary conversation.
+
+Same-provider runs require two distinct full model IDs: the current coordinator and the requested peer. C2C uses trustworthy host metadata or your supplied current ID, then your chosen peer model. You may explicitly delegate the peer choice, for example: “Choose an available peer model that differs from my current model.” Otherwise a recommendation stays advice until you select it. Missing essential model information is clarified before a call.
+
+The current chat is not switched. A different reasoning effort on the same model does not count as a different model; defaults, moving aliases, and identical IDs are rejected. Recorded IDs describe the declared coordinator and requested peer. CLI reporting and managed policy can limit runtime identity evidence; a missing reported ID is unknown, not verified. Different models may still make similar mistakes. See [technical pairing rules](../references/protocol.md#pairing-and-model-identity).
+
+Both pairings preserve independent drafts where the selected mode includes them, skeptical critiques, security checks, verification, and the same call limits. Participants should test consequential assumptions and realistic failure cases, then accept, reject, or leave findings unresolved with reasons. They should neither aim for agreement nor invent objections merely to disagree.
+
 ## Usage and privacy
 
 Before planning, the AI checks the relevant project context and makes the goal, scope, success criteria, and next step explicit. It writes the assessment files for you. It may ask a focused question when an essential requirement is missing; unknown deployment details alone do not prevent a useful plan. Read `PROJECT_CONTEXT.md` for the evidence and limits. For an assessment without a peer discussion, ask for “assessment only.”
@@ -112,13 +124,13 @@ C2C reduces repeated instructions, report reads and review prose by default. The
 
 These are runtime and attempt limits, **not spending or token caps**. A timeout can leave a partial run. Resuming should preserve successful stages and remaining limits; starting over is not a way to reset a failed run's budget.
 
-Your current chat selects the brief and relevant context to send to the other provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
+Your current chat selects the brief and relevant context to send to the peer's provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
 
 The peer is instructed to use supplied evidence. Calls disable applicable shell, image, browser, connector and agent features, use a neutral working directory and request read-only permissions. Some CLI tools may remain present but subject to those permissions. These settings are not a substitute for the host sandbox or managed policy. The current chat gathers evidence and performs any work you have authorized.
 
-Model recommendations are advice. The current chat's model stays unchanged; the peer uses its CLI default unless you explicitly choose another supported model. Codex peer calls ignore ordinary user configuration for isolation, so do not assume their default matches another Codex session.
+Model recommendations are advice. The current chat's model stays unchanged. Cross-provider peers use their CLI default unless you choose a supported model or delegate that choice; same-provider runs require a distinct resolved pair. Codex peer calls ignore ordinary user configuration for isolation, so do not assume their default matches another Codex session.
 
-Every new council plan includes a security review and relevant test checks. Unresolved findings and edits made after peer verification remain visible. Completing the discussion does not mean every issue is resolved or the implementation has been tested.
+Every new council plan includes a security review and relevant test checks. The [plan presentation guide](../references/plan-presentation.md) puts priority decisions, the proposed scope, and the next action before technical appendices. Unresolved findings and edits made after peer verification remain visible. Completing the discussion does not mean every issue is resolved or the implementation has been tested.
 
 ## For contributors
 

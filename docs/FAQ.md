@@ -1,6 +1,6 @@
 # C2C FAQ: Codex and Claude Code planning and review
 
-C2C is an open-source skill for collaborative planning between Codex and Claude Code. Start with the [installation guide](../README.md#install), or follow the [visual PDF guide](C2C-LinkedIn-Guide.pdf).
+C2C is an open-source skill for collaborative planning between Codex and Claude Code, or explicitly chosen different models within one provider. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers cross-provider setup and historical benchmark evidence.
 
 ## How do I make Codex and Claude Code work together?
 
@@ -8,11 +8,17 @@ Install C2C, install and authenticate the other provider's CLI, then start a new
 
 ## Do I need both command-line tools?
 
-From Codex, you need the Claude Code CLI. From Claude Code, you need the Codex CLI. Install both to use C2C in either direction. C2C itself requires Node.js 18 or newer and has no npm dependencies. Its installer does not install the CLIs or sign you in.
+For default cross-provider collaboration, Codex needs the Claude Code CLI and Claude Code needs the Codex CLI. Install both to use either direction. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. C2C itself requires Node.js 18 or newer and has no npm dependencies. Its installer does not install the CLIs or sign you in.
 
 ## Does C2C really ask the other AI?
 
-Yes. A requested council uses the other provider's CLI and saves its actual reports. In plan mode, the peer proposes an approach before seeing the coordinator's draft, then reviews the coordinator's proposal and verifies the synthesis. In focused review mode, both critique one candidate plan before peer verification. [The workflow](../README.md#how-it-works) uses three or two successful peer calls respectively. An assessment-only request makes no peer calls.
+Yes. A requested council launches the chosen peer's CLI and saves its actual reports. In plan mode, the peer proposes an approach before seeing the coordinator's draft, then reviews the coordinator's proposal and verifies the synthesis. In focused review mode, both critique one candidate plan before peer verification. [The workflow](../README.md#how-it-works) uses three or two successful peer calls respectively. An assessment-only request makes no peer calls.
+
+## Can Codex discuss a plan with another Codex model, or Claude with another Claude model?
+
+Yes, when explicitly requested. Ask `Use $C2C with Codex only` or `/C2C Use Claude only`, and request a different peer model. The current chat coordinates a separate real CLI call within the same provider. C2C requires the current chat's full model ID and a distinct supported peer ID; it asks when a necessary identity or selection is missing. Choose the peer or explicitly ask C2C to choose it. See [copyable examples](../README.md#with-codex-only-or-claude-only) and [model identity limits](SETUP.md#choose-the-participants).
+
+Different model IDs do not prove independent reasoning or guarantee that a provider honored a request. The runner records declared/requested identities, uses reported identity when available, and keeps unknowns visible. It does not switch the current chat or simulate a debate.
 
 ## Can I use it for small features and large projects?
 
@@ -26,13 +32,21 @@ The coordinator inspects relevant project evidence, records production status se
 
 Yes. The chat shows concise updates between completed stages, and `DISCUSSION.md` records attributed proposals, findings, and coordinator responses. Ask, “Show me the main disagreements and plan changes as you go.” These are submitted arguments and decisions, not private reasoning or a live token stream. Every finding receives an accepted, rejected, or unresolved disposition; agreement is not required. See [discussion examples](../README.md#follow-the-discussion).
 
+Reviewers are asked to challenge consequential assumptions with evidence, counterexamples, and alternatives. Sound points may survive review; there is no required objection count and no instruction to agree. Same-provider updates distinguish the roles and known/requested models.
+
+## How is the plan organized?
+
+The user-facing plan leads with review status, the goal, a recommendation, and priority decisions or blockers. It separates confirmed requirements from proposals and MVP scope from deferred work. Project roadmaps use milestone deliverables, dependencies, and exit gates; smaller features use concise steps. Security and test checks show whether they are proposed, executed, or blocked. Review changes and the next action stay visible; technical detail follows in the same plan's appendix. See the [presentation guide](../references/plan-presentation.md).
+
+If a peer call fails, C2C presents an organized draft and identifies the missing review. It does not label that work jointly approved or treat a planned test as an executed one.
+
 ## Does every plan include security and tests?
 
 Every new council requires a scoped security review and proposed acceptance checks. The plan preserves missing evidence, unresolved risks, and the distinction between proposed tests and tests actually executed. Completing the discussion does not certify security, production readiness, or a working implementation. The current runner's automated test evidence is documented in [benchmarks and validation](BENCHMARKS.md#software-validation).
 
 ## Does it choose or change my model automatically?
 
-It assesses task size, complexity, risk, and uncertainty, then gives model advice. Recommendations do not override your settings. For advice alone, ask: “Assess the task and recommend models. Keep my settings; advice only.” Model availability and actual selections depend on your provider and CLI configuration.
+It assesses task size, complexity, risk, and uncertainty, then gives model advice. Recommendations do not override your settings. A peer override requires your selection or explicit delegation to choose; same-provider discussion requires distinct resolved model IDs. The current chat stays unchanged. For advice alone, ask: “Assess the task and recommend models. Keep my settings; advice only.” Model availability and runtime identity depend on your provider and CLI configuration.
 
 ## Does C2C send my whole repository to another provider?
 

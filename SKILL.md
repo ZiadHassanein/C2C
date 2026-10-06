@@ -1,11 +1,11 @@
 ---
 name: C2C
-description: Plan and review features or projects through a real Codex–Claude Code exchange when explicitly requested. Includes project assessment, security, testing, task sizing, and advisory model recommendations. Supports assessment-only requests without peer calls.
+description: Plan and review features or projects through a real Codex–Claude Code exchange, or explicitly requested different models in one provider. Includes project assessment, security, testing, and clear decision briefs. Supports assessment-only requests without peer calls.
 ---
 
 # C2C
 
-The current chat is the **coordinator**; the other product's authenticated CLI is the **peer**. Produce an actionable plan and decision record from real responses, never a simulated exchange or the coordinator product reviewing itself. Agreement is optional.
+The current chat is the **coordinator**; a separate authenticated CLI call is the **peer**. Default to Codex–Claude collaboration. Use two different models from the same provider only when explicitly requested. Produce an actionable plan and decision record from real responses; never simulate a second participant. Agreement is optional.
 
 Require an explicit C2C or Codex–Claude exchange request before sharing context or spending quota; do not repeat existing authorization. A useful review opportunity alone is insufficient. For assessment-only requests, give advice and relevant security risks without preparing a run or calling a peer.
 
@@ -27,7 +27,7 @@ Resolve this skill's `scripts/council.mjs`, run `node RUNNER doctor`, and check 
 
 Use `--compact` for routine CLI commands: it minifies output without dropping fields. Use the validated report returned by `ask`; read saved peer JSON only if that return is missing or truncated.
 
-**Pass `--coordinator codex` from Codex or `--coordinator claude` from Claude Code.** There is no default; only the peer CLI needs authentication.
+**Pass `--coordinator codex` from Codex or `--coordinator claude` from Claude Code.** There is no coordinator default. For explicitly requested Codex-only or Claude-only discussion, follow [pairing and model identity](references/protocol.md#pairing-and-model-identity): use `--pairing same` and distinct full coordinator/peer model IDs. Resolve the current model from trustworthy host metadata or the user; never guess or silently fall back. Only the chosen peer CLI needs authentication.
 
 Choose depth from uncertainty and consequences, respecting explicit requests:
 
@@ -47,11 +47,13 @@ Before the first call, save compact `TASK_ASSESSMENT.md`: size, complexity, risk
 
 Recommend suitable models or capability tiers for both roles. Reuse applicable dated official guidance and local availability evidence. Verify exact names/effort; otherwise give conditional or tier advice with the gap stated. Do not invent performance, price, or timing claims. Reassess only when scope, risk, or evidence changes materially.
 
-Advice changes no settings or limits and creates no approval pause. Apply `--peer-model` only on explicit user choice; never replace chats or edit configuration for advice. Codex peer defaults may differ from the chat because isolation ignores ordinary user configuration. Keep this note out of peer packets.
+Advice changes no settings or limits and creates no approval pause. Apply `--peer-model` only on user choice or explicit delegation of that choice; never replace chats or edit configuration for advice. Same-provider runs require a resolved distinct pair. Codex peer defaults may differ from the chat because isolation ignores ordinary user configuration. Keep this note out of peer packets.
 
 ## Run the selected workflow
 
 Use the [report schema](references/protocol.md#report-schema) and [file contract](references/protocol.md#file-contract), or generated schemas. Keep drafts and final plans self-contained. In critique/verification prose, describe changes instead of repeating whole proposals. Write each substantive finding once with evidence, correction, and verification; retain every material risk or uncertainty. Compactness never justifies omitted findings, required fields, tests, or review stages.
+
+Critique as an independent skeptic: test consequential assumptions, realistic counterexamples, alternatives, and failure cases against the evidence. Accept sound points with reasons; reject or leave unresolved weak claims. Do not aim for agreement, invent objections, or demand a disagreement quota.
 
 For **plan**:
 
@@ -70,11 +72,15 @@ For **both**:
 2. Call `ask --stage verify`; address `peer-verify.json` and append its finding dispositions. Preserve earlier findings. Disclose subsequent edits: they receive no automatic re-review.
 3. Run `finish`. Present the plan, review-driven changes, material unresolved issues, and artifact links. Completion may mean a blocked plan; it grants no implementation authority.
 
+## Present a plan the user can decide on
+
+Before delivering a draft or final plan, use [plan presentation](references/plan-presentation.md). Lead with accurate review status, goal, recommended approach, and priority decisions/blockers. Separate confirmed requirements from proposals, MVP from deferred work, and proposed tests from executed results. Use a dependency/exit-gate milestone table when scope warrants it. Put technical depth in the same plan's appendix; keep critical invariants visible. End with the concrete next action. A failed peer exchange stays a clearly labeled draft, never a completed council.
+
 ## Show the discussion as it develops
 
 Give concise stage updates unless quiet/final-only is requested. Before a call, identify agent and stage; pending is not a response.
 
-Afterward, highlight material objections, coordinator responses, plan changes, and open disagreements from actual reports. Attribute Codex/Claude correctly and link findings. Coordinator decisions do not prove peer agreement. Never invent dialogue, expose private reasoning/raw logs, or add calls for a debate.
+Afterward, highlight material objections, coordinator responses, plan changes, and open disagreements from actual reports. Attribute provider, role, and known/requested model correctly; same-provider labels must distinguish the two roles. Coordinator decisions do not prove peer agreement. Never invent dialogue, expose private reasoning/raw logs, or add calls for a debate.
 
 Link generated `DISCUSSION.md` in updates and the final response; refresh with `discussion --run RUN` after local edits. Do not reread the entire view when its source reports are already known. It is a local summary, never a transcript or peer input.
 
@@ -101,5 +107,9 @@ Codex: `Use $C2C to plan a search filter. Check this project first, keep the rev
 Claude Code: `/C2C Review docs/migration.md with Codex. Identify rollout risks and give me a revised plan and decision record.`
 
 Project: `Use $C2C to plan this product. Clarify important unknowns, compare approaches, define the MVP and milestones, and recommend models without changing mine.`
+
+Same provider, advice first: `Use $C2C with Codex only. Recommend a different peer model and wait for my choice before calling it.` In Claude Code, use `/C2C` and ask for Claude-only discussion.
+
+Delegated peer choice: `Use $C2C with Codex only. Choose an available peer model different from my current model. Challenge assumptions and show unresolved disagreements.` This delegates only the peer choice; resolve unknown current identity first.
 
 Advice only: `Use $C2C to assess this task's size and recommend models. Give only the assessment for now.`

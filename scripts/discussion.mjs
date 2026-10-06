@@ -1,4 +1,5 @@
 // A readable view of validated public reports. No model calls, log reads, or raw prompts.
+import { participantLabel } from './participants.mjs';
 const PRODUCTS = { codex: 'Codex', claude: 'Claude Code' };
 const REPORTS = [
   { name: 'coordinator-draft.json', owner: 'coordinator', title: 'Proposal' },
@@ -60,7 +61,9 @@ export function discussionSummary({ state, reports = [], decisions = [] }) {
   const stages = (state.mode === 'review' ? ['review', 'verify'] : ['draft', 'review', 'verify'])
     .map(stage => ({ stage, status: stageStatus(state, stage) }));
   return {
-    coordinator: PRODUCTS[state.coordinator] || 'Coordinator', peer: PRODUCTS[state.peer] || 'Peer',
+    coordinator: state.pairing === 'same' || state.coordinator_model ? participantLabel(state, 'coordinator') : PRODUCTS[state.coordinator] || 'Coordinator',
+    peer: state.pairing === 'same' || state.peer_model ? participantLabel(state, 'peer') : PRODUCTS[state.peer] || 'Peer',
+    pairing: state.pairing || 'cross',
     mode: state.mode, status: state.status, stages, findings: counts,
     successful_peer_calls: (state.attempts || []).filter(attempt => attempt.status === 'succeeded').length,
     attempts_used: (state.attempts || []).length,
@@ -70,12 +73,16 @@ export function discussionSummary({ state, reports = [], decisions = [] }) {
 /** Render only report summaries, findings, questions, and recorded coordinator decisions. */
 export function renderDiscussion({ state, reports = [], decisions = [], completion = state.completion, changesSinceVerification, warnings = [] }) {
   const summary = discussionSummary({ state, reports, decisions });
+  const labels = { coordinator: authored(summary.coordinator), peer: authored(summary.peer) };
   const visible = visibleReports(state, reports);
   const dispositions = new Map(decisions.map(item => [item.finding_id, item]));
   const counts = summary.findings;
   const lines = [
     '# C2C — discussion', '',
-    `**${summary.coordinator} coordinates · ${summary.peer} reviews · ${state.mode === 'review' ? 'Focused review' : 'Independent planning'}**`, '',
+    `**${labels.coordinator} coordinates · ${labels.peer} reviews · ${state.mode === 'review' ? 'Focused review' : 'Independent planning'}**`, '',
+    ...(state.pairing === 'same' || state.coordinator_model || state.peer_model ? [
+      `Pairing: **${state.pairing === 'same' ? 'same provider, separate model sessions' : 'cross provider'}**. Coordinator model: declared by the host or user. Peer model: ${state.peer_model ? 'requested via the CLI' : 'provider default'}. These labels do not attest the runtime model identity.`, '',
+    ] : []),
     'This view shows authored report summaries, findings, and recorded responses. It is not a verbatim conversation or private reasoning. It refreshes at saved transitions or when the discussion command runs.', '',
     state.mode === 'review'
       ? 'One coordinator proposal is reviewed. This mode does not produce two independent proposals.'
@@ -106,16 +113,25 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
   }
   if (!visible.length) lines.push('No validated reports are available yet.', '');
   for (const entry of visible) {
-    const product = summary[entry.owner];
+    const product = labels[entry.owner];
     const report = entry.report;
     const provenance = entry.priorSubmission ? 'Sealed prior submission; current working copy is invalid'
       : entry.sealed ? 'Sealed submitted report'
       : entry.name === 'security-review.json' ? 'Current working copy; not sealed' : 'Current working draft; not yet submitted';
     const title = entry.name === 'coordinator-review.json'
-      ? state.mode === 'review' ? 'Review of the candidate plan' : `Review of the ${summary.peer} proposal`
-      : entry.name === 'peer-review.json' ? `Review of the ${summary.coordinator} proposal` : entry.title;
+      ? state.mode === 'review' ? 'Review of the candidate plan' : `Review of the ${labels.peer} proposal`
+      : entry.name === 'peer-review.json' ? `Review of the ${labels.coordinator} proposal` : entry.title;
     lines.push(`## ${product} · ${title}`, '', `**${provenance}.** [Report](${entry.source})`, '',
       authored(report.summary), '', `Report verdict: **${VERDICTS[report.verdict] || 'not recorded'}**.`, '');
+    if (entry.stage && state.pairing === 'same') {
+      const attemptNumber = state.stages?.[entry.stage]?.attempt;
+      const attempt = Number.isSafeInteger(attemptNumber)
+        ? (state.attempts || []).find(item => item.number === attemptNumber && item.status === 'succeeded') : null;
+      const models = Array.isArray(attempt?.reported_models) ? attempt.reported_models.filter(model => typeof model === 'string') : [];
+      lines.push(models.length
+        ? `CLI-reported model metadata: ${models.map(authored).join(', ')}. This records the successful attempt; it is not independent attestation.`
+        : 'The successful peer attempt has no recorded model metadata. Its requested model is not independently verified.', '');
+    }
     if (report.findings.length) {
       for (const finding of report.findings) {
         const decision = dispositions.get(finding.id);
@@ -125,8 +141,8 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
           `- **Proposed change:** ${authored(finding.action)}`,
           `- **Check:** ${authored(finding.verification)}`, '',
           decision
-            ? `**${summary.coordinator} response — ${authored(decision.disposition)}:** ${authored(decision.rationale)}`
-            : `**${summary.coordinator} response:** Awaiting a recorded decision.`, '');
+            ? `**${labels.coordinator} response — ${authored(decision.disposition)}:** ${authored(decision.rationale)}`
+            : `**${labels.coordinator} response:** Awaiting a recorded decision.`, '');
       }
     } else {
       lines.push('No findings recorded in this report. This does not establish agreement or absence of risk.', '');

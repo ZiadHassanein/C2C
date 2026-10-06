@@ -186,3 +186,47 @@ test('prior security submissions cannot be relabeled as another agent report', (
   assert.match(text, /unrecognized or unsealed submission source was excluded/);
   assert.doesNotMatch(text, /RELABELLED_SOURCE|Sealed prior submission/);
 });
+
+test('same-provider discussions distinguish the model roles and retain disagreement', () => {
+  for (const [provider, coordinatorModel, peerModel] of [
+    ['codex', 'gpt-5.4', 'gpt-5.3-codex'],
+    ['claude', 'claude-opus-4-6', 'claude-sonnet-4-6'],
+  ]) {
+    const run = state({ coordinator: provider, peer: provider, pairing: 'same', coordinator_model: coordinatorModel,
+      peer_model: peerModel, stages: { review: { status: 'succeeded' } }, seals: { 'peer-review.json': 'hash' } });
+    const input = { state: run, reports: [{ name: 'peer-review.json', report: report({ findings: [finding('P-R1')] }) }],
+      decisions: [{ finding_id: 'P-R1', disposition: 'unresolved', rationale: 'The access policy still needs an owner decision.' }] };
+    const summary = discussionSummary(input);
+    assert.ok(summary.coordinator.includes(coordinatorModel));
+    assert.ok(summary.peer.includes(peerModel));
+    assert.notEqual(summary.coordinator, summary.peer);
+    assert.equal(summary.findings.unresolved, 1);
+    const text = renderDiscussion(input).replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    assert.ok(text.includes(`${peerModel} (peer):** Anonymous inventory writes are possible.`));
+    assert.ok(text.includes(`${coordinatorModel} (coordinator) response — unresolved:`));
+    assert.match(text, /separate model sessions/);
+    assert.match(text, /do not attest the runtime model identity/);
+    assert.match(text, /access policy still needs an owner decision/);
+    assert.match(text, /Final peer verification has not completed/);
+  }
+});
+
+test('model labels cannot introduce active markup into a discussion', () => {
+  const text = renderDiscussion({ state: state({ coordinator_model: '<img src="https://evil.example">', peer_model: '[click](https://evil.example)' }) });
+  assert.doesNotMatch(text, /<img|https:\/\/|\[click\]/);
+  assert.match(text, /&#60;img/);
+  assert.match(text, /&#91;click&#93;/);
+});
+
+test('discussion model metadata comes only from the successful stage attempt', () => {
+  const run = state({ pairing: 'same', coordinator: 'codex', peer: 'codex', coordinator_model: 'gpt-5.4', peer_model: 'gpt-5.3-codex',
+    stages: { review: { status: 'succeeded', attempt: 2 } }, seals: { 'peer-review.json': 'hash' },
+    attempts: [{ number: 1, status: 'failed', reported_models: ['WRONG_FAILED_MODEL'] },
+      { number: 2, status: 'succeeded', reported_models: ['gpt-5.3-codex'] }] });
+  const input = { state: run, reports: [{ name: 'peer-review.json', report: report() }] };
+  const text = renderDiscussion(input).replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+  assert.match(text, /CLI-reported model metadata: gpt-5\.3-codex/);
+  assert.doesNotMatch(text, /WRONG_FAILED_MODEL/);
+  run.attempts[1].reported_models = [];
+  assert.match(renderDiscussion(input), /requested model is not independently verified/);
+});

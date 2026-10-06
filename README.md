@@ -58,6 +58,8 @@ It also supports non-code planning. Supply a brief, constraints, and success cri
 
 The coordinator handles the runner commands and writes a final plan. Each run retains the selected input snapshot, both agents' reports, `final-plan.md`, `decisions.json`, and completion provenance in `RESULT.md`. Decisions record which findings were accepted, rejected with reasons, or remain unresolved. Agreement is not required.
 
+The coordinator also maintains a concise `HANDOFF.md` in the run directory, including progress, evidence links, unresolved decisions, remaining limits, and the exact next step. On resume, it reads that note and checks current runner state instead of repeating completed work. Failed or partial runs retain the evidence produced so far; they do not have a completed `RESULT.md`.
+
 ## Context and permissions
 
 Only the explicitly selected UTF-8 brief, context files, and relevant reports are transmitted to the peer provider. Projects are not automatically scanned or copied. Select relevant excerpts and exclude secrets before invoking a peer.
@@ -79,6 +81,8 @@ node --test tests/council.test.mjs
 The tests cover independent inputs, report and source integrity, failure paths, stage sequencing, run isolation, and verification provenance. They also exercise a real child-process timeout, including the Windows termination path when run on Windows. Peer response fixtures test the runner without paid model calls; they do not prove that either provider is currently authenticated or available. Use `doctor` and a real task to verify your local setup.
 
 See [SKILL.md](SKILL.md) for the agent workflow and [references/protocol.md](references/protocol.md) for runner commands and report formats.
+
+For continued development, read [PROJECT_NOTES.md](PROJECT_NOTES.md) first. The repository's `AGENTS.md` and `CLAUDE.md` point both products to that maintained record.
 
 ## License
 

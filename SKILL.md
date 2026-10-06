@@ -9,7 +9,7 @@ The agent running this skill is the **coordinator**. Use the bundled Node runner
 
 ## Start
 
-1. Read [references/protocol.md](references/protocol.md) for the report schema, file contract, and commands.
+1. Read [references/protocol.md](references/protocol.md) for the report schema, file contract, and commands. When resuming, first read the run's `HANDOFF.md` and run `status`; reconcile the note with current state and source hashes before continuing.
 2. Locate `scripts/council.mjs` relative to this skill. Run `node <absolute-runner-path> doctor`. Node 18 or newer and the peer CLI are required. A Codex coordinator calls Claude Code; a Claude Code coordinator calls Codex. The coordinator's own CLI need not be signed in. If the peer is unavailable, explain the specific limitation and preserve work already completed.
 3. Select `plan` for independent proposals and mutual review, or `review` for review of an existing plan. Both include a peer check of the synthesized plan. Keep the chosen mode proportional to the task; an explicit user request for collaboration is sufficient reason to use it.
 4. Prepare a concise UTF-8 brief with the objective, scope, constraints, success criteria, and relevant user preferences. Gather task-relevant evidence and explicitly select context files. The runner sends the brief, selected context, and reports to the peer provider; it does not scan the repository. Exclude credentials and unrelated private data. Describe the source/version and any uncommitted changes relevant to the selected evidence.
@@ -28,6 +28,12 @@ The agent running this skill is the **coordinator**. Use the bundled Node runner
 1. Put the existing plan and its relevant constraints into `coordinator-draft.json`. Write your independent review in `coordinator-review.json` before requesting the peer review.
 2. Call `ask --stage review`; there is no peer draft stage in this mode.
 3. Synthesize a revised `final-plan.md` and `decisions.json`, call `ask --stage verify`, handle the returned findings, and run `finish` as above.
+
+## Keep a short handoff note
+
+The coordinator maintains `HANDOFF.md` inside each run; the runner does not generate it. Update it after preparation, successful or failed calls, material decisions or plan changes, and before ending or handing off. Use the small template in [references/protocol.md](references/protocol.md#handoff-note) to capture current state, evidence links, unresolved findings, and the exact next action. Replace stale summaries rather than accumulating a transcript.
+
+On resume, treat the snapshot, report JSON, decision record, and runner status as evidence; the note is a navigation aid. Check for changed sources and preserve completed stages instead of repeating successful calls. Date authentication, model, and validation observations, and recheck them when needed rather than treating old observations as permanent. Keep the note local and free of secrets; do not publish private run context. Do not send coordinator handoff content to the peer during independent drafting or critique; the runner controls stage-appropriate packets.
 
 ## Decision quality and boundaries
 

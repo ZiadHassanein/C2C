@@ -1,6 +1,6 @@
 # Project notes and continuation guide
 
-Last updated: 2026-10-06. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
+Last updated: 2026-10-07. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
 
 ## Objective and current status
 
@@ -25,6 +25,20 @@ The user explicitly requested suitability for both small features and big-projec
 - Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
+
+### Public documentation and discoverability, 2026-10-07
+
+The README now identifies C2C as a Codex and Claude Code planning skill in its title and opening text, lists the current features, and links setup, direct FAQ answers, versioned benchmark evidence, release notes, and the visual PDF guide. Important explanations remain readable text instead of only diagrams or PDF pages. The PDF includes the feature overview, two-/three-call routes, 135-test validation evidence, and the separate 8.19%, 10.93%, and 12.18% input-token measurements with their limits.
+
+GitHub About was updated to describe collaborative planning, mutual plan review, project assessment, security, acceptance tests, and reduced repetition. Its ten topics are `codex`, `claude-code`, `codex-skills`, `claude-skills`, `agent-skills`, `ai-planning`, `multi-agent`, `plan-review`, `security-review`, and `developer-tools`.
+
+This is a documentation and distribution update; the runtime remains 0.7.0. Benchmark observations were copied without changing their values, with measured commit/date added. The original local harness is not packaged; the public report explicitly states that limit. No live model calls are needed for these edits.
+
+Validation: all 61 local documentation links, anchors, and assets passed; fenced examples and documented readiness fields match the source; whitespace checks passed. An independent read-only review found no actionable claim, privacy, or instruction issue. All 12 PDF pages (720 × 900 points) were rendered and visually inspected; text and 13 HTTPS link annotations passed checks. The guide and its distributed repository copy match SHA-256 `c5b72d7b8bd58d75ac73830bd6d60e89acc35c6f307add51446012a423b8ac40`. Runtime files and installed copies were unchanged, so the prior 135-test and six-job v0.7.0 evidence remains the relevant runtime validation.
+
+Discovery choices follow [GitHub's topic guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/classifying-your-repository-with-topics) and [Google's guidance for AI search features](https://developers.google.com/search/docs/appearance/ai-features): descriptive purpose, useful linked text, and substantiated claims. Google says no special AI files or schema are required. GitHub controls repository-page metadata and crawling infrastructure. No ranking, indexing, traffic, or AI-citation improvement has been measured or guaranteed. Keep product names, install commands, feature claims, PDF content, and benchmark scope consistent when updating these materials.
+
+### Implementation decisions
 
 | Decision | Reason |
 |---|---|

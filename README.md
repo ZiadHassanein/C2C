@@ -3,15 +3,32 @@
   <img src="docs/assets/cover.svg" alt="C2C. Two perspectives. One clearer plan." width="1120">
 </picture>
 
-# C2C
+# C2C — Codex and Claude Code planning skill
 
-A shared skill for planning and review with **Codex and Claude Code**. Start with the project's current state and a clear direction. Then bring both perspectives together into an actionable plan, a security review, and a record of the decisions.
+**C2C is an open-source skill that lets Codex and Claude Code plan and review together.** Start from either app, assess the project, compare proposals, and resolve review findings into one actionable plan. Use it for a small feature, an existing plan, or a whole-project roadmap.
+
+Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coordinates a real exchange with the other provider's CLI, including security considerations, acceptance tests, and a visible record of decisions.
 
 [![Tests](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml)
 
 **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
-[Quick start](#install) · [Usage](#use-it) · [Before planning](#before-planning) · [Workflow](#how-it-works) · [Discussion](#follow-the-discussion) · [Documentation](#documentation)
+[Quick start](#install) · [Usage](#use-it) · [Workflow](#how-it-works) · [FAQ](docs/FAQ.md) · [Benchmarks](docs/BENCHMARKS.md) · [Visual PDF guide](docs/C2C-LinkedIn-Guide.pdf)
+
+## Features
+
+| Feature | What it does |
+|---|---|
+| **Project assessment first** | Records project evidence, production status, scoped readiness, goals, and the first useful action. |
+| **Planning scaled to the task** | Uses focused review for a small feature or independent proposals for a design decision and project roadmap. |
+| **Mutual plan review** | Codex and Claude Code challenge proposals; the coordinator records accepted, rejected, and unresolved findings. |
+| **Visible discussion** | Shows stage updates and saves attributed proposals, challenges, and responses in `DISCUSSION.md`. |
+| **Security and testing in every plan** | Requires a scoped security review and proposed acceptance checks, with gaps and unknowns preserved. |
+| **Task sizing and model advice** | Recommends planning depth and suitable models without changing your settings. |
+| **Saved context and progress** | Keeps Markdown plans and handoffs, structured evidence, bounded attempts, and recovery checkpoints. |
+| **Less repeated context** | Reuses reports and reduces prompt and output formatting overhead while retaining review stages and selected evidence. |
+
+See the [FAQ](docs/FAQ.md) for usage limits and the [visual guide](docs/C2C-LinkedIn-Guide.pdf) for setup, examples, and measured results.
 
 ## Install
 
@@ -89,7 +106,7 @@ The skill assesses your project first. You do not need to fill in a form or writ
 
 **Model advice stays advisory.** Recommendations do not change your settings. For advice without a peer discussion, add: “Assess the task and recommend models. Keep my settings; advice only.”
 
-**Less repetition by default.** C2C reuses returned reports, keeps review prose focused on changes, and omits bookkeeping from peer context. The selected evidence, security checks and review stages stay intact. Token savings vary with the task; shorter prompts alone do not prove equal planning quality. [Efficiency details →](references/protocol.md#token-efficiency)
+**Less repetition by default.** In two offline v0.7.0 fixtures, peer-input tokens fell **8.19%** for a small feature and **10.93%** for a project roadmap; entry instructions were **12.18%** smaller. These are separate input-text measurements, not total-session savings or proof of equal planning quality. Review stages and selected evidence were retained. [Benchmark method and limits →](docs/BENCHMARKS.md)
 
 ## Before planning
 
@@ -161,6 +178,10 @@ The run also retains detailed decisions and the security review. An optional `IM
 | Guide | Start here when you need to… |
 |---|---|
 | [Setup and troubleshooting](docs/SETUP.md) | Install, update, uninstall, or resolve a failed check. |
+| [Frequently asked questions](docs/FAQ.md) | Understand collaboration, privacy, models, costs, and planning limits. |
+| [Visual setup and usage guide (PDF)](docs/C2C-LinkedIn-Guide.pdf) | Follow setup, invocation examples, features, and measured results visually. |
+| [Token benchmark and validation](docs/BENCHMARKS.md) | Check what was measured, retained, and not established. |
+| [Release notes](CHANGELOG.md) | See what changed across recent C2C versions. |
 | [Agent instructions](SKILL.md) | Understand how either AI coordinates a discussion. |
 | [Project assessment](references/project-assessment.md) | Understand deployment evidence, readiness, and the direction check. |
 | [Technical protocol](references/protocol.md) | Inspect commands, schemas, and saved evidence. |

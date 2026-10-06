@@ -1,0 +1,438 @@
+{
+  "baseline_commit": "d7b6607fcdfdea430f9963fc75fffc0c9ce8ca88",
+  "source_council_sha256": "fad59c53292662738fc1d10476881e551463ba7f414737e96269b096b0a9115a",
+  "tokenizer": "tiktoken 0.12.0",
+  "encodings": [
+    "o200k_base",
+    "cl100k_base"
+  ],
+  "provider_calls": 0,
+  "normalization": "Only the random run_id value in captured prompts is replaced with BENCHMARK_RUN. Inputs use identical files and relative outbound labels. Line endings are normalized to LF for instruction-file comparisons.",
+  "method": "Complete prepare/ask/finish workflows with injected schema-valid fixed public synthetic reports. No provider launches or paid requests. Prompt input sizes measured independently of fixed outputs. CLI status compared in both actual formats; ask formatting uses the same captured return object serialized by the exact CLI JSON.stringify settings, without another launch.",
+  "stages": [
+    {
+      "scenario": "small-feature",
+      "stage": "review",
+      "characters": {
+        "before": 6795,
+        "after": 6466,
+        "saved": 329,
+        "reduction_percent": 4.84
+      },
+      "utf8_bytes": {
+        "before": 6795,
+        "after": 6466,
+        "saved": 329,
+        "reduction_percent": 4.84
+      },
+      "o200k_base": {
+        "before": 1378,
+        "after": 1222,
+        "saved": 156,
+        "reduction_percent": 11.32
+      },
+      "cl100k_base": {
+        "before": 1375,
+        "after": 1220,
+        "saved": 155,
+        "reduction_percent": 11.27
+      }
+    },
+    {
+      "scenario": "small-feature",
+      "stage": "verify",
+      "characters": {
+        "before": 12388,
+        "after": 12059,
+        "saved": 329,
+        "reduction_percent": 2.66
+      },
+      "utf8_bytes": {
+        "before": 12388,
+        "after": 12059,
+        "saved": 329,
+        "reduction_percent": 2.66
+      },
+      "o200k_base": {
+        "before": 2430,
+        "after": 2274,
+        "saved": 156,
+        "reduction_percent": 6.42
+      },
+      "cl100k_base": {
+        "before": 2427,
+        "after": 2272,
+        "saved": 155,
+        "reduction_percent": 6.39
+      }
+    },
+    {
+      "scenario": "production-roadmap",
+      "stage": "draft",
+      "characters": {
+        "before": 9752,
+        "after": 9071,
+        "saved": 681,
+        "reduction_percent": 6.98
+      },
+      "utf8_bytes": {
+        "before": 9752,
+        "after": 9071,
+        "saved": 681,
+        "reduction_percent": 6.98
+      },
+      "o200k_base": {
+        "before": 1979,
+        "after": 1653,
+        "saved": 326,
+        "reduction_percent": 16.47
+      },
+      "cl100k_base": {
+        "before": 1974,
+        "after": 1648,
+        "saved": 326,
+        "reduction_percent": 16.51
+      }
+    },
+    {
+      "scenario": "production-roadmap",
+      "stage": "review",
+      "characters": {
+        "before": 13718,
+        "after": 13037,
+        "saved": 681,
+        "reduction_percent": 4.96
+      },
+      "utf8_bytes": {
+        "before": 13718,
+        "after": 13037,
+        "saved": 681,
+        "reduction_percent": 4.96
+      },
+      "o200k_base": {
+        "before": 2668,
+        "after": 2342,
+        "saved": 326,
+        "reduction_percent": 12.22
+      },
+      "cl100k_base": {
+        "before": 2665,
+        "after": 2340,
+        "saved": 325,
+        "reduction_percent": 12.2
+      }
+    },
+    {
+      "scenario": "production-roadmap",
+      "stage": "verify",
+      "characters": {
+        "before": 22793,
+        "after": 22112,
+        "saved": 681,
+        "reduction_percent": 2.99
+      },
+      "utf8_bytes": {
+        "before": 22803,
+        "after": 22122,
+        "saved": 681,
+        "reduction_percent": 2.99
+      },
+      "o200k_base": {
+        "before": 4298,
+        "after": 3972,
+        "saved": 326,
+        "reduction_percent": 7.58
+      },
+      "cl100k_base": {
+        "before": 4297,
+        "after": 3972,
+        "saved": 325,
+        "reduction_percent": 7.56
+      }
+    }
+  ],
+  "workflow_totals": [
+    {
+      "scenario": "small-feature",
+      "successful_calls_per_workflow": 2,
+      "characters": {
+        "before": 19183,
+        "after": 18525,
+        "saved": 658,
+        "reduction_percent": 3.43
+      },
+      "utf8_bytes": {
+        "before": 19183,
+        "after": 18525,
+        "saved": 658,
+        "reduction_percent": 3.43
+      },
+      "o200k_base": {
+        "before": 3808,
+        "after": 3496,
+        "saved": 312,
+        "reduction_percent": 8.19
+      },
+      "cl100k_base": {
+        "before": 3802,
+        "after": 3492,
+        "saved": 310,
+        "reduction_percent": 8.15
+      }
+    },
+    {
+      "scenario": "production-roadmap",
+      "successful_calls_per_workflow": 3,
+      "characters": {
+        "before": 46263,
+        "after": 44220,
+        "saved": 2043,
+        "reduction_percent": 4.42
+      },
+      "utf8_bytes": {
+        "before": 46273,
+        "after": 44230,
+        "saved": 2043,
+        "reduction_percent": 4.42
+      },
+      "o200k_base": {
+        "before": 8945,
+        "after": 7967,
+        "saved": 978,
+        "reduction_percent": 10.93
+      },
+      "cl100k_base": {
+        "before": 8936,
+        "after": 7960,
+        "saved": 976,
+        "reduction_percent": 10.92
+      }
+    }
+  ],
+  "instruction_files": [
+    {
+      "file": "SKILL.md",
+      "words": {
+        "before": 1536,
+        "after": 1257
+      },
+      "characters": {
+        "before": 11386,
+        "after": 9780,
+        "saved": 1606,
+        "reduction_percent": 14.11
+      },
+      "utf8_bytes": {
+        "before": 11390,
+        "after": 9786,
+        "saved": 1604,
+        "reduction_percent": 14.08
+      },
+      "o200k_base": {
+        "before": 2184,
+        "after": 1918,
+        "saved": 266,
+        "reduction_percent": 12.18
+      },
+      "cl100k_base": {
+        "before": 2188,
+        "after": 1926,
+        "saved": 262,
+        "reduction_percent": 11.97
+      }
+    },
+    {
+      "file": "references/protocol.md",
+      "words": {
+        "before": 4882,
+        "after": 5048
+      },
+      "characters": {
+        "before": 34489,
+        "after": 35710,
+        "saved": -1221,
+        "reduction_percent": -3.54
+      },
+      "utf8_bytes": {
+        "before": 34497,
+        "after": 35718,
+        "saved": -1221,
+        "reduction_percent": -3.54
+      },
+      "o200k_base": {
+        "before": 6658,
+        "after": 6872,
+        "saved": -214,
+        "reduction_percent": -3.21
+      },
+      "cl100k_base": {
+        "before": 6673,
+        "after": 6889,
+        "saved": -216,
+        "reduction_percent": -3.24
+      }
+    },
+    {
+      "file": "references/project-assessment.md",
+      "words": {
+        "before": 1339,
+        "after": 1339
+      },
+      "characters": {
+        "before": 9750,
+        "after": 9750,
+        "saved": 0,
+        "reduction_percent": 0.0
+      },
+      "utf8_bytes": {
+        "before": 9762,
+        "after": 9762,
+        "saved": 0,
+        "reduction_percent": 0.0
+      },
+      "o200k_base": {
+        "before": 1958,
+        "after": 1958,
+        "saved": 0,
+        "reduction_percent": 0.0
+      },
+      "cl100k_base": {
+        "before": 1953,
+        "after": 1953,
+        "saved": 0,
+        "reduction_percent": 0.0
+      }
+    }
+  ],
+  "cli_formatting": [
+    {
+      "scenario": "small-feature",
+      "artifact": "status",
+      "characters": {
+        "before": 5579,
+        "after": 4458,
+        "saved": 1121,
+        "reduction_percent": 20.09
+      },
+      "utf8_bytes": {
+        "before": 5579,
+        "after": 4458,
+        "saved": 1121,
+        "reduction_percent": 20.09
+      },
+      "o200k_base": {
+        "before": 1601,
+        "after": 1230,
+        "saved": 371,
+        "reduction_percent": 23.17
+      },
+      "cl100k_base": {
+        "before": 1588,
+        "after": 1213,
+        "saved": 375,
+        "reduction_percent": 23.61
+      }
+    },
+    {
+      "scenario": "small-feature",
+      "artifact": "ask-formatting",
+      "characters": {
+        "before": 1083,
+        "after": 1001,
+        "saved": 82,
+        "reduction_percent": 7.57
+      },
+      "utf8_bytes": {
+        "before": 1083,
+        "after": 1001,
+        "saved": 82,
+        "reduction_percent": 7.57
+      },
+      "o200k_base": {
+        "before": 286,
+        "after": 245,
+        "saved": 41,
+        "reduction_percent": 14.34
+      },
+      "cl100k_base": {
+        "before": 288,
+        "after": 247,
+        "saved": 41,
+        "reduction_percent": 14.24
+      }
+    },
+    {
+      "scenario": "production-roadmap",
+      "artifact": "status",
+      "characters": {
+        "before": 9080,
+        "after": 7360,
+        "saved": 1720,
+        "reduction_percent": 18.94
+      },
+      "utf8_bytes": {
+        "before": 9080,
+        "after": 7360,
+        "saved": 1720,
+        "reduction_percent": 18.94
+      },
+      "o200k_base": {
+        "before": 2327,
+        "after": 1797,
+        "saved": 530,
+        "reduction_percent": 22.78
+      },
+      "cl100k_base": {
+        "before": 2319,
+        "after": 1783,
+        "saved": 536,
+        "reduction_percent": 23.11
+      }
+    },
+    {
+      "scenario": "production-roadmap",
+      "artifact": "ask-formatting",
+      "characters": {
+        "before": 1183,
+        "after": 1089,
+        "saved": 94,
+        "reduction_percent": 7.95
+      },
+      "utf8_bytes": {
+        "before": 1183,
+        "after": 1089,
+        "saved": 94,
+        "reduction_percent": 7.95
+      },
+      "o200k_base": {
+        "before": 304,
+        "after": 259,
+        "saved": 45,
+        "reduction_percent": 14.8
+      },
+      "cl100k_base": {
+        "before": 306,
+        "after": 261,
+        "saved": 45,
+        "reduction_percent": 14.71
+      }
+    }
+  ],
+  "retained_data_checks": [
+    "small-feature/review: identical assessment, supplied source contents/labels, all applicable reports/findings/decisions/final plan; only outbound bytes/hash metadata removed and stage instruction relocated.",
+    "small-feature/verify: identical assessment, supplied source contents/labels, all applicable reports/findings/decisions/final plan; only outbound bytes/hash metadata removed and stage instruction relocated.",
+    "production-roadmap/draft: identical assessment, supplied source contents/labels, all applicable reports/findings/decisions/final plan; only outbound bytes/hash metadata removed and stage instruction relocated.",
+    "production-roadmap/review: identical assessment, supplied source contents/labels, all applicable reports/findings/decisions/final plan; only outbound bytes/hash metadata removed and stage instruction relocated.",
+    "production-roadmap/verify: identical assessment, supplied source contents/labels, all applicable reports/findings/decisions/final plan; only outbound bytes/hash metadata removed and stage instruction relocated."
+  ],
+  "limitations": [
+    "Encoding counts are deterministic input-text proxies, not billed Codex/Claude tokens or measured cache hits.",
+    "CLIs may add system instructions, tools, schema and envelope tokens not counted here.",
+    "Fixed injected output reports are identical fixtures. Their length is not evidence of generated-output or reasoning-token savings.",
+    "Passing complete synthetic workflows and unchanged task-data comparisons demonstrate contract retention, not equivalent real model planning quality.",
+    "Results depend on these two synthetic fixtures; larger source contexts change percentage savings.",
+    "No live provider calls, actual project implementation or production tests were performed."
+  ],
+  "measured_commit": "a67657d4787c08bf89c22eb2ff6872797bcf061e",
+  "measured_date": "2026-10-06"
+}

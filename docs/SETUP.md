@@ -30,8 +30,9 @@ A missing or signed-out CLI for the direction you are not using is okay. A succe
 | `doctor` cannot find `claude` or `codex` | Install the required CLI using the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) setup guide. Reopen the terminal and check again. |
 | `doctor` reports signed out | For the required peer, run `claude auth login` or `codex login` in your terminal, then rerun `doctor`. |
 | A required CLI flag is missing | Update that CLI using its official setup guide, then rerun `doctor`. |
+| The installer finds a legacy skill | Follow [Update the skill](#update-the-skill) to move the old `codex-claude-council` installation outside all skill directories, then rerun installation. |
 | A different installation already exists | Follow [Update the skill](#update-the-skill). The installer protects existing files instead of overwriting them. |
-| The skill does not appear in chat | Confirm installation, then start a new chat or restart the app. Use the Codex `$codex-claude-council` or Claude `/codex-claude-council` prompt. |
+| The skill does not appear in chat | Confirm installation, then start a new chat or restart the app. Use the Codex `$C2C` or Claude `/C2C` prompt. |
 | Terminal setup works, but the chat reports signed out | The chat's restricted environment may not see the normal credential store. Use the host's approved execution path or follow its access prompt. Do not copy credential files. |
 | A discussion times out or fails | Ask the AI to read the run's `HANDOFF.md`, check its status, and inspect the saved failure logs. A partial response is not a completed review; successful stages should not be repeated. |
 
@@ -55,23 +56,25 @@ Default locations (`~` means your user folder):
 
 | App | Skill folder |
 |---|---|
-| Codex | `~/.codex/skills/codex-claude-council` |
-| Claude Code | `~/.claude/skills/codex-claude-council` |
+| Codex | `~/.codex/skills/C2C` |
+| Claude Code | `~/.claude/skills/C2C` |
 
 If you already use `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, the installer uses that configured root. You do not need to set either variable for a normal installation.
 
 ## Update the skill
 
 1. Get the latest repository files. For a Git clone, run `git pull` inside it; for a ZIP installation, download and extract the latest ZIP.
-2. Move each older installed `codex-claude-council` folder to a backup location **outside all skill directories**, such as `~/skill-backups/`. Use distinct backup names for Codex and Claude. Moving the backup outside prevents duplicate skill discovery.
+2. Move each older installed `C2C` folder (or `codex-claude-council` from an earlier release) to a backup location **outside all skill directories**, such as `~/skill-backups/`. Use distinct backup names for Codex and Claude. Moving the backup outside prevents duplicate skill discovery.
 3. From the updated repository folder, run `node scripts/install.mjs` again. Use `--target codex` or `--target claude` if you only want one installation.
 4. Run `node scripts/council.mjs doctor` and open a new chat.
+
+The commands are now `$C2C` in Codex and `/C2C` in Claude Code. The repository folder can keep its original name.
 
 Downloading updates alone does not update the installed copies. If their files already match, the installer reports `Already installed` and leaves them alone. Keep your backup until the new installation works.
 
 ## Uninstall
 
-Remove only the `codex-claude-council` folder from the installed locations above, then start a new chat. Your separately saved plans and run folders remain available.
+Remove only the `C2C` folder from the installed locations above, then start a new chat. Your separately saved plans and run folders remain available.
 
 ## Usage and privacy
 

@@ -4,7 +4,7 @@ Last updated: 2026-10-06. This is the maintained project summary, not a transcri
 
 ## Objective and current status
 
-Public display name: **C2C**. The skill/package identifier and repository path are `codex-claude-council`; installation paths and invocation examples use that identifier.
+Public display name and skill identifier: **C2C**. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. Both installed folders are named `C2C`. The private package name and GitHub repository path remain `codex-claude-council`; they do not determine the chat command.
 
 Build a reusable skill that lets Codex and Claude Code contribute independent proposals, critique each other, and produce one actionable plan with a decision record. The user requested Markdown notes to make later sessions faster and more accurate.
 
@@ -12,6 +12,7 @@ The user also requested task-size assessment and task-appropriate model recommen
 
 The user explicitly requested suitability for both small features and big-project planning. Instructions now choose focused feature review (2 successful peer calls), feature design (3), or a project roadmap (3 at project level), using the existing runner modes. Small tasks still get a real council when requested. Project plans include MVP boundaries, dependent milestones, acceptance gates and a concrete first milestone; later milestone councils are not started automatically. UI prompt wording now allows proportional planning instead of always requiring independent drafts.
 
+- Version 0.4.0 makes `C2C` the actual skill identifier and installed folder name. The installer refuses selected legacy folders before writing any files; users move those folders to backups outside all skill directories before reinstalling. Planning behavior and the version 3 run format are unchanged.
 - Version 0.3.0 requires a factual project assessment and clear direction before a new council. It separates deployment evidence from scoped readiness, supports bounded discovery, and freezes the assessment into every peer stage and the final result. Repository: [ZiadHassanein/codex-claude-council](https://github.com/ZiadHassanein/codex-claude-council).
 - Version 0.2.0 introduced mandatory security reviews, persistent partial process logs, bounded cleanup, and an optional implementation handoff. These remain in version 0.3.0.
 - The initial published implementation is commit `6343b8b4b3efa5dd96b02b048185d8c6889299fb`.
@@ -87,8 +88,10 @@ Observed on 2026-10-06:
 
 | Check | Result and limit |
 |---|---|
-| Skill frontmatter validation | Passed for source and both installed copies. |
-| Public interface presentation | Display metadata, README, CLI/result headings and responsive SVGs use **C2C**. The package identifier and commands stay compatible. All 56 automated tests pass; source and installed metadata, 24 local documentation targets and four SVG assets passed validation. Desktop/mobile graphics were rendered and visually inspected. Both installed copies match all eight package files. |
+| Version 0.4.0 command identity | The complete eight-file package was discovered as exact `C2C` by Codex CLI 0.160.1 (`skills/list`, enabled, no load errors) and Claude Code 2.1.291 (initialize-only command list). Source and both installed copies match byte-for-byte; old discovery folders were backed up outside skill roots. These were discovery checks without model prompts, not paid skill executions or desktop autocomplete tests. |
+| Version 0.4.0 automated validation | All 59 tests passed on Windows / Node 24, including legacy-directory preservation, all-target preflight, selected-provider isolation and exact installed name. README/setup checks passed 25 local links, anchors and assets. An initial run failed when the system drive ran out of space; the successful rerun used a separate temporary directory. |
+| Earlier frontmatter validation | The lowercase identifier in versions through 0.3.0 passed the bundled validator. See the uppercase compatibility limit below for 0.4.0. |
+| Version 0.3.0 public interface presentation | Display metadata, README, CLI/result headings and responsive SVGs use **C2C**. The package identifier and commands stay compatible. All 56 automated tests pass; source and installed metadata, 24 local documentation targets and four SVG assets passed validation. Desktop/mobile graphics were rendered and visually inspected. Both installed copies match all eight package files. |
 | Version 0.3.0 automated suite | All 56 tests passed on Windows with Node 24. New cases cover deployment/readiness evidence, direction gates before output creation or peer launch, real calendar timestamps, new-build/discovery/non-software routes, all-stage frozen context, source drift, sealed artifact changes, retained production gaps, secrets/aggregate size, the CLI assessment argument, and eight-file installation. Legacy v1/v2 runs also resume without assessment artifacts. |
 | Version 0.3.0 independent instruction evaluation | Six offline scenarios covered a production checkout feature with missing policy, a dashboard with deployment configuration but no live evidence, an unspecified empty app, a small mobile-text change, a community workshop without a defined topic, and readiness advice with a known admin-access gap. Assessments preserved unknowns and evidence provenance, allowed useful small-task planning, and identified essential questions. All six JSON records validated. No paid peer calls or project changes occurred in this evaluation. |
 | Version 0.3.0 packaging and documentation | Both installed copies match all eight package files, pass metadata validation, load the assessment helper, and are recognized by the installer. README/setup local targets and command references passed checks; desktop/mobile workflow graphics were rendered and inspected. Independent contract review found no blocking inconsistency. |
@@ -134,6 +137,8 @@ No model override was used for those live calls. Do not infer a precise model id
 4. The initial CI passed with non-blocking warnings about the action runtime of `checkout@v4` and `setup-node@v4`; updating those actions is optional maintenance, not a failed test.
 5. Source paths/content and local run logs can contain private project information. Keep live run records out of the public repository unless separately sanitized and authorized.
 6. Project classification is the coordinator's evidence-based assessment, not an automated infrastructure audit. Runtime validation cannot verify truthful observations or adequate readiness scope. Artifact seals detect accidental changes; the local run manifest is trusted. Production use and workflow completion are never readiness certifications.
+
+7. The exact uppercase identifier `C2C` is verified in the local Codex and Claude Code versions above. The generic [Agent Skills name specification](https://agentskills.io/specification#name-field) and bundled `quick_validate.py` require lowercase, so this package intentionally does not pass that name rule. Do not describe it as passing the generic validator or assume compatibility with other skill upload systems. Keep the requested command consistent in frontmatter, folder names, metadata and examples; check actual host discovery when those hosts change.
 
 ## Commands for continuing development
 

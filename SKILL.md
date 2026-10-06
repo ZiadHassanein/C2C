@@ -1,5 +1,5 @@
 ---
-name: codex-claude-council
+name: C2C
 description: Assess project context and direction, then plan and review small features through large projects with a real Codex and Claude Code exchange. Use when the user requests both agents' input or a design decision benefits from independent proposals or review. Includes scoped security review and advisory model recommendations; supports non-code work without requiring a council for routine edits.
 ---
 
@@ -93,24 +93,24 @@ On resume, treat the snapshot, report JSON, decision record, and runner status a
 
 In Codex:
 
-> Use $codex-claude-council to plan offline support for this app. First assess its deployment context and clarify the path, then compare approaches with Claude and give me one plan with acceptance criteria.
+> Use $C2C to plan offline support for this app. First assess its deployment context and clarify the path, then compare approaches with Claude and give me one plan with acceptance criteria.
 
 In Claude Code:
 
-> /codex-claude-council Review the migration plan in docs/migration.md with Codex. Identify rollout risks and produce a revised plan and decision record.
+> /C2C Review the migration plan in docs/migration.md with Codex. Identify rollout risks and produce a revised plan and decision record.
 
 For non-code work:
 
-> Use the codex-claude-council skill to plan our six-week launch using this brief. Have both agents draft independently, discuss tradeoffs, and show me the decisions that still need my input.
+> Use the C2C skill to plan our six-week launch using this brief. Have both agents draft independently, discuss tradeoffs, and show me the decisions that still need my input.
 
 For advice without changing models:
 
-> Use the codex-claude-council skill to assess the size and risk of this migration and recommend suitable models for planning and review. Keep my current models. Give only the assessment for now.
+> Use the C2C skill to assess the size and risk of this migration and recommend suitable models for planning and review. Keep my current models. Give only the assessment for now.
 
 For a small feature:
 
-> Use $codex-claude-council to plan a search filter for this screen. Keep the review focused and give me implementation steps and acceptance checks.
+> Use $C2C to plan a search filter for this screen. Keep the review focused and give me implementation steps and acceptance checks.
 
 For a big project:
 
-> Use $codex-claude-council to plan this whole product. Compare architectures, define the MVP and dependent milestones, and detail the first milestone. Recommend models without changing mine.
+> Use $C2C to plan this whole product. Compare architectures, define the MVP and dependent milestones, and detail the first milestone. Recommend models without changing mine.

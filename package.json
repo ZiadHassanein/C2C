@@ -1,6 +1,6 @@
 {
   "name": "codex-claude-council",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "C2C: a shared Codex and Claude Code skill for independent planning and mutual review.",
   "private": true,
   "type": "module",

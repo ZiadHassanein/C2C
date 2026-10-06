@@ -772,8 +772,10 @@ async function installerFixture(label) {
   const codexHome=path.join(root,'codex-home');
   const claudeHome=path.join(root,'claude-home');
   return {root,codexHome,claudeHome,
-    codexSkill:path.join(codexHome,'skills','codex-claude-council'),
-    claudeSkill:path.join(claudeHome,'skills','codex-claude-council'),
+    codexSkill:path.join(codexHome,'skills','C2C'),
+    claudeSkill:path.join(claudeHome,'skills','C2C'),
+    codexLegacy:path.join(codexHome,'skills','codex-claude-council'),
+    claudeLegacy:path.join(claudeHome,'skills','codex-claude-council'),
   };
 }
 function install(f,args=[]) {
@@ -789,6 +791,9 @@ async function assertInstalled(dest) {
   for (const file of installFiles) {
     assert.deepEqual(await fs.readFile(path.join(dest,file)),await fs.readFile(path.join(packageRoot,file)),`Installed ${file} differs from package`);
   }
+  const skill=await fs.readFile(path.join(dest,'SKILL.md'),'utf8');
+  assert.match(skill,/^---\r?\nname: C2C\r?\n/,'skill frontmatter must expose the C2C command');
+  assert.equal(path.basename(dest),'C2C','skill directory must match the command');
   await assert.rejects(()=>fs.access(path.join(dest,'tests')));
   const launched=spawnSync(process.execPath,[path.join(dest,'scripts','council.mjs'),'help'],{encoding:'utf8',windowsHide:true,timeout:5000});
   assert.equal(launched.status,0,launched.stderr);
@@ -842,4 +847,59 @@ test('installer target selection writes only the selected provider', async () =>
   const claude=install(f,['--target','claude']);
   assert.equal(claude.status,0,claude.stderr);
   await assertInstalled(f.claudeSkill);
+});
+
+test('installer refuses legacy skill folders before writing either destination', async () => {
+  for (const provider of ['codex','claude']) {
+    const f=await installerFixture(`legacy-${provider}`);
+    const legacy=f[`${provider}Legacy`];
+    const custom='User-owned legacy skill and local notes must remain intact.\n';
+    await fs.mkdir(legacy,{recursive:true});
+    await write(path.join(legacy,'SKILL.md'),custom);
+    await write(path.join(legacy,'notes.md'),'Keep these private notes.\n');
+    const result=install(f);
+    assert.notEqual(result.status,0);
+    assert.match(result.stderr,/legacy installation exists/);
+    assert.match(result.stderr,/outside all Codex and Claude Code skill roots/);
+    assert.match(result.stderr,/rerun this installer/);
+    await assert.rejects(()=>fs.access(f.codexSkill));
+    await assert.rejects(()=>fs.access(f.claudeSkill));
+    assert.equal(await fs.readFile(path.join(legacy,'SKILL.md'),'utf8'),custom);
+    assert.equal(await fs.readFile(path.join(legacy,'notes.md'),'utf8'),'Keep these private notes.\n');
+  }
+});
+
+test('installer checks legacy folders only for selected providers', async () => {
+  for (const provider of ['codex','claude']) {
+    const other=provider==='codex'?'claude':'codex';
+    const f=await installerFixture(`legacy-unselected-${provider}`);
+    const legacy=f[`${other}Legacy`];
+    await fs.mkdir(legacy,{recursive:true});
+    await write(path.join(legacy,'SKILL.md'),'Unselected legacy installation.\n');
+    const result=install(f,['--target',provider]);
+    assert.equal(result.status,0,result.stderr);
+    await assertInstalled(f[`${provider}Skill`]);
+    await assert.rejects(()=>fs.access(f[`${other}Skill`]));
+    assert.equal(await fs.readFile(path.join(legacy,'SKILL.md'),'utf8'),'Unselected legacy installation.\n');
+    const blocked=install(f,['--target',other]);
+    assert.notEqual(blocked.status,0);
+    assert.match(blocked.stderr,/legacy installation exists/);
+    await assert.rejects(()=>fs.access(f[`${other}Skill`]));
+    await assertInstalled(f[`${provider}Skill`]);
+  }
+});
+
+test('legacy preflight preserves an already installed C2C directory', async () => {
+  const f=await installerFixture('legacy-with-c2c');
+  assert.equal(install(f,['--target','codex']).status,0);
+  const original=await fs.stat(path.join(f.codexSkill,'SKILL.md'));
+  await fs.mkdir(f.claudeLegacy,{recursive:true});
+  await write(path.join(f.claudeLegacy,'SKILL.md'),'Existing Claude legacy skill.\n');
+  const result=install(f);
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/legacy installation exists/);
+  await assertInstalled(f.codexSkill);
+  assert.equal((await fs.stat(path.join(f.codexSkill,'SKILL.md'))).mtimeMs,original.mtimeMs);
+  await assert.rejects(()=>fs.access(f.claudeSkill));
+  assert.equal(await fs.readFile(path.join(f.claudeLegacy,'SKILL.md'),'utf8'),'Existing Claude legacy skill.\n');
 });

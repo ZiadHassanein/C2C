@@ -65,14 +65,14 @@ Open your project in Codex or Claude Code and start a **new chat** to discover t
 ### From Codex
 
 ```text
-Use $codex-claude-council to plan a search filter for this app.
+Use $C2C to plan a search filter for this app.
 Keep it focused, with security considerations and acceptance tests.
 ```
 
 ### From Claude Code
 
 ```text
-/codex-claude-council Plan a search filter for this app with Codex.
+/C2C Plan a search filter for this app with Codex.
 Keep it focused, with security considerations and acceptance tests.
 ```
 

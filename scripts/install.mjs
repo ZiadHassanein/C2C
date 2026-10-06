@@ -7,26 +7,33 @@ import { fileURLToPath } from 'node:url';
 const source = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  console.log('node scripts/install.mjs [--target both|codex|claude]\nInstalls for the current user. Existing different files are never overwritten.');
+  console.log('node scripts/install.mjs [--target both|codex|claude]\nInstalls C2C for the current user. Existing different files are never overwritten. Move a legacy codex-claude-council installation outside the skill roots before installing.');
   process.exit(0);
 }
 if (args.length && (args.length !== 2 || args[0] !== '--target' || !['both', 'codex', 'claude'].includes(args[1]))) {
   console.error('Use --target both|codex|claude, or no arguments for both.'); process.exit(1);
 }
 const target = args[1] || 'both';
-const targets = [
-  ...(target !== 'claude' ? [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'skills', 'codex-claude-council')] : []),
-  ...(target !== 'codex' ? [path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'skills', 'codex-claude-council')] : []),
+const skillRoots = [
+  ...(target !== 'claude' ? [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'skills')] : []),
+  ...(target !== 'codex' ? [path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'skills')] : []),
 ];
+const targets = skillRoots.map(root => path.join(root, 'C2C'));
 const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'LICENSE'];
 try {
   for (const file of files) if (!fs.statSync(path.join(source, file)).isFile()) throw new Error(`Missing package file: ${file}`);
+  for (const root of skillRoots) {
+    const legacy = path.join(root, 'codex-claude-council');
+    if (fs.existsSync(legacy)) {
+      throw new Error(`A legacy installation exists at ${legacy}. Back it up and move that directory outside all Codex and Claude Code skill roots, then rerun this installer. No selected installation has been changed.`);
+    }
+  }
   for (const dest of targets) {
     if (fs.existsSync(dest)) {
       for (const file of files) {
         const existing = path.join(dest, file);
         if (!fs.existsSync(existing) || !fs.readFileSync(existing).equals(fs.readFileSync(path.join(source, file)))) {
-          throw new Error(`A different installation exists at ${dest}. Back up or rename that named skill directory before installing this version.`);
+          throw new Error(`A different installation exists at ${dest}. Back it up and move that named skill directory outside all Codex and Claude Code skill roots before installing this version.`);
         }
       }
     }

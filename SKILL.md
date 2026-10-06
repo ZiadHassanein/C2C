@@ -1,6 +1,6 @@
 ---
 name: codex-claude-council
-description: Plan and review work through a real exchange between Codex and Claude Code, with advisory task sizing and model recommendations. Use when the user requests both agents' input or a consequential design decision benefits from independent proposals and mutual critique. Supports project and non-code planning; routine small edits do not need a council.
+description: Plan and review small features through large projects with a real Codex and Claude Code exchange, proportional review depth, and advisory task sizing and model recommendations. Use when the user requests both agents' input or a design decision benefits from independent proposals or review. Supports code and non-code planning; does not require a council for every routine edit.
 ---
 
 # Codex–Claude Council
@@ -13,9 +13,19 @@ For an assessment-only request, go directly to the task/model advice section and
 
 1. Read [references/protocol.md](references/protocol.md) for the report schema, file contract, and commands. When resuming, first read the run's `HANDOFF.md` and run `status`; reconcile the note with current state and source hashes before continuing.
 2. Locate `scripts/council.mjs` relative to this skill. Run `node <absolute-runner-path> doctor`. Node 18 or newer and the peer CLI are required. A Codex coordinator calls Claude Code; a Claude Code coordinator calls Codex. The coordinator's own CLI need not be signed in. If the peer is unavailable, explain the specific limitation and preserve work already completed.
-3. Select `plan` for independent proposals and mutual review, or `review` for review of an existing plan. Both include a peer check of the synthesized plan. Keep the chosen mode proportional to the task; an explicit user request for collaboration is sufficient reason to use it.
+3. Choose the planning depth below. Use `plan` for independent proposals and mutual review, or `review` for an existing or newly written coordinator plan. Both include a peer check of the synthesized plan. An explicit request for collaboration applies to small features too; honor explicit requests for independent proposals or an existing-plan review.
 4. Prepare a concise UTF-8 brief with the objective, scope, constraints, success criteria, and relevant user preferences. Gather task-relevant evidence and explicitly select context files. The runner sends the brief, selected context, and reports to the peer provider; it does not scan the repository. Exclude credentials and unrelated private data. Describe the source/version and any uncommitted changes relevant to the selected evidence.
 5. Assess task size and recommend models as described below before the first peer call. Choose a new absolute run directory in a permitted workspace, outside the installed skill. Use `prepare` to snapshot the brief and context with `--coordinator codex` or `--coordinator claude`, then save `TASK_ASSESSMENT.md` and follow the selected workflow. The coordinator also works from that snapshot. If new evidence changes the task materially, start a new run with an updated brief and state why.
+
+## Match the planning depth to the task
+
+Small features and big projects are both supported. Select depth from scope, uncertainty, and consequences, and record the chosen depth, runner mode, and reason in `TASK_ASSESSMENT.md`. These are workflow choices within an authorized council, not new CLI modes or permission to change models or limits.
+
+- **Focused feature:** For a bounded feature with a clear approach, draft a compact candidate plan and use `review` (two successful peer calls). Cover the behavior, affected components, implementation steps, edge cases, and acceptance checks; keep relevant risks visible without adding a project roadmap.
+- **Feature design:** When alternatives or consequential unknowns need exploration, use `plan` (three successful peer calls). Small scope can still warrant this depth. Compare useful alternatives, critique them, and resolve the design into one implementable plan.
+- **Project roadmap:** For a large or extra-large new project plan, use `plan` at the project level. Produce scope/MVP, system boundaries, milestone dependencies, acceptance gates, and a concrete first milestone. Keep later phases at the level supported by evidence; do not launch a separate council for every milestone automatically.
+
+Read [planning depth and deliverables](references/protocol.md#planning-depth-and-deliverables) for the selected depth. Review of a supplied big-project plan can still use `review`; size alone does not require redrafting it. If requirements are sparse, make discovery the first milestone and label downstream choices provisional. Assessment-only requests still stop after advice.
 
 ## Assess task size and recommend models
 
@@ -35,9 +45,9 @@ Save the recommendation and actual selections separately in `TASK_ASSESSMENT.md`
 4. Call `ask --stage verify`. Read `peer-verify.json`, address its findings in the final plan, and add their dispositions to the decision record. A changed final plan is not automatically verified again; disclose revisions made after the peer check.
 5. Run `finish`. Report the result, important unresolved issues, and useful artifact links. A completed exchange may still contain a blocked or incomplete plan; say so plainly.
 
-## Existing-plan review (`--mode review`)
+## Focused or existing-plan review (`--mode review`)
 
-1. Put the existing plan and its relevant constraints into `coordinator-draft.json`. Write your independent review in `coordinator-review.json` before requesting the peer review.
+1. Put the supplied plan or a newly written compact coordinator plan and its relevant constraints into `coordinator-draft.json`. Write your own critique in `coordinator-review.json` before requesting the peer review. The peer critique is independent of that critique; a coordinator-authored candidate is not two independent proposals.
 2. Call `ask --stage review`; there is no peer draft stage in this mode.
 3. Synthesize a revised `final-plan.md` and `decisions.json`, call `ask --stage verify`, handle the returned findings, and run `finish` as above.
 
@@ -74,3 +84,11 @@ For non-code work:
 For advice without changing models:
 
 > Use the codex-claude-council skill to assess the size and risk of this migration and recommend suitable models for planning and review. Keep my current models. Give only the assessment for now.
+
+For a small feature:
+
+> Use $codex-claude-council to plan a search filter for this screen. Keep the review focused and give me implementation steps and acceptance checks.
+
+For a big project:
+
+> Use $codex-claude-council to plan this whole product. Compare architectures, define the MVP and dependent milestones, and detail the first milestone. Recommend models without changing mine.

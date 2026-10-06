@@ -1,6 +1,6 @@
 # Codex-Claude Council
 
-A shared skill that lets an existing Codex or Claude Code chat ask the other product for independent proposals and reviews, then produce one actionable plan with a decision record.
+A shared skill that lets an existing Codex or Claude Code chat ask the other product for proposals and reviews, then produce an actionable plan with a decision record. It scales from a small feature to a whole project.
 
 The current chat coordinates the work. A small local Node.js runner invokes the other product's CLI, captures structured responses, and preserves what was actually reviewed. It does not open a new user-facing chat or automatically run on every edit.
 
@@ -65,7 +65,38 @@ The coordinator saves this in `TASK_ASSESSMENT.md`, links it from the handoff, a
 | Mode | Workflow | Successful peer calls |
 |---|---|---:|
 | Plan | Independent drafts, mutual critique, synthesis, peer verification | 3 |
-| Review | Independent reviews of an existing plan, synthesis, peer verification | 2 |
+| Review | Independent critiques of a supplied or newly drafted candidate plan, synthesis, peer verification | 2 |
+
+### Small features and big projects
+
+The coordinator chooses a proportionate planning depth and explains it in the task assessment. You can ask for a particular depth; model recommendations remain advisory.
+
+| Task | Usual approach | What you receive |
+|---|---|---|
+| Small feature with a clear approach | Focused review of a supplied or newly drafted plan; 2 successful peer calls | Concise implementation steps, edge cases and acceptance checks. |
+| Feature with meaningful design choices | Independent drafts and mutual critique; 3 successful peer calls | Compared approaches, chosen design, integration details and verification plan. |
+| Big project | One project-level planning council; 3 successful peer calls | Scope and MVP, architecture, milestone dependencies, acceptance gates and a detailed first milestone. |
+
+Risk and uncertainty can justify deeper planning even for a tiny change. Reviewing an existing big-project plan can use the two-call review workflow. Later milestones remain provisional where evidence is missing; the skill does not automatically launch a council for every feature or increase your usage limits. It retains the Markdown roadmap and decision history for future refinement.
+
+Small feature:
+
+```text
+Use $codex-claude-council to plan a search filter for this screen.
+Keep it focused, with implementation steps and acceptance checks.
+```
+
+Big project:
+
+```text
+Use $codex-claude-council to plan this whole product from the brief.
+Compare architectures, define the MVP, map dependent milestones,
+and detail the first milestone. Recommend models without changing mine.
+```
+
+In Claude Code, start the same request with `/codex-claude-council`.
+
+### Saved plans and handoffs
 
 The coordinator handles the runner commands and writes a final plan. Each run retains the selected input snapshot, both agents' reports, `final-plan.md`, `decisions.json`, and completion provenance in `RESULT.md`. Decisions record which findings were accepted, rejected with reasons, or remain unresolved. Agreement is not required.
 

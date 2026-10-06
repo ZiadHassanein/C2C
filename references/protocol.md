@@ -22,7 +22,7 @@ node RUNNER finish --run RUN
 | `--brief` | UTF-8 task brief file to snapshot. |
 | `--context` | Explicit UTF-8 context file to snapshot; repeat for multiple files, omit when the brief suffices. |
 | `--coordinator` | `codex` calls Claude Code; `claude` calls Codex. |
-| `--mode` | `plan` includes draft, review, and verify; `review` includes review and verify. |
+| `--mode` | `plan` includes draft, review, and verify; `review` critiques a supplied or coordinator-authored plan, then verifies the synthesis. |
 | `--out` | Absolute directory for this new run and its artifacts. |
 | `--timeout-seconds` | Per-call timeout; default `300`. |
 | `--budget-seconds` | Cumulative peer subprocess runtime allowance; default `900`. |
@@ -51,6 +51,32 @@ All coordinator-authored JSON is UTF-8 and follows the report schema below. `pre
 
 Do not rewrite successful peer reports or earlier coordinator reports to erase disagreements. Use the final plan and decision record for synthesis. `finish` records the plan hash presented for verification and the final plan hash, including whether it changed. Completion does not mean that post-verification edits received another peer check or that every recommendation is factually correct.
 
+## Planning depth and deliverables
+
+The planning depth guides the coordinator's content and choice of existing runner mode; the runner has no size or depth flag. Select it before preparation, state the intended scope and deliverables in the neutral brief, and record the reason in `TASK_ASSESSMENT.md`. Preserve explicit user requests: a small feature can use independent drafts, and a large supplied plan can use review mode. Choosing depth does not change selected models, effort, timeouts, runtime allowance, or attempt limits.
+
+| Depth | Typical choice | Final-plan emphasis |
+|---|---|---|
+| Focused feature | `review`: 2 successful peer calls | One bounded behavior change, affected components, ordered steps, relevant edge cases and acceptance checks. |
+| Feature design | `plan`: 3 successful peer calls | Meaningful alternatives, integration boundaries, tradeoffs, implementation steps, tests and relevant rollout concerns. |
+| Project roadmap | `plan`: 3 successful peer calls for the project-level plan | Scope/MVP, architecture, milestones and dependencies, validation gates, risks and a detailed first milestone. |
+
+**Focused feature:** Start from the user's plan or write a short candidate from the supplied evidence, then critique it before requesting the peer critique. Prefer a compact plan that someone can implement directly, often about a page; expand only when consequences or unknowns warrant it. Avoid unnecessary architecture documents, phase hierarchies, or invented findings. Do not skip peer verification or finding dispositions to save a call, and do not describe this route as two independent proposals. If design alternatives matter, choose feature-design depth before preparing the run. A supplied plan with high risk can still receive rigorous review without being redrafted.
+
+**Feature design:** Identify the unresolved decisions worth independent proposals. Compare viable approaches against the user's actual constraints; do not manufacture alternatives for settled details. Explain what peer critique changed and provide evidence-based acceptance criteria. Medium size is not a requirement: a small authentication change may deserve this depth, while a large mechanical edit may need only focused review.
+
+**Project roadmap:** Cover the whole requested project; detail the first milestone without silently narrowing the assignment to it. Keep the council at project level rather than trying to design every future feature in one packet. Build the final plan around:
+
+- Users, desired outcomes, scope, non-goals, MVP boundary and known constraints.
+- Architecture or workstream boundaries, relevant data flows/interfaces, dependencies and consequential tradeoffs.
+- A milestone table with stable IDs, outcome/deliverable, prerequisite IDs, acceptance/exit criteria, and responsible role where known. Flag dependencies that control sequencing; do not invent staffing or calendar commitments.
+- A concrete first milestone with ordered work and verification. Describe later milestones at a coarser level, with open decisions and triggers for refinement. If requirements are missing, the first milestone gathers the missing evidence rather than assuming an architecture is settled.
+- Relevant integration, security, migration, rollout/rollback and operational risks, plus how they will be tested or resolved. Include only concerns that apply to the project.
+
+Preserve this roadmap in `final-plan.md` and link it from `HANDOFF.md`. Supporting Markdown is optional when it improves navigation; the evidence and plan content actually sent for verification must be self-contained in the run's supported inputs and final plan. A linked file alone is not reviewed. Select focused excerpts or a dated, source-linked factual summary; peers cannot follow local links, and frozen brief/context inputs must stay within 240,000 bytes and 30 context files. Keep current independent proposals and critiques out of shared context.
+
+A roadmap request normally produces one project-level council. Recommend later milestone discussions where useful, without starting them automatically or pausing the current roadmap for another approval. When follow-up planning is within the user's requested scope, give each materially different milestone a new brief/run and retain links to prior accepted decisions and evidence. Mark previously accepted constraints as such rather than claiming they were independently rediscovered. Each run retains its own limits; there is no project-wide billing cap or automatic multi-run scheduler. Never split a failed run just to reset its budget. Identify exactly which scope each completed review covers; project-level verification does not verify all future feature plans or implementations.
+
 ## Task size and model advice
 
 Make a proportionate assessment from the brief and available evidence. These are qualitative judgments, not a numerical score or an exact estimate of hours, tokens, or price.
@@ -64,7 +90,7 @@ Make a proportionate assessment from the brief and available evidence. These are
 
 Separately rate complexity, risk, and uncertainty as low/moderate/high. Cite drivers: novelty, dependencies, context volume, reversibility, affected users/data, missing requirements, and verification burden. A small access-control change may be high risk; hundreds of mechanical replacements can have low reasoning complexity. If evidence is missing, give a provisional size or range, explain the missing facts, and use low/moderate/high confidence rather than a fabricated probability. A stronger model does not resolve missing requirements by itself.
 
-Match model capability to each role's actual need: bounded routine work may suit an efficient model; interacting requirements may justify a balanced general model; ambiguous architecture or consequential review may justify deeper reasoning. These are decision criteria, not fixed vendor rankings. Honor an expressed speed, budget, or quality preference; do not assume the largest model is always best. Prefer a specific current, supported model when verified, with one alternative only if it adds a meaningful tradeoff. Otherwise state the capability needed and mark any named candidate conditional on access.
+Match model capability to each role's actual need: bounded routine work may suit an efficient model; interacting requirements may justify a balanced general model; ambiguous architecture or consequential review may justify deeper reasoning. These are decision criteria, not fixed vendor rankings. Honor an expressed speed, budget, or quality preference; do not assume the largest model is always best. Prefer a specific current, supported model when verified, with one alternative only if it adds a meaningful tradeoff. Otherwise state the capability needed and mark any named candidate conditional on access. Keep model research proportionate for a small feature; reuse applicable dated evidence or give capability-tier advice when exact choices are unverified.
 
 Check official documentation for suitability and supported effort, and existing host/CLI model information for account availability. Read-only checks and dated evidence already available in this task can be reused when still applicable; do not launch paid model probes merely to choose a recommendation. Do not inspect credential files. There is no bundled permanent model ranking. Relevant primary sources:
 
@@ -82,6 +108,7 @@ Record the assessment after `prepare`, before `ask`, in this compact Markdown sh
 # Task assessment — recommendation only
 - Assessed: date/time with timezone; relevant scope/source version.
 - Size: small/medium/large/extra-large or provisional range; concrete scope reason.
+- Planning depth and mode: focused feature / feature design / project roadmap; review / plan and why, or suggested only for advice-only work.
 - Complexity / risk / uncertainty: separate levels with their main drivers.
 - Confidence and assumptions: high/moderate/low; what could change the assessment.
 - Coordinator recommendation: verified model or capability tier; why it fits.
@@ -102,7 +129,7 @@ Keep `HANDOFF.md` concise and current, with links to evidence rather than copied
 # Council handoff
 - Last updated: ISO date/time with timezone.
 - Goal and scope: objective, constraints, authorized next work.
-- Task fit: link to TASK_ASSESSMENT.md; recommendation versus actual model selections.
+- Task fit: link to TASK_ASSESSMENT.md; planning depth/scope; recommendation versus actual model selections.
 - Run and snapshot: absolute run directory; coordinator/peer; mode; snapshot file/hash.
 - Current state: successful stages; attempts used/remaining; runtime used/remaining from status.
 - Decisions and evidence: links to reports, decisions.json, final-plan.md, and relevant checks.

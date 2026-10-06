@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="480" height="1000" viewBox="0 0 480 1000" role="img" aria-labelledby="workflow-title workflow-description">
-  <title id="workflow-title">Codex–Claude Council: independent planning workflow</title>
+  <title id="workflow-title">Ziad's Council: independent planning workflow</title>
   <desc id="workflow-description">In independent plan mode, an evidence-based project assessment and clear direction inform separate Codex and Claude proposals. Both agents review the other's proposal. The coordinating chat synthesizes the plan with a security review and acceptance checks. The peer verifies it. The final plan records decisions and retains unresolved questions. Follow the six numbered stages from top to bottom. The diagram shows separate viewpoints, not concurrent execution or completed implementation tests.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">

@@ -792,7 +792,7 @@ async function assertInstalled(dest) {
   await assert.rejects(()=>fs.access(path.join(dest,'tests')));
   const launched=spawnSync(process.execPath,[path.join(dest,'scripts','council.mjs'),'help'],{encoding:'utf8',windowsHide:true,timeout:5000});
   assert.equal(launched.status,0,launched.stderr);
-  assert.match(launched.stdout,/Codex-Claude Council/);
+  assert.match(launched.stdout,/Ziad's Council/);
 }
 
 test('installer puts identical skill files in both isolated configuration directories', async () => {

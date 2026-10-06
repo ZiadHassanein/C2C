@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="576" viewBox="0 0 960 576" role="img" aria-labelledby="workflow-title workflow-description">
-  <title id="workflow-title">Codex–Claude Council: independent planning workflow</title>
+  <title id="workflow-title">Ziad's Council: independent planning workflow</title>
   <desc id="workflow-description">In independent plan mode, an evidence-based project assessment and clear direction inform separate Codex and Claude proposals. Both agents review the other's proposal. The coordinating chat synthesizes the plan with a security review and acceptance checks. The peer verifies it. The final plan records decisions and retains unresolved questions. The numbered flow reads left to right across the top, then right to left across the bottom. The diagram shows separate viewpoints, not concurrent execution or completed implementation tests.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -9,7 +9,7 @@
 
   <rect width="960" height="576" rx="20" fill="#f5f7f5"/>
   <g font-family="Segoe UI, Arial, sans-serif">
-    <text x="32" y="41" fill="#596c70" font-size="16" font-weight="600" letter-spacing="2">CODEX × CLAUDE</text>
+    <text x="32" y="41" fill="#596c70" font-size="16" font-weight="600" letter-spacing="2">ZIAD'S COUNCIL</text>
     <rect x="690" y="20" width="238" height="32" rx="16" fill="#e7ece9"/>
     <text x="809" y="41" text-anchor="middle" fill="#435c58" font-size="15" font-weight="600" letter-spacing="1.2">INDEPENDENT PLAN MODE</text>
     <text x="32" y="93" fill="#14252b" font-size="34" font-weight="600" letter-spacing="-0.7">Two perspectives. One actionable plan.</text>

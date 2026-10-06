@@ -1,4 +1,4 @@
 interface:
-  display_name: "Codex-Claude Council"
+  display_name: "Ziad's Council"
   short_description: "Assess project context, then plan with Codex and Claude"
   default_prompt: "Use $codex-claude-council to assess this project's deployment context and direction, then make an actionable plan with proportionate peer review, security checks, and advisory model recommendations."

@@ -479,7 +479,7 @@ export function finish(options) {
       security_review: security ? { required: true, verdict: security.report.verdict, limitations: security.report.limitations, open_questions: security.report.open_questions, changed_since_verification: changes.includes('security-review.json'), plan_changed_since_verification: changes.includes('final-plan.md') } : { required: false, verdict: 'not_required_by_legacy_run', limitations: ['Legacy run: the mandatory security-review artifact was not enforced.'] },
       note: 'Workflow completion is not a correctness guarantee or permission to implement. Any post-review edits have not been reviewed by the peer again.' };
     write(path.join(dir, 'completion.json'), completion);
-    const lines = ['# Council result', '', `Coordinator: ${state.coordinator}. Peer: ${state.peer}.`, `Outcome: ${completion.outcome}.`, `Peer calls: ${state.attempts.length}; runtime: ${Math.round(state.elapsed_ms / 1000)} seconds.`, '',
+    const lines = ["# Ziad's Council — result", '', `Coordinator: ${state.coordinator}. Peer: ${state.peer}.`, `Outcome: ${completion.outcome}.`, `Peer calls: ${state.attempts.length}; runtime: ${Math.round(state.elapsed_ms / 1000)} seconds.`, '',
       changes.includes('final-plan.md') ? 'The final plan was revised after peer verification. See the recorded hashes and finding dispositions; the delivered revision has not had another peer review.' : 'The delivered plan matches the version used for the final peer review.',
       changes.includes('decisions.json') ? 'The decision record was updated after peer verification.' : '',
       changes.includes('security-review.json') ? 'The security review was updated by the coordinator after peer verification; this revision has not been peer-reviewed.' : '',
@@ -507,7 +507,7 @@ function parseArgs(argv) {
   }
   return { command, options };
 }
-const HELP = `Codex-Claude Council (Node.js 18+; native CLIs)\n\nCommands:\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--peer-model NAME]\n          [--timeout-seconds 300] [--budget-seconds 900] [--max-attempts 4]\n  ask --run DIR --stage draft|review|verify\n  status --run DIR\n  finish --run DIR\n\nThe current chat assesses project context and direction before preparing a run.\nOnly the other CLI is launched. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `Ziad's Council (Node.js 18+; native CLIs)\n\nCommands:\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--peer-model NAME]\n          [--timeout-seconds 300] [--budget-seconds 900] [--max-attempts 4]\n  ask --run DIR --stage draft|review|verify\n  status --run DIR\n  finish --run DIR\n\nThe current chat assesses project context and direction before preparing a run.\nOnly the other CLI is launched. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

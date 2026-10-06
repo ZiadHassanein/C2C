@@ -10,7 +10,7 @@ The user also requested task-size assessment and task-appropriate model recommen
 
 The user explicitly requested suitability for both small features and big-project planning. Instructions now choose focused feature review (2 successful peer calls), feature design (3), or a project roadmap (3 at project level), using the existing runner modes. Small tasks still get a real council when requested. Project plans include MVP boundaries, dependent milestones, acceptance gates and a concrete first milestone; later milestone councils are not started automatically. UI prompt wording now allows proportional planning instead of always requiring independent drafts.
 
-- Version 0.2.0 adds mandatory security reviews for new runs, persistent partial process logs, bounded cleanup, and an optional implementation handoff. Repository: [Ziad501/codex-claude-council](https://github.com/Ziad501/codex-claude-council).
+- Version 0.2.0 adds mandatory security reviews for new runs, persistent partial process logs, bounded cleanup, and an optional implementation handoff. Repository: [ZiadHassanein/codex-claude-council](https://github.com/ZiadHassanein/codex-claude-council).
 - The initial published implementation is commit `6343b8b4b3efa5dd96b02b048185d8c6889299fb`.
 - The skill was installed in both products on the development machine; installation and authentication are machine-specific, not guarantees for another user.
 - License: MIT. No npm dependencies. Node.js 18+; CI covers Node 22 and 24.
@@ -35,6 +35,7 @@ The user explicitly requested suitability for both small features and big-projec
 | Require a security review in version 2 runs | Every plan has scoped security evidence, tests and explicit unknowns before peer verification. Completed legacy runs cannot acquire this claim retroactively. |
 | Preserve submitted security findings and actual reviewed versions | Each submission is sealed; findings remain unchanged and are resolved through decisions. Post-verification changes remain visible. |
 | Stream process diagnostics and bound cleanup | Preserve available output on timeouts/errors without claiming that forced pipe closure proves descendant termination. |
+| Separate onboarding from technical reference | The README provides four installation steps, copyable chat prompts and a visual workflow; setup options and troubleshooting live in docs/SETUP.md. |
 
 ## File map
 
@@ -50,6 +51,7 @@ The user explicitly requested suitability for both small features and big-projec
 | `agents/openai.yaml` | Codex skill name and suggested invocation. |
 | `.github/workflows/test.yml` | Windows/Ubuntu tests on Node 22/24. |
 | `README.md` | User setup and usage. |
+| `docs/SETUP.md` | Troubleshooting, selective installation, upgrades, uninstall and usage details. |
 
 ## Workflow and persisted evidence
 
@@ -74,16 +76,17 @@ Observed on 2026-10-06:
 | Check | Result and limit |
 |---|---|
 | Skill frontmatter validation | Passed for source and both installed copies. |
+| Simplified onboarding documentation | README and setup-guide local links, section anchors, code fences, command paths and readiness field names were checked. Independent review confirmed examples against the installer and runner. Official prerequisite setup links were checked. Runtime and installed skill files were unchanged; no paid council call was needed. |
 | Advisory instructions | An independent offline evaluation covered five scenarios: a small permission fix, a mechanical change across 200 files, an underspecified platform replacement, an unverified model catalogue, and new security scope. All preserved actual settings, avoided unsupported model names, and stopped after the requested advice. An early advice-only routing clarification resolved an ordering ambiguity. No new paid peer calls were made; runner and tests were unchanged. |
 | Planning depth instructions | A separate independent offline evaluation routed six scenarios: focused small feature, explicit independent proposals, existing project roadmap, new whole-project plan, assessment only, and a small high-risk candidate review. Expected scopes and required stages were preserved without automatic model changes or milestone councils. No blocking routing ambiguity was found. Skill metadata, UI prompt and local Markdown targets passed checks; runtime and installer code were unchanged, and no live council was performed for this update. |
 | Automated suite | All 47 current tests passed locally on Windows, including real local subprocesses and fixtures. The earlier 24-test result belongs to the initial implementation. |
-| Version 0.2.0 GitHub CI | [Run 37421963366](https://github.com/Ziad501/codex-claude-council/actions/runs/37421963366) passed all four Windows/Ubuntu × Node 22/24 jobs at implementation commit `dfbc22ede56917498402e657a10fece7f6cab53d`. Both installed copies also matched the six package files and passed metadata/load checks. |
+| Version 0.2.0 GitHub CI | [Run 37421963366](https://github.com/ZiadHassanein/codex-claude-council/actions/runs/37421963366) passed all four Windows/Ubuntu × Node 22/24 jobs at implementation commit `dfbc22ede56917498402e657a10fece7f6cab53d`. Both installed copies also matched the six package files and passed metadata/load checks. |
 | Version 2 focused review | Two actual Claude calls completed the small-feature review and verification. The coordinator then added tests based on verification findings; final plan, security report and decision revisions are explicitly marked post-verification. |
 | Version 2 project plan | All three actual Claude stages succeeded under default limits, including final verification using stream-json output. The coordinator addressed six verification findings with explicit post-verification revisions. Completion preserves the peer's needs_changes verdict and an unresolved C-S1 identity-policy gap; it does not claim implementation readiness or that those final edits received another peer review. The synthetic service was not implemented. |
 | Synthetic feature checks | The local pure-filter fixture passed 12 tests. Three deliberate regression mutants were detected (early-return validation bypass, skipped sparse holes, raw-value error disclosure). This demonstrates the workflow's useful feedback on one bounded example, not general plan quality. |
 | Updated reverse adapter | One actual Codex review call succeeded using synthetic coordinator records. This is transport validation, not a full Claude-led council. |
 | Security/handoff instructions | Three additional offline scenarios covered a low-risk button change, missing tenant-authorization evidence and a handoff with unknown commands. No blocking routing ambiguity was found; no live task was executed by that evaluation. |
-| Initial GitHub CI | [Run 37416553250](https://github.com/Ziad501/codex-claude-council/actions/runs/37416553250) passed all four Windows/Ubuntu × Node 22/24 jobs at the initial implementation commit. |
+| Initial GitHub CI | [Run 37416553250](https://github.com/ZiadHassanein/codex-claude-council/actions/runs/37416553250) passed all four Windows/Ubuntu × Node 22/24 jobs at the initial implementation commit. |
 | Real Claude draft | Passed in about 78 seconds using Claude Code 2.1.291. |
 | Real Claude mutual critique | Passed in about 126 seconds. It supplied concrete transaction, rendering, backup, and offline-test improvements. |
 | Real Claude final verification | Timed out at 180 seconds, then at the remaining approximately 155 seconds. The sample used a 540-second total budget and all four attempts; it remains incomplete. These were shorter limits than the default configuration. |

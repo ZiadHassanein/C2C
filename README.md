@@ -1,139 +1,121 @@
-# Codex-Claude Council
+# Codex–Claude Council
 
-A shared skill that lets an existing Codex or Claude Code chat ask the other product for proposals and reviews, then produce an actionable plan with a decision record. It scales from a small feature to a whole project.
+**Let Codex and Claude review each other's ideas before you build.**
 
-The current chat coordinates the work. A small local Node.js runner invokes the other product's CLI, captures structured responses, and preserves what was actually reviewed. It does not open a new user-facing chat or automatically run on every edit.
+Start in either app. Describe a feature or project. Get one plan with security considerations, test checks, and a record of the decisions. The skill recommends suitable models but keeps your settings unchanged unless you ask.
+
+[Install](#install) · [Use it](#use-it) · [How it works](#how-it-works) · [Help](docs/SETUP.md)
 
 ## Install
 
-Requirements:
+### 1. Get the required tools
 
-- Node.js 18 or newer.
-- The peer's native CLI on `PATH`: `claude` when starting from Codex, or `codex` when starting from Claude Code. Install both for use in either direction.
-- An authenticated account for the peer CLI. Sign in from your terminal with `claude auth login` or `codex login` as appropriate. The coordinator's own CLI does not need a separate login to call its peer.
+Install [Node.js](https://nodejs.org/en/download) **18 or newer**, then install and sign in to the **other AI's command-line tool (CLI)**:
 
-Download or clone this repository, open a terminal in its root, and run:
+| Where you will use the skill | What must work in your terminal | Sign in if needed |
+|---|---|---|
+| Codex | [Claude Code CLI](https://code.claude.com/docs/en/quickstart) | `claude auth login` |
+| Claude Code | [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) | `codex login` |
+| Both directions | Both CLIs above | Both commands above |
+
+Already have these tools installed and signed in? Continue below. The skill installer only installs the skill; it does not install these tools or sign you in.
+
+### 2. Download this skill
+
+With Git installed, paste this into **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
-git clone https://github.com/Ziad501/codex-claude-council.git
+git clone https://github.com/ZiadHassanein/codex-claude-council.git
 cd codex-claude-council
+```
+
+Without Git, [download the ZIP](https://github.com/ZiadHassanein/codex-claude-council/archive/refs/heads/main.zip), extract it, and open a terminal in the extracted folder containing `README.md` and `scripts`.
+
+### 3. Install and check
+
+In that same terminal, run:
+
+```sh
 node scripts/install.mjs
 node scripts/council.mjs doctor
 ```
 
-The installer defaults to installing the skill for both products:
+No `npm install` is needed. The installer adds the skill for both apps for your current user.
 
-- Codex: `~/.codex/skills/codex-claude-council`
-- Claude Code: `~/.claude/skills/codex-claude-council`
+The setup check prints a report. Look for the line matching the app you will use:
 
-Restart or open a new chat if an existing session does not discover the skill. To uninstall, manually remove only the `codex-claude-council` folder from each installed location.
+| Starting from | Required result |
+|---|---|
+| Codex | `"codex_chat_ready": true` |
+| Claude Code | `"claude_chat_ready": true` |
 
-Use `--target codex` or `--target claude` to install only one copy. The installer respects `CODEX_HOME` and `CLAUDE_CONFIG_DIR`, preserves identical installations, and refuses to overwrite different files. Back up or rename an older named skill folder before upgrading.
+You only need your chosen direction to be ready. This checks setup and sign-in; it does not send a planning request. If it says `false`, use the [troubleshooting guide](docs/SETUP.md#troubleshooting).
 
-If a sandboxed chat reports signed out but `doctor` works in your normal terminal, the host may need approved access to the operating system credential store. The runner does not copy credentials or elevate itself.
+### 4. Open a new chat
+
+Open **your project** in Codex or Claude Code and start a new chat so it can discover the skill. Paste one of the prompts below **into the chat**, not the terminal.
 
 ## Use it
 
-In Codex:
+**In Codex:**
 
 ```text
-Use $codex-claude-council to plan offline support for this app.
-Have both agents propose an approach independently, review each other,
-and give me one plan with acceptance criteria.
+Use $codex-claude-council to plan a search filter for this app.
+Keep it focused. Include security checks and acceptance tests.
 ```
 
-In Claude Code:
+**In Claude Code:**
 
 ```text
-/codex-claude-council Review docs/migration.md with Codex.
-Find rollout and rollback risks, then give me a revised plan and decision record.
+/codex-claude-council Plan a search filter for this app with Codex.
+Keep it focused. Include security checks and acceptance tests.
 ```
 
-It also supports non-code planning. Supply a brief, constraints, and success criteria just as you would for a normal planning conversation. You can explicitly choose a peer model or smaller time allowance in your prompt; the coordinator passes supported settings to the runner.
+Replace “a search filter” with your task. Include useful files, constraints, and what success should look like. The AI handles the discussion commands and saves the results.
 
-Before the discussion, the coordinator assesses task size (small to extra-large), complexity, risk, and uncertainty, then recommends suitable models for planning and review with a brief rationale and confidence level. A small security change can need deeper review than a large repetitive edit. It checks current model information before naming candidates and labels unverified availability clearly.
+| Your task | Add this to your request |
+|---|---|
+| Small feature | “Give me concise steps, edge cases, and acceptance checks.” |
+| A design with alternatives | “Have both agents draft independently and compare approaches.” |
+| A whole project | “Define the MVP, architecture, milestones, and a detailed first milestone.” |
+| An existing plan | “Review the plan in `docs/plan.md` and explain what should change.” |
 
-**Recommendations do not change your settings.** Your chosen models or CLI defaults remain in use unless you explicitly ask to change them. Advice does not pause already-authorized work. You can also request only an assessment:
+For model advice without starting a discussion: “Assess this task and recommend models. Keep my settings; advice only.”
 
-```text
-Use $codex-claude-council to assess this task's size and recommend
-models for planning and review. Keep my current models; advice only.
+## How it works
+
+```mermaid
+flowchart TD
+    A["You describe the task"] --> B["Assess size and recommend models"]
+    B --> C["Codex and Claude draft or review"]
+    C --> D["Combine ideas, security review and test checks"]
+    D --> E["The other AI checks the combined plan"]
+    E --> F["Save the plan, decisions and unresolved questions"]
 ```
 
-The coordinator saves this in `TASK_ASSESSMENT.md`, links it from the handoff, and summarizes it in the final plan. This is an agent-authored recommendation; the runner does not automatically select a model from the file.
+Your current chat leads the process and calls the other AI. A focused review uses **2 successful peer calls**; independent design or project planning uses **3**. Both include a security review. Model advice does not switch models automatically.
 
-| Mode | Workflow | Successful peer calls |
-|---|---|---:|
-| Plan | Independent drafts, mutual critique, synthesis, peer verification | 3 |
-| Review | Independent critiques of a supplied or newly drafted candidate plan, synthesis, peer verification | 2 |
+## What you get
 
-### Small features and big projects
+The AI gives you links to a saved run folder. Start with these files:
 
-The coordinator chooses a proportionate planning depth and explains it in the task assessment. You can ask for a particular depth; model recommendations remain advisory.
+| File | What it tells you |
+|---|---|
+| `final-plan.md` | What to build, in what order, and how to check it. |
+| `RESULT.md` | After completion: review outcome, remaining issues, and edits made after review. |
+| `TASK_ASSESSMENT.md` | Task size, risk, and model recommendations. |
+| `HANDOFF.md` | Where work stopped and how to continue. |
 
-| Task | Usual approach | What you receive |
-|---|---|---|
-| Small feature with a clear approach | Focused review of a supplied or newly drafted plan; 2 successful peer calls | Concise implementation steps, edge cases and acceptance checks. |
-| Feature with meaningful design choices | Independent drafts and mutual critique; 3 successful peer calls | Compared approaches, chosen design, integration details and verification plan. |
-| Big project | One project-level planning council; 3 successful peer calls | Scope and MVP, architecture, milestone dependencies, acceptance gates and a detailed first milestone. |
+The folder also keeps the security review and detailed decisions. An optional implementation brief can hand off one milestone.
 
-Risk and uncertainty can justify deeper planning even for a tiny change. Reviewing an existing big-project plan can use the two-call review workflow. Later milestones remain provisional where evidence is missing; the skill does not automatically launch a council for every feature or increase your usage limits. It retains the Markdown roadmap and decision history for future refinement.
+**Planning does not build or deploy your project.** Tests in a plan are proposed checks unless explicitly reported as executed. Security review highlights risks and unknowns; it does not certify the implementation.
 
-Small feature:
+## Help and details
 
-```text
-Use $codex-claude-council to plan a search filter for this screen.
-Keep it focused, with implementation steps and acceptance checks.
-```
+- [Setup, troubleshooting, updates, and usage limits](docs/SETUP.md)
+- [Agent instructions](SKILL.md) · [Technical protocol](references/protocol.md)
+- [Development notes and recorded test results](PROJECT_NOTES.md)
 
-Big project:
+Peer calls use your provider account and its usage limits. Only selected context is sent to the other provider; exclude secrets and unrelated private information. See the [usage details](docs/SETUP.md#usage-and-privacy).
 
-```text
-Use $codex-claude-council to plan this whole product from the brief.
-Compare architectures, define the MVP, map dependent milestones,
-and detail the first milestone. Recommend models without changing mine.
-```
-
-In Claude Code, start the same request with `/codex-claude-council`.
-
-### Security, tests, and implementation
-
-Every actual plan gets a proportionate security review, including small features. The coordinator records applicable threats, data exposure, access control, input handling, dependencies, and operational risks in `security-review.json`, with evidence, necessary checks, and explicit unknowns. Version 2 runs require this report before peer verification, and the peer reviews it with the final plan. The first verification launch seals `security-review-submitted.json`; submitted finding objects stay unchanged in the current report, with resolutions recorded in decisions and new findings appended when needed. Results show the security verdict and limitations, never a blanket security pass. Legacy version 1 completion does not establish that this new check occurred.
-
-Plans specify relevant feature and security tests, using real project commands where known. Proposed checks, checks actually run with results, and blocked checks stay distinct. Reviewing a plan does not test the implementation, and assessment-only advice does not launch a council or require a security report.
-
-After completing a plan, the coordinator can write `IMPLEMENTATION_BRIEF.md` for a selected milestone, preserving scope, files and evidence, constraints, validation commands, security acceptance checks, and unresolved blockers. Implementation still needs to be within your requested scope. An appropriate separately installed skill can assist authorized implementation; the council does not automatically install one, open chats, commit, or switch models for a handoff.
-
-### Saved plans and handoffs
-
-The coordinator handles the runner commands and writes a final plan. Each run retains the selected input snapshot, both agents' reports, `final-plan.md`, `decisions.json`, the version 2 security review, and completion provenance in `RESULT.md`. Decisions record which findings were accepted, rejected with reasons, or remain unresolved. Agreement is not required.
-
-The coordinator also maintains a concise `HANDOFF.md` in the run directory, including progress, evidence links, unresolved decisions, remaining limits, and the exact next step. On resume, it reads that note and checks current runner state instead of repeating completed work. Failed or partial runs retain the evidence produced so far; they do not have a completed `RESULT.md`.
-
-## Context and permissions
-
-Only the explicitly selected UTF-8 brief, context files, and relevant reports are transmitted to the peer provider. Projects are not automatically scanned or copied. Select relevant excerpts and exclude secrets before invoking a peer. A conservative obvious-secret check covers the complete outbound packet, including reports; it cannot detect all sensitive data or replace your review of what is shared.
-
-Peers run in isolated temporary working directories with project tools disabled and reduced inherited configuration. The coordinator gathers evidence, runs authorized experiments, and makes project edits. Managed organization policies still apply; these controls do not provide an OS-level security boundary. Planning does not grant permission to implement or deploy.
-
-The runner prevents recursive council calls, parallel use of one run, silent changes to sealed reports, and repeated successful stages. Defaults are 300 seconds per peer call, 900 seconds of cumulative peer runtime, and four attempts including failures. These are runtime limits, not token or billing caps; ordinary provider usage applies.
-
-Failures preserve partial results and are reported explicitly. Timeouts and interruptions retain streamed partial logs; any uncertainty about process cleanup is reported. Partial output is not a successful review. A plan, decision record, or version 2 security report changed after peer verification is marked as changed and has not received another peer review. A completed exchange can still contain unresolved findings; it is not a guarantee that the plan is ready to implement.
-
-## Development and verification
-
-No npm dependencies are required. Run the automated suite with:
-
-```sh
-node --test tests/council.test.mjs tests/process.test.mjs
-```
-
-The suites cover council state and the process transport in `scripts/process.mjs`, including independent inputs, report integrity, failure paths, run isolation, and verification provenance. Process tests exercise real child-process behavior, including the Windows termination path when run on Windows. These are test areas, not a claim that the latest revision has passed; recorded results belong in `PROJECT_NOTES.md`. Peer response fixtures do not prove that either provider is currently authenticated or available. Use `doctor` and a real task to verify your local setup.
-
-See [SKILL.md](SKILL.md) for the agent workflow and [references/protocol.md](references/protocol.md) for runner commands and report formats.
-
-For continued development, read [PROJECT_NOTES.md](PROJECT_NOTES.md) first. The repository's `AGENTS.md` and `CLAUDE.md` point both products to that maintained record.
-
-## License
-
-[MIT](LICENSE).
+[MIT license](LICENSE).

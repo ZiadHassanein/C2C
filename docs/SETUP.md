@@ -145,14 +145,35 @@ For a clone created before the repository was renamed to C2C, update its remote 
 git remote set-url origin https://github.com/ZiadHassanein/C2C.git
 ```
 
-1. Get the latest repository files. For a Git clone, run `git pull` inside it; for a ZIP installation, download and extract the latest ZIP.
-2. Move each older installed `C2C` folder (or `codex-claude-council` from an earlier release) to a backup location **outside all skill directories**, such as `~/skill-backups/`. Use distinct backup names for Codex and Claude. Moving the backup outside prevents duplicate skill discovery.
-3. From the updated repository folder, run `node scripts/install.mjs` again. Use `--target codex` or `--target claude` if you only want one installation.
-4. Run `node scripts/council.mjs doctor` and open a new chat.
+From a Git clone:
+
+```sh
+git pull --ff-only
+node scripts/install.mjs --update
+node scripts/council.mjs doctor
+```
+
+For ZIP installs, extract the latest ZIP and run the same Node commands there. Use `--target codex` or `--target claude` for one app. Start a new chat after updating.
+
+The updater checks all selected destinations before replacing files. Managed receipts identify clean installations; a trusted release manifest recognizes clean v0.11.3 copies. Extra, missing, linked or modified installed files are preserved and cause refusal. There is no silent force-overwrite. For an older unrecognized or customized copy, preserve it manually outside every skill-discovery directory before a fresh install.
+
+Backups and transaction records live under each configuration home's `c2c-install-backups`, outside `skills`. Keep the printed transaction ID. To undo the update, use its printed command:
+
+```sh
+node scripts/install.mjs --rollback TRANSACTION_ID
+```
+
+Rollback also refuses to replace a modified current installation. If an update or rollback was interrupted, inspect the reported transaction and resume recovery with:
+
+```sh
+node scripts/install.mjs --recover TRANSACTION_ID
+```
+
+Recovery restores the previous installations; retry the intended update afterward. Retain the same selected `--target` from the printed command. Backups are not automatically deleted. Configuration roots and skill folders on different filesystems may prevent atomic renames; repair that layout rather than copying over a partial installation.
 
 The commands are now `$C2C` in Codex and `/C2C` in Claude Code. The repository folder can keep its original name.
 
-Downloading updates alone does not update the installed copies. If their files already match (including harmless LF/CRLF differences), the installer reports `Already installed` and leaves them alone. Keep your backup until the new installation works.
+Downloading updates alone does not update installed copies. Matching content, including harmless LF/CRLF differences, is idempotent. Keep backups until the new installation works. Receipts detect changes; they are not signed supply-chain attestations.
 
 ## Uninstall
 

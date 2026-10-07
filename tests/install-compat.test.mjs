@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const packageFiles = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'package.json', 'LICENSE'];
@@ -21,7 +22,7 @@ async function fixture(label) {
   const root = await fs.mkdtemp(path.join(testRoot, `${label}-`));
   const source = path.join(root, 'package');
   // Exercise the current package's actual installer from a simulated LF clone.
-  for (const file of [...packageFiles, 'scripts/install.mjs']) {
+  for (const file of [...packageFiles, 'scripts/install.mjs', 'scripts/install-baselines.json']) {
     const output = path.join(source, file);
     await fs.mkdir(path.dirname(output), { recursive: true });
     const contents = await fs.readFile(path.join(packageRoot, file), 'utf8');
@@ -31,9 +32,9 @@ async function fixture(label) {
   const claudeHome = path.join(root, 'claude');
   return { root, source, codexHome, claudeHome, codexSkill: path.join(codexHome, 'skills', 'C2C'), claudeSkill: path.join(claudeHome, 'skills', 'C2C') };
 }
-function install(f, args = []) {
+function install(f, args = [], extraEnv = {}) {
   const result = spawnSync(process.execPath, [path.join(f.source, 'scripts/install.mjs'), ...args], {
-    cwd: f.root, env: { ...process.env, CODEX_HOME: f.codexHome, CLAUDE_CONFIG_DIR: f.claudeHome },
+    cwd: f.root, env: { ...process.env, CODEX_HOME: f.codexHome, CLAUDE_CONFIG_DIR: f.claudeHome, ...extraEnv },
     shell: false, windowsHide: true, timeout: 10000, encoding: 'utf8',
   });
   if (result.error) throw result.error;
@@ -129,4 +130,368 @@ test('line-ending compatibility still rejects real edits before creating another
     await assert.rejects(fs.access(f.codexSkill), 'installer wrote the first destination before checking the second');
     assert.deepEqual(await contentsAndTimes(f.claudeSkill), before, `installer modified ${label} content`);
   }
+});
+
+const normalizedHash = bytes => crypto.createHash('sha256').update(bytes.toString('latin1').replace(/\r\n/g, '\n'), 'latin1').digest('hex');
+const backupId = result => {
+  assert.equal(result.status, 0, result.stderr);
+  const id = result.stdout.match(/Backup ID: (\d{17}-[a-f0-9]{12})/)?.[1];
+  assert.ok(id, result.stdout);
+  return id;
+};
+async function advance(f, version = '99.1.0') {
+  const packageFile = path.join(f.source, 'package.json');
+  const metadata = JSON.parse(await fs.readFile(packageFile, 'utf8'));
+  metadata.version = version;
+  await fs.writeFile(packageFile, JSON.stringify(metadata, null, 2) + '\n');
+  await fs.appendFile(path.join(f.source, 'SKILL.md'), `\nFixture release ${version}.\n`);
+}
+async function snapshots(f) {
+  return Promise.all([f.codexSkill, f.claudeSkill].map(contentsAndTimes));
+}
+async function injector(f, code) {
+  const script = path.join(f.root, 'installer-fault.cjs');
+  await fs.writeFile(script, `const fs=require('node:fs');const path=require('node:path');\n${code}\n`);
+  return { NODE_OPTIONS: `--require ${JSON.stringify(script)}` };
+}
+
+test('managed update and explicit rollback preserve originals outside discovery and permit redo', async () => {
+  const f = await fixture('managed-update');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  await advance(f);
+  const withoutUpdate = install(f);
+  assert.notEqual(withoutUpdate.status, 0);
+  assert.match(withoutUpdate.stderr, /--update/);
+  assert.deepEqual(await snapshots(f), original);
+  const id = backupId(install(f, ['--update']));
+  for (const [home, skill] of [[f.codexHome, f.codexSkill], [f.claudeHome, f.claudeSkill]]) {
+    assert.equal(JSON.parse(await fs.readFile(path.join(skill, 'package.json'), 'utf8')).version, '99.1.0');
+    const receipt = JSON.parse(await fs.readFile(path.join(skill, '.c2c-install.json'), 'utf8'));
+    assert.equal(receipt.version, '99.1.0');
+    for (const file of packageFiles) assert.equal(receipt.files[file], normalizedHash(await fs.readFile(path.join(skill, file))));
+    assert.deepEqual(await fs.readFile(path.join(home, 'c2c-install-backups', id, 'original', 'SKILL.md')), original[0][0].bytes);
+    assert.deepEqual(await fs.readdir(path.join(home, 'skills')), ['C2C']);
+  }
+  const newBytes = await fs.readFile(path.join(f.codexSkill, 'SKILL.md'));
+  const redo = backupId(install(f, ['--rollback', id]));
+  for (const [index, skill] of [f.codexSkill, f.claudeSkill].entries()) {
+    for (const { file, bytes } of original[index]) assert.deepEqual(await fs.readFile(path.join(skill, file)), bytes);
+  }
+  backupId(install(f, ['--rollback', redo]));
+  assert.deepEqual(await fs.readFile(path.join(f.codexSkill, 'SKILL.md')), newBytes);
+});
+
+test('managed receipt protects edits, missing files and untracked entries in every target before update', async () => {
+  for (const kind of ['edit', 'missing', 'extra', 'empty-directory', 'receipt']) {
+    const f = await fixture(`update-refuses-${kind}`);
+    assert.equal(install(f).status, 0);
+    await advance(f);
+    const untouched = await contentsAndTimes(f.codexSkill);
+    const changed = path.join(f.claudeSkill, 'SKILL.md');
+    if (kind === 'edit') await fs.appendFile(changed, '\nLocal customization.\n');
+    if (kind === 'missing') await fs.unlink(changed);
+    if (kind === 'extra') await fs.writeFile(path.join(f.claudeSkill, 'notes.md'), 'Private user notes.');
+    if (kind === 'empty-directory') await fs.mkdir(path.join(f.claudeSkill, 'notes'));
+    if (kind === 'receipt') await fs.writeFile(path.join(f.claudeSkill, '.c2c-install.json'), '{broken');
+    const result = install(f, ['--update']);
+    assert.notEqual(result.status, 0, kind);
+    assert.match(result.stderr, /different installation exists/);
+    assert.deepEqual(await contentsAndTimes(f.codexSkill), untouched, 'first target changed before second was checked');
+    if (kind === 'edit') assert.match(await fs.readFile(changed, 'utf8'), /Local customization/);
+    if (kind === 'extra') assert.equal(await fs.readFile(path.join(f.claudeSkill, 'notes.md'), 'utf8'), 'Private user notes.');
+  }
+});
+
+test('update accepts normalized line endings without treating them as a customization', async () => {
+  const f = await fixture('update-crlf');
+  assert.equal(install(f, ['--target', 'codex']).status, 0);
+  for (const file of packageFiles) {
+    const dest = path.join(f.codexSkill, file);
+    await fs.writeFile(dest, (await fs.readFile(dest, 'utf8')).replace(/\n/g, '\r\n'));
+  }
+  const before = await contentsAndTimes(f.codexSkill);
+  await advance(f);
+  const id = backupId(install(f, ['--update', '--target', 'codex']));
+  for (const { file, bytes } of before) assert.deepEqual(await fs.readFile(path.join(f.codexHome, 'c2c-install-backups', id, 'original', file)), bytes);
+});
+
+test('receipt-less migration uses the full trusted baseline, never the version label alone', async () => {
+  const f = await fixture('receiptless-baseline');
+  assert.equal(install(f).status, 0);
+  // A fixture-specific trusted release replaces the checked-in immutable 0.11.3
+  // manifest. The same full-content matcher performs offline release adoption.
+  const baseline = JSON.parse(await fs.readFile(path.join(f.codexSkill, '.c2c-install.json'), 'utf8'));
+  await fs.writeFile(path.join(f.source, 'scripts/install-baselines.json'), JSON.stringify([baseline]));
+  for (const skill of [f.codexSkill, f.claudeSkill]) await fs.unlink(path.join(skill, '.c2c-install.json'));
+  await advance(f);
+  const original = await fs.readFile(path.join(f.claudeSkill, 'SKILL.md'));
+  await fs.appendFile(path.join(f.claudeSkill, 'SKILL.md'), '\nNot a trusted release.\n');
+  const failed = install(f, ['--update']);
+  assert.notEqual(failed.status, 0);
+  assert.match(failed.stderr, /trusted release baseline/);
+  await fs.writeFile(path.join(f.claudeSkill, 'SKILL.md'), original);
+  const id = backupId(install(f, ['--update']));
+  backupId(install(f, ['--rollback', id]));
+  for (const skill of [f.codexSkill, f.claudeSkill]) await assert.rejects(fs.access(path.join(skill, '.c2c-install.json')));
+});
+
+test('unknown receipt-less releases cannot be adopted just by matching a version', async () => {
+  const f = await fixture('unknown-unmanaged');
+  assert.equal(install(f, ['--target', 'codex']).status, 0);
+  await fs.unlink(path.join(f.codexSkill, '.c2c-install.json'));
+  await fs.writeFile(path.join(f.source, 'scripts/install-baselines.json'), '[]');
+  await advance(f);
+  const result = install(f, ['--update', '--target', 'codex']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /trusted release baseline/);
+});
+
+test('rollback refuses modified current files or a damaged backup before changing either target', async () => {
+  const f = await fixture('rollback-protection');
+  assert.equal(install(f).status, 0);
+  await advance(f);
+  const id = backupId(install(f, ['--update']));
+  const before = await contentsAndTimes(f.codexSkill);
+  const changed = path.join(f.claudeSkill, 'SKILL.md');
+  const original = await fs.readFile(changed);
+  await fs.appendFile(changed, '\nPrivate changes.');
+  const modified = install(f, ['--rollback', id]);
+  assert.notEqual(modified.status, 0);
+  assert.match(modified.stderr, /different installation exists/);
+  assert.deepEqual(await contentsAndTimes(f.codexSkill), before);
+  await fs.writeFile(changed, original);
+  await fs.appendFile(path.join(f.claudeHome, 'c2c-install-backups', id, 'original', 'SKILL.md'), 'Corrupted backup.');
+  const corrupt = install(f, ['--rollback', id]);
+  assert.notEqual(corrupt.status, 0);
+  assert.match(corrupt.stderr, /backup changed/);
+  assert.deepEqual(await contentsAndTimes(f.codexSkill), before);
+});
+
+test('ordinary failure after the first host swap restores both installations', async () => {
+  const f = await fixture('failed-second-swap');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  await advance(f);
+  const injected = await injector(f, `
+    const rename=fs.renameSync;let failed=false;
+    fs.renameSync=function(from,to){
+      if(!failed&&path.basename(from)==='replacement'&&to===path.join(process.env.CLAUDE_CONFIG_DIR,'skills','C2C')){
+        failed=true;throw new Error('Injected second-host rename failure');
+      }
+      return rename.apply(this,arguments);
+    };`);
+  const failed = install(f, ['--update'], injected);
+  assert.notEqual(failed.status, 0);
+  assert.match(failed.stderr, /Original installations restored/);
+  assert.deepEqual(await snapshots(f), original);
+  backupId(install(f, ['--update']));
+});
+
+test('hard interruption preserves originals, blocks ordinary retries, and explicitly recovers both hosts', async () => {
+  const f = await fixture('hard-interruption');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  await advance(f);
+  const injected = await injector(f, `
+    const rename=fs.renameSync;
+    fs.renameSync=function(from,to){
+      const result=rename.apply(this,arguments);
+      if(path.basename(from)==='replacement'&&to===path.join(process.env.CODEX_HOME,'skills','C2C'))process.exit(73);
+      return result;
+    };`);
+  assert.equal(install(f, ['--update'], injected).status, 73);
+  const retry = install(f, ['--update']);
+  assert.notEqual(retry.status, 0);
+  const id = retry.stderr.match(/Interrupted installation (\d{17}-[a-f0-9]{12})/)?.[1];
+  assert.ok(id, retry.stderr);
+  // User changes made after the crash are protected during recovery too.
+  const changed = path.join(f.claudeSkill, 'SKILL.md');
+  const contents = await fs.readFile(changed);
+  await fs.appendFile(changed, '\nChanged after interruption.');
+  const refused = install(f, ['--recover', id]);
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /recovery refused/);
+  assert.equal(JSON.parse(await fs.readFile(path.join(f.codexSkill, 'package.json'), 'utf8')).version, '99.1.0');
+  await fs.writeFile(changed, contents);
+  const recovered = install(f, ['--recover', id]);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  for (const [index, skill] of [f.codexSkill, f.claudeSkill].entries()) for (const { file, bytes } of original[index]) assert.deepEqual(await fs.readFile(path.join(skill, file)), bytes);
+  backupId(install(f, ['--update']));
+});
+
+test('recovery resumes after a crash while publishing intent and after the first host was restored', async () => {
+  const f = await fixture('interrupted-recovery');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  await advance(f);
+  function crashOn(homeVariable, status, code) {
+    return `const rename=fs.renameSync;fs.renameSync=function(from,to){
+      const result=rename.apply(this,arguments);
+      if(path.basename(to)==='transaction.json'&&to.startsWith(process.env.${homeVariable}+path.sep)){
+        const record=JSON.parse(fs.readFileSync(to,'utf8'));
+        if(record.operation==='update'&&record.status==='${status}')process.exit(${code});
+      }
+      return result;
+    };`;
+  }
+  assert.equal(install(f, ['--update'], await injector(f, crashOn('CODEX_HOME', 'committed', 73))).status, 73);
+  const stopped = install(f, ['--update']);
+  const id = stopped.stderr.match(/Interrupted installation (\d{17}-[a-f0-9]{12})/)?.[1];
+  assert.ok(id, stopped.stderr);
+  const states = async () => Promise.all([f.codexHome, f.claudeHome].map(async home => JSON.parse(await fs.readFile(path.join(home, 'c2c-install-backups', id, 'transaction.json'), 'utf8')).status));
+  assert.deepEqual(await states(), ['committed', 'prepared']);
+  assert.equal(install(f, ['--recover', id], await injector(f, crashOn('CODEX_HOME', 'recovering', 74))).status, 74);
+  assert.deepEqual(await states(), ['recovering', 'prepared']);
+  assert.equal(install(f, ['--recover', id], await injector(f, crashOn('CLAUDE_CONFIG_DIR', 'recovered', 75))).status, 75);
+  assert.deepEqual(await states(), ['recovering', 'recovered']);
+  const retry = install(f, ['--recover', id]);
+  assert.equal(retry.status, 0, retry.stderr);
+  assert.deepEqual(await states(), ['recovered', 'recovered']);
+  for (const [index, skill] of [f.codexSkill, f.claudeSkill].entries()) for (const { file, bytes } of original[index]) assert.deepEqual(await fs.readFile(path.join(skill, file)), bytes);
+  assert.notEqual(install(f, ['--recover', id]).status, 0, 'fully recovered transaction is not a new recovery request');
+  const complete = backupId(install(f, ['--update']));
+  const noReplay = install(f, ['--recover', complete]);
+  assert.notEqual(noReplay.status, 0);
+  assert.match(noReplay.stderr, /No interrupted/);
+});
+
+test('linked installation and linked backup directories are refused without changing their targets', async () => {
+  const f = await fixture('linked-installer-boundary');
+  assert.equal(install(f, ['--target', 'codex']).status, 0);
+  const actual = path.join(f.root, 'user-owned-installation');
+  await fs.rename(f.codexSkill, actual);
+  await fs.symlink(actual, f.codexSkill, process.platform === 'win32' ? 'junction' : 'dir');
+  const before = await contentsAndTimes(actual);
+  await advance(f);
+  const linked = install(f, ['--update', '--target', 'codex']);
+  assert.notEqual(linked.status, 0);
+  assert.match(linked.stderr, /Linked or non-directory/);
+  assert.deepEqual(await contentsAndTimes(actual), before);
+  await fs.unlink(f.codexSkill);
+  await fs.rename(actual, f.codexSkill);
+  const backups = path.join(f.codexHome, 'c2c-install-backups');
+  const relocated = path.join(f.root, 'user-owned-backups');
+  await fs.rename(backups, relocated);
+  await fs.symlink(relocated, backups, process.platform === 'win32' ? 'junction' : 'dir');
+  const linkedBackup = install(f, ['--update', '--target', 'codex']);
+  assert.notEqual(linkedBackup.status, 0);
+  assert.match(linkedBackup.stderr, /must not be linked/);
+  assert.deepEqual(await contentsAndTimes(f.codexSkill), before);
+});
+
+test('installer validates mode and backup IDs without creating destinations', async () => {
+  const f = await fixture('invalid-installer-options');
+  for (const args of [['--update', '--rollback', 'x'], ['--rollback', '../outside'], ['--recover'], ['--target', 'other'], ['--update', '--update'], ['--force']]) {
+    const result = install(f, args);
+    assert.notEqual(result.status, 0, JSON.stringify(args));
+  }
+  await assert.rejects(fs.access(f.codexSkill));
+  await assert.rejects(fs.access(f.claudeSkill));
+});
+
+test('update requires selected installs and prints a usable rollback command when only one version changes', async () => {
+  const f = await fixture('partial-host-update');
+  assert.equal(install(f, ['--target', 'codex']).status, 0);
+  const absent = install(f, ['--update']);
+  assert.notEqual(absent.status, 0);
+  assert.match(absent.stderr, /No installed skill to update/);
+  await assert.rejects(fs.access(f.claudeSkill));
+  assert.equal(install(f, ['--target', 'claude']).status, 0);
+  await advance(f);
+  backupId(install(f, ['--update', '--target', 'codex']));
+  const unchanged = await contentsAndTimes(f.codexSkill);
+  const second = install(f, ['--update']);
+  const id = backupId(second);
+  assert.match(second.stdout, /Undo: .* --target claude/);
+  assert.deepEqual(await contentsAndTimes(f.codexSkill), unchanged);
+  backupId(install(f, ['--rollback', id, '--target', 'claude']));
+  assert.deepEqual(await contentsAndTimes(f.codexSkill), unchanged);
+});
+
+test('backup location may not be nested in the other provider discovery root', async () => {
+  const f = await fixture('nested-config-root');
+  const nested = path.join(f.claudeHome, 'skills', 'nested-codex-home');
+  const result = install(f, ['--target', 'codex'], { CODEX_HOME: nested });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /outside every skill root/);
+  await assert.rejects(fs.access(nested));
+});
+
+test('aliased physical skill roots share an installer lock across different configuration homes', async () => {
+  const f = await fixture('concurrent-linked-roots');
+  const shared = path.join(f.root, 'shared', 'skills');
+  await fs.mkdir(shared, { recursive: true });
+  for (const home of [f.codexHome, f.claudeHome]) {
+    await fs.mkdir(home);
+    await fs.symlink(shared, path.join(home, 'skills'), process.platform === 'win32' ? 'junction' : 'dir');
+  }
+  const marker = path.join(f.root, 'installer-paused');
+  const release = path.join(f.root, 'release-installer');
+  const injected = await injector(f, `
+    const copy=fs.copyFileSync;let paused=false;
+    fs.copyFileSync=function(from,to){
+      if(!paused&&path.basename(from)==='SKILL.md'){
+        paused=true;fs.writeFileSync(process.env.C2C_TEST_MARKER,'ready');
+        const deadline=Date.now()+15000;
+        while(!fs.existsSync(process.env.C2C_TEST_RELEASE)&&Date.now()<deadline)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20);
+        if(!fs.existsSync(process.env.C2C_TEST_RELEASE))throw new Error('Fixture release timeout');
+      }
+      return copy.apply(this,arguments);
+    };`);
+  const child = spawn(process.execPath, [path.join(f.source, 'scripts/install.mjs'), '--target', 'codex'], {
+    cwd: f.root, env: { ...process.env, CODEX_HOME: f.codexHome, CLAUDE_CONFIG_DIR: f.claudeHome, ...injected, C2C_TEST_MARKER: marker, C2C_TEST_RELEASE: release },
+    shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '', failure;
+  child.stdout.on('data', chunk => { output += chunk; });
+  child.stderr.on('data', chunk => { output += chunk; });
+  const completed = new Promise(resolve => { child.on('error', error => { failure = error; resolve(-1); }); child.on('close', resolve); });
+  let exit;
+  try {
+    const deadline = Date.now() + 10000;
+    let ready = false;
+    while (Date.now() < deadline && child.exitCode === null && !failure) {
+      try { await fs.access(marker); ready = true; break; } catch { await new Promise(resolve => setTimeout(resolve, 25)); }
+    }
+    assert.ok(ready, `First installer did not reach locked staging: ${failure?.message || output}`);
+    const conflicting = install(f, ['--target', 'claude']);
+    assert.notEqual(conflicting.status, 0);
+    assert.match(conflicting.stderr, /Another process is using/);
+    await assert.rejects(fs.access(path.join(shared, 'C2C')), 'first installer must remain paused before publication');
+  } finally {
+    await fs.writeFile(release, 'continue');
+    exit = await completed;
+  }
+  assert.equal(exit, 0, output);
+  assert.deepEqual(await fs.readFile(path.join(shared, 'C2C', 'SKILL.md')), await fs.readFile(path.join(f.source, 'SKILL.md')));
+  assert.equal(install(f, ['--target', 'claude']).status, 0, 'second host recognizes the completed shared install');
+  const original = await fs.readFile(path.join(shared, 'C2C', 'SKILL.md'));
+  await advance(f);
+  const crash = await injector(f, `const rename=fs.renameSync;fs.renameSync=function(from,to){const result=rename.apply(this,arguments);if(path.basename(from)==='replacement')process.exit(73);return result;};`);
+  assert.equal(install(f, ['--update', '--target', 'codex'], crash).status, 73);
+  const alternate = install(f, ['--update', '--target', 'claude']);
+  assert.notEqual(alternate.status, 0);
+  const id = alternate.stderr.match(/Interrupted installation (\d{17}-[a-f0-9]{12})/)?.[1];
+  assert.ok(id, alternate.stderr);
+  const recovered = install(f, ['--recover', id, '--target', 'claude']);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.deepEqual(await fs.readFile(path.join(shared, 'C2C', 'SKILL.md')), original);
+});
+
+test('distinct linked skills directories under one physical parent keep separate transaction stores', async () => {
+  const f = await fixture('distinct-linked-roots');
+  const sharedParent = path.join(f.root, 'shared');
+  for (const [home, name] of [[f.codexHome, 'codex-skills'], [f.claudeHome, 'claude-skills']]) {
+    const actual = path.join(sharedParent, name);
+    await fs.mkdir(actual, { recursive: true });
+    await fs.mkdir(home);
+    await fs.symlink(actual, path.join(home, 'skills'), process.platform === 'win32' ? 'junction' : 'dir');
+  }
+  const first = install(f);
+  assert.equal(first.status, 0, first.stderr);
+  await advance(f);
+  const id = backupId(install(f, ['--update']));
+  const rollback = install(f, ['--rollback', id]);
+  assert.equal(rollback.status, 0, rollback.stderr);
 });

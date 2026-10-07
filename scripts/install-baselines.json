@@ -1,0 +1,25 @@
+[
+  {
+    "schema": 1,
+    "version": "0.11.3",
+    "files": {
+      "SKILL.md": "9a9886243f2909b8a0d59bf29e6ba6002113a688537e76e1fbc0ecec94b48f35",
+      "agents/openai.yaml": "d0fc2f05c65abe946cbbe6d909747d0230d657e780b844e5e09d1b0511091cf5",
+      "references/protocol.md": "fd446d55c71c5d2079bc86dbb0f3df9641dcf98173e3cef88fb693bc0aa42ae8",
+      "references/project-assessment.md": "c7824abb0fbabcbbdfdf35a91a6d56af7ded1eda95ddcfd9de7647df5f8514d2",
+      "references/plan-presentation.md": "8efa0ff63a077e8a2546c404da534a5ca06047d740ca8a14f4461bc2ce124b42",
+      "references/model-selection.md": "53b33ebcd57014abb76e38d10a24d45fbfd6920ac63d1758a17c42ab27f7752e",
+      "scripts/council.mjs": "5b5a3a2b7a9bf2ec820014c014dabdb101a05556923bcd1bebba5ddd5d53dff6",
+      "scripts/process.mjs": "626eac06c809007de5fcd464486ea9b34d8a7cd83e56d8cccee6e81b4f5d4766",
+      "scripts/assessment.mjs": "345203e7be6ac72a5a6e2e70bc847354fd30ea21c8ddbd51521c87e9e30d9120",
+      "scripts/adapters.mjs": "5c1d83376819d2490b0c141dc892a8c77e845ad6eb2885b7d232dddcb4830df0",
+      "scripts/state.mjs": "51e0d2d5f88946dabd91a2dc64bed7c9698794ba421c2c80f3e0bec5d0e5b33c",
+      "scripts/discussion.mjs": "5506fb759949c796035b3d962fd6ca84b9ba32e1384fbbdbc99616110c028bba",
+      "scripts/participants.mjs": "b0293b4347faadceccd895eb04f06933ae7b77f87239a86ce04d17d4005d1443",
+      "scripts/budget.mjs": "4797607e0e2c7d39d7d5d06d16818771a2bc25e48a046508380d9881a0c4d448",
+      "scripts/progress.mjs": "46385dea191c7897f93b35a3a1e64e608ec89a0a79592cad09aea09cb56a02b0",
+      "package.json": "224c4dec450f7d32c7958abbc89630d2103496d411b086fd06ec736cf7e6ab78",
+      "LICENSE": "3af7e15b8cedbd821407a62172dc4fcf48a091426e20030394e67cf59fcb328b"
+    }
+  }
+]

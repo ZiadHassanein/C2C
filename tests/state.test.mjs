@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock, inspectProcess } from '../scripts/state.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
@@ -236,6 +236,35 @@ test('legacy PID reuse ambiguity requires explicit inspected-hash recovery', () 
   assert.ok(!fs.existsSync(path.join(dir, '.lock')));
 });
 
+test('localized macOS lock identities require inspected recovery when the PID is still alive', () => {
+  const dir = fixture('darwin-legacy-live');
+  atomicWriteFile(path.join(dir, '.lock'), { version: 1, pid: process.pid, identity: 'darwin:Wed Oct 7 10:00:00 2026', token: 'localized' });
+  const bytes = fs.readFileSync(path.join(dir, '.lock'));
+  const inspect = () => ({ status: 'alive', identity: 'darwin-v2:Wed Oct 7 00:00:00 2026' });
+  assert.throws(() => acquireRunLock(dir, { inspect }), /ownership is ambiguous.*recover-lock/);
+  assert.deepEqual(fs.readFileSync(path.join(dir, '.lock')), bytes, 'Canonicalization must not silently replace a live legacy owner');
+  assert.throws(() => recoverRunLock(dir, { expectedHash: digest(bytes), inspect }), /confirm-owner-stopped/);
+  const recovered = recoverRunLock(dir, { expectedHash: digest(bytes), confirmedStopped: true, inspect });
+  assert.deepEqual(fs.readFileSync(path.join(dir, recovered.archived)), bytes);
+  assert.ok(!fs.existsSync(path.join(dir, '.lock')));
+});
+
+test('dead localized macOS owners remain reclaimable and canonical live owners remain protected', () => {
+  const dir = fixture('darwin-legacy-dead');
+  const identity = 'darwin-v2:Wed Oct 7 00:00:00 2026';
+  const deadPid = 987654;
+  const inspect = pid => pid === deadPid ? { status: 'dead', identity: null } : { status: 'alive', identity };
+  atomicWriteFile(path.join(dir, '.lock'), { version: 1, pid: deadPid, identity: 'darwin:Wed Oct 7 10:00:00 2026', token: 'dead' });
+  const release = acquireRunLock(dir, { inspect });
+  try {
+    const bytes = fs.readFileSync(path.join(dir, '.lock'));
+    assert.equal(JSON.parse(bytes).identity, identity);
+    assert.throws(() => acquireRunLock(dir, { inspect }), /Another process is using this run/);
+    assert.throws(() => recoverRunLock(dir, { expectedHash: digest(bytes), confirmedStopped: true, inspect }), /owner process is still alive/);
+    assert.deepEqual(fs.readFileSync(path.join(dir, '.lock')), bytes);
+  } finally { release(); }
+});
+
 test('an old release callback cannot remove a new owner token', () => {
   const dir = fixture('owner-token');
   const release = acquireRunLock(dir, { inspect: syntheticIdentity });
@@ -258,6 +287,38 @@ test('OS process identities distinguish invalid PIDs and observe this process wi
   const current = inspectProcess(process.pid);
   assert.equal(current.status, 'alive');
   if (['win32', 'linux', 'darwin'].includes(process.platform)) assert.ok(current.identity, 'Current process start identity was unavailable on a supported platform');
+});
+
+test('native macOS process identities and live locks are stable across caller locales and timezones', { skip: process.platform !== 'darwin' }, () => {
+  const dir = fixture('darwin-environments');
+  const expected = inspectProcess(process.pid);
+  assert.equal(expected.status, 'alive');
+  assert.match(expected.identity, /^darwin-v2:/);
+  const release = acquireRunLock(dir);
+  const bytes = fs.readFileSync(path.join(dir, '.lock'));
+  const moduleURL = new URL('../scripts/state.mjs', import.meta.url).href;
+  const source = `import { inspectProcess, acquireRunLock } from ${JSON.stringify(moduleURL)};
+    const observed = inspectProcess(Number(process.argv[1]));
+    let lockError = null;
+    try { const release = acquireRunLock(process.argv[2]); release(); }
+    catch (error) { lockError = error.message; }
+    process.stdout.write(JSON.stringify({ observed, lockError }));`;
+  try {
+    for (const settings of [
+      { TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
+      { TZ: 'Pacific/Honolulu', LC_ALL: 'en_US.UTF-8', LANG: 'en_US.UTF-8' },
+      { TZ: 'Asia/Tokyo', LC_ALL: 'fr_FR.UTF-8', LANG: 'fr_FR.UTF-8' },
+    ]) {
+      const result = spawnSync(process.execPath, ['--input-type=module', '-e', source, String(process.pid), dir], {
+        env: { ...process.env, ...settings }, encoding: 'utf8', shell: false, timeout: 10000,
+      });
+      assert.equal(result.status, 0, result.stderr || result.error?.message);
+      const observed = JSON.parse(result.stdout);
+      assert.deepEqual(observed.observed, expected, JSON.stringify(settings));
+      assert.match(observed.lockError, /Another process is using this run/);
+      assert.deepEqual(fs.readFileSync(path.join(dir, '.lock')), bytes);
+    }
+  } finally { release(); }
 });
 
 test('simultaneous real subprocesses cannot both hold the same published lock', async () => {

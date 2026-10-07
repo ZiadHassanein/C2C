@@ -272,11 +272,15 @@ These notes stay local and are not independent peer packets. Do not pass coordin
 
 Windows npm installations are supported by resolving the known `codex.cmd` package layout to its native binary; the runner never executes arbitrary shell wrappers. `COUNCIL_CODEX_BIN` and `COUNCIL_CLAUDE_BIN` explicitly select a binary when needed. An invalid explicit selection fails rather than silently selecting a different version.
 
+On Linux/macOS, CLI files must be executable. PATH discovery skips non-executable files; executable symlinks and shebang scripts are supported. An explicit non-executable override fails. The installer uses the same Node commands and user configuration roots on all platforms; see [platform setup and CI coverage](../docs/SETUP.md#linux-and-macos).
+
 `doctor` and `ask` share preflight checks for required flags, Codex feature controls and authentication. Unsupported optional feature switches are omitted; missing required shell/image controls block before an attempt is reserved. Codex 0.146.0 is discovered correctly but lacks the required `view_image` control. Upgrade it or explicitly select a compatible binary; 0.160.1 passed the checks on the development machine. This is capability validation, not a permanent version allowlist or proof of a model call.
 
 State writes flush and atomically publish both a checksummed current checkpoint and manifest. Reads select the newest complete valid revision, preserving reserved attempts and successful stages. A recovered running attempt is conservatively charged its timeout once. If both copies are damaged, an old run has no complete checkpoint, or equal revisions disagree, stop and preserve the files. Do not reconstruct a permissive manifest or reset the budget.
 
 Locks record process identity as well as PID, preventing normal PID reuse from blocking indefinitely. Empty or ambiguous legacy locks require inspected recovery. First establish that the previous runner has stopped, then use the exact hash printed by the error:
+
+macOS process identities use a fixed locale and UTC timezone so different terminal environments cannot make the same live process appear stale. New runners preserve ambiguous older macOS identities when that PID is still alive; inspect them before recovery rather than assuming PID reuse. Use one current runner version for a run when upgrading.
 
 ```text
 node RUNNER recover-lock --run RUN --expected-sha256 HASH --confirm-owner-stopped yes

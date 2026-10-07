@@ -45,8 +45,8 @@ async function contentsAndTimes(directory) {
   })));
 }
 
-test('fresh installation includes package version and every runtime helper', async () => {
-  const f = await fixture('package');
+test('fresh installation through paths with spaces includes package version and every runtime helper', async () => {
+  const f = await fixture('package with spaces');
   const result = install(f);
   assert.equal(result.status, 0, result.stderr);
   for (const destination of [f.codexSkill, f.claudeSkill]) {
@@ -57,6 +57,30 @@ test('fresh installation includes package version and every runtime helper', asy
     assert.equal(loaded.status, 0, loaded.stderr);
     assert.match(loaded.stdout, /C2C/);
   }
+});
+
+test('POSIX installation follows linked configuration roots and runs readable scripts through Node', { skip: process.platform === 'win32' }, async () => {
+  const f = await fixture('linked configuration with spaces');
+  for (const [name, home] of [['codex', f.codexHome], ['claude', f.claudeHome]]) {
+    const actual = path.join(f.root, `${name} actual configuration`);
+    await fs.mkdir(actual);
+    await fs.symlink(path.relative(path.dirname(home), actual), home);
+  }
+  assert.equal(install(f).status, 0);
+  for (const destination of [f.codexSkill, f.claudeSkill]) {
+    for (const file of packageFiles) assert.deepEqual(await fs.readFile(path.join(destination, file)), await fs.readFile(path.join(f.source, file)));
+    const entry = path.join(destination, 'scripts', 'council.mjs');
+    assert.equal((await fs.stat(entry)).mode & 0o111, 0, 'documented Node invocation needs no execute bit on installed scripts');
+    const loaded = spawnSync(process.execPath, [entry, 'help'], { encoding: 'utf8', shell: false, timeout: 10000 });
+    if (loaded.error) throw loaded.error;
+    assert.equal(loaded.status, 0, loaded.stderr);
+    assert.match(loaded.stdout, /C2C/);
+  }
+  const before = await Promise.all([f.codexSkill, f.claudeSkill].map(contentsAndTimes));
+  const repeated = install(f);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal((repeated.stdout.match(/Already installed:/g) || []).length, 2);
+  assert.deepEqual(await Promise.all([f.codexSkill, f.claudeSkill].map(contentsAndTimes)), before);
 });
 
 test('CRLF-only installed differences are accepted without rewriting either skill', async () => {

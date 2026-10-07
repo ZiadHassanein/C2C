@@ -130,8 +130,13 @@ export function inspectProcess(pid) {
       const result = spawnSync(executable, ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 5000, maxBuffer: 16384 });
       if (!result.error && result.status === 0 && /^\d+$/.test(result.stdout.trim())) return { status: 'alive', identity: `windows:${result.stdout.trim()}` };
     } else if (process.platform === 'darwin') {
-      const result = spawnSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 5000, maxBuffer: 16384 });
-      if (!result.error && result.status === 0 && result.stdout.trim()) return { status: 'alive', identity: `darwin:${result.stdout.trim()}` };
+      // ps formats lstart using the caller's locale and local timezone. Keep
+      // that representation stable across shells before comparing ownership.
+      const result = spawnSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], {
+        encoding: 'utf8', timeout: 5000, maxBuffer: 16384,
+        env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
+      });
+      if (!result.error && result.status === 0 && result.stdout.trim()) return { status: 'alive', identity: `darwin-v2:${result.stdout.trim()}` };
     }
   } catch { /* Permission denied or process exit: recheck liveness below. */ }
   try { process.kill(pid, 0); return { status: 'alive', identity: null }; }
@@ -154,6 +159,9 @@ function ownerState(snapshot, inspect) {
   if (!snapshot.record) return 'ambiguous';
   const owner = inspect(snapshot.record.pid);
   if (owner.status === 'dead') return 'stale';
+  // Earlier macOS locks stored a localized start time. A different canonical
+  // string cannot prove PID reuse; retain the inspected-hash recovery path.
+  if (owner.status === 'alive' && typeof snapshot.record.identity === 'string' && snapshot.record.identity.startsWith('darwin:') && typeof owner.identity === 'string' && owner.identity.startsWith('darwin-v2:')) return 'ambiguous';
   if (owner.status === 'alive' && snapshot.record.identity && owner.identity && snapshot.record.identity !== owner.identity) return 'stale';
   if (owner.status === 'alive' && (snapshot.record.version === 1 || snapshot.record.identity && owner.identity)) return 'active';
   return 'ambiguous';

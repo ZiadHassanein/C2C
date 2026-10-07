@@ -21,7 +21,8 @@ The user explicitly requested suitability for both small features and big-projec
 - Version 0.10.2 distinguishes concerns from remedies, applies verification equally to accepted and rejected decisions, and records actual peer replies to consequential counterarguments. Coordinator decisions are explicitly labeled; substantive corrections need finding IDs and superseding resolutions remain traceable.
 - Version 0.10.3 preserves valid worker finding IDs and rejects malformed stage IDs without silently rewriting references. Historical benchmark instructions now pin the measured revisions.
 - Version 0.11.0 lets the available chat complete a provisional plan when a participant's usage limit blocks the council. Assumptions and missing review are explicit; hard task limits, actual evidence and partial run state are preserved.
-- Both local installations report 0.11.0 and match all seventeen packaged files byte-for-byte. The installer recognizes both without rewriting them; their audited 0.10.3 copies are preserved outside discovery folders.
+- Version 0.11.1 adds Linux/macOS compatibility fixes and native CI across Linux x64/ARM64 and macOS Apple Silicon/Intel. Windows remains covered.
+- Installed copies are audited against the previous release before updating, backed up outside discovery folders, and verified against all seventeen packaged files. Current machine-specific versions and backup paths are maintained in the private handoff.
 - Version 0.5.0 addresses the external reliability review: npm discovery and capability preflight, explicit coordinator routing, linked entrypoints, durable current-state recovery, process-identity locks, accurate progress/provenance, smaller private-context packets, wider secret checks, generated handoffs and line-ending-compatible installs. The version 3 planning format is retained.
 - Version 0.4.0 makes `C2C` the actual skill identifier and installed folder name. The installer refuses selected legacy folders before writing any files; users move those folders to backups outside all skill directories before reinstalling. Planning behavior and the version 3 run format are unchanged.
 - Version 0.3.0 requires a factual project assessment and clear direction before a new council. It separates deployment evidence from scoped readiness, supports bounded discovery, and freezes the assessment into every peer stage and the final result. Repository: [ZiadHassanein/codex-claude-council](https://github.com/ZiadHassanein/codex-claude-council).
@@ -32,6 +33,16 @@ The user explicitly requested suitability for both small features and big-projec
 - Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
+
+### Version 0.11.1: Linux and macOS verification
+
+The user requested explicit Linux/macOS compatibility. Earlier CI covered Ubuntu x64 and Windows but not macOS. The matrix now includes Ubuntu x64/ARM64 and macOS Apple Silicon/Intel, each with Node 18, 22 and 24, retaining Windows. GitHub's current standard runner definitions were checked; these are public-repository standard runners. Platform/architecture metadata is logged, jobs have a deadline, and fail-fast is disabled so one platform does not hide other results.
+
+Review found two concrete defects. POSIX discovery accepted any regular file rather than requiring execute permission, allowing a non-executable earlier PATH entry to mask a valid CLI. macOS lock identity used a localized start-time string; timezone/locale differences between shells could make the same live PID appear reused. Discovery now checks execution permission, and macOS uses a canonical versioned identity with fixed UTC/C locale. New runners treat a live older macOS identity as ambiguous rather than stealing it. Existing saved planning evidence and stage requirements remain unchanged.
+
+Tests cover real POSIX executable/symlink launch, installation paths, canonical/legacy lock ownership and owned descendant termination. The Node-based installer needs no executable bit on C2C's own scripts. Provider binaries, account authentication and CLI capability requirements remain separate prerequisites; offline tests cannot establish live account access or every Linux distribution/filesystem. No private runs or real provider accounts are used by CI.
+
+Local validation on Windows / Node 24: 204 tests, 198 passed, six expected POSIX/macOS skips, no failures (186.5 seconds). All 136 documentation targets and discovery/UI metadata checks passed. Independent cross-reviews found no further actionable issue and retained the mixed-version lock caveat. Native platform outcomes are published in the [CI workflow runs](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml); a Windows pass alone does not establish macOS/Linux behavior.
 
 ### Version 0.11.0: provisional planning when a participant reaches a limit
 

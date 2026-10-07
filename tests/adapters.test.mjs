@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
@@ -79,6 +80,7 @@ test('quoted Windows PATH, Path spelling, native Claude fallback, and POSIX exec
   assert.equal(resolveExecutable('claude', windowsOptions('')), claude);
   const posixDirectory = await fs.mkdtemp(path.join(root, 'posix-'));
   const codex = await file(path.join(posixDirectory, 'codex'));
+  await fs.chmod(codex, 0o755);
   // Keep the simulated POSIX PATH free of Windows drive letters. Otherwise
   // its ':' separator splits C:\\... and accidentally relies on the cwd drive.
   const previousCwd = process.cwd();
@@ -87,6 +89,77 @@ test('quoted Windows PATH, Path spelling, native Claude fallback, and POSIX exec
     const posixPath = `missing-bin:${path.basename(posixDirectory)}`;
     assert.equal(resolveExecutable('codex', { platform: 'linux', env: { PATH: posixPath }, home: root }), codex);
   } finally { process.chdir(previousCwd); }
+});
+
+const posixOnly = { skip: process.platform === 'win32' ? 'Requires POSIX execute permissions and shebang support' : false };
+const fixtureScript = '#!/usr/bin/env node\nconsole.log(JSON.stringify({ fixture: true, args: process.argv.slice(2) }));\n';
+async function posixExecutable(filename) {
+  const executable = await file(filename, fixtureScript);
+  await fs.chmod(executable, 0o755);
+  return executable;
+}
+function launchFixture(executable, args) {
+  const result = spawnSync(executable, args, {
+    shell: false, encoding: 'utf8', timeout: 10000,
+    // Make the fixture's env-node shebang independent of where Node was installed.
+    env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH || ''}` },
+  });
+  if (result.error) throw result.error;
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('POSIX discovery skips non-executable and invalid PATH candidates and preserves explicit overrides', posixOnly, async () => {
+  const prefix = await fs.mkdtemp(path.join(root, 'posix permissions with spaces-'));
+  const directories = ['no execute', 'directory', 'broken link', 'valid'].map(name => path.join(prefix, name));
+  for (const directory of directories) await fs.mkdir(directory, { recursive: true });
+  for (const name of ['codex', 'claude']) {
+    const blocked = await file(path.join(directories[0], name), fixtureScript);
+    await fs.chmod(blocked, 0o644);
+    await fs.mkdir(path.join(directories[1], name));
+    await fs.symlink('missing-target', path.join(directories[2], name));
+    const executable = await posixExecutable(path.join(directories[3], name));
+    const env = { PATH: directories.join(path.delimiter) };
+    assert.equal(resolveExecutable(name, { env, home: prefix }), executable);
+    const variable = `COUNCIL_${name.toUpperCase()}_BIN`;
+    assert.throws(() => resolveExecutable(name, { env: { ...env, [variable]: blocked }, home: prefix }), new RegExp(`${variable} does not resolve`));
+    const override = await posixExecutable(path.join(prefix, 'chosen version', name));
+    assert.equal(resolveExecutable(name, { env: { ...env, [variable]: override }, home: prefix }), override);
+    assert.deepEqual(launchFixture(executable, ['argument with spaces', 'literal;$()']), { fixture: true, args: ['argument with spaces', 'literal;$()'] });
+  }
+});
+
+test('POSIX npm-style relative symlinks launch executable Node shebangs', posixOnly, async () => {
+  const prefix = await fs.mkdtemp(path.join(root, 'posix npm with spaces-'));
+  const packageRoot = path.join(prefix, 'lib', 'node_modules', '@openai', 'codex');
+  await file(path.join(packageRoot, 'package.json'), JSON.stringify({ name: '@openai/codex', type: 'module', bin: { codex: 'bin/codex.js' } }));
+  const executable = await posixExecutable(path.join(packageRoot, 'bin', 'codex.js'));
+  const bin = path.join(prefix, 'bin');
+  await fs.mkdir(bin);
+  const link = path.join(bin, 'codex');
+  await fs.symlink(path.relative(bin, executable), link);
+  const resolved = resolveExecutable('codex', { env: { PATH: bin }, home: prefix });
+  assert.equal(resolved, executable);
+  assert.equal(resolveExecutable('codex', { env: { COUNCIL_CODEX_BIN: link }, home: prefix }), executable);
+  assert.deepEqual(launchFixture(resolved, ['--fixture', 'value with spaces']), { fixture: true, args: ['--fixture', 'value with spaces'] });
+});
+
+test('POSIX Homebrew-style links and native Claude home fallback launch a native executable', posixOnly, async () => {
+  const prefix = await fs.mkdtemp(path.join(root, 'posix native with spaces-'));
+  const native = await fs.realpath(process.execPath);
+  const cellar = path.join(prefix, 'Cellar', 'claude', 'fixture', 'bin');
+  const bin = path.join(prefix, 'bin');
+  await fs.mkdir(cellar, { recursive: true });
+  await fs.mkdir(bin);
+  await fs.symlink(native, path.join(cellar, 'claude'));
+  await fs.symlink(path.relative(bin, path.join(cellar, 'claude')), path.join(bin, 'claude'));
+  assert.equal(resolveExecutable('claude', { env: { PATH: bin }, home: prefix }), native);
+  const localBin = path.join(prefix, '.local', 'bin');
+  await fs.mkdir(localBin, { recursive: true });
+  await fs.symlink(native, path.join(localBin, 'claude'));
+  const resolved = resolveExecutable('claude', { env: { PATH: '' }, home: prefix });
+  assert.equal(resolved, native);
+  assert.deepEqual(launchFixture(resolved, ['-e', 'console.log(JSON.stringify({fixture: true}))']), { fixture: true });
 });
 
 const features = names => names.map(name => `${name}    stable    true`).join('\n');

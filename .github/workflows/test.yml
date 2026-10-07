@@ -4,9 +4,11 @@ permissions:
   contents: read
 jobs:
   test:
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest]
         node: [18, 22, 24]
     runs-on: ${{ matrix.os }}
     steps:
@@ -14,4 +16,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Record platform
+        run: node -e "console.log(JSON.stringify({platform:process.platform,arch:process.arch,node:process.version}))"
       - run: npm test

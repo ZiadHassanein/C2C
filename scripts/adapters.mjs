@@ -43,6 +43,11 @@ export function resolveExecutable(name, {
   const resolveCandidate = candidate => {
     if (platform === 'win32' && name === 'codex' && /\.cmd$/i.test(candidate)) return npmCodexBinary(candidate, arch);
     if (SHELL_WRAPPER.test(candidate) || !isFile(candidate)) return null;
+    // POSIX PATH lookup skips ordinary files that the current user cannot run.
+    // Follow executable symlinks used by npm, Homebrew and native installers.
+    if (platform !== 'win32') {
+      try { fs.accessSync(candidate, fs.constants.X_OK); } catch { return null; }
+    }
     return fs.realpathSync(candidate);
   };
   // An explicit override is authoritative: do not silently use another version.

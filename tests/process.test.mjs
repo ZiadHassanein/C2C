@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import syncFs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { runProcess } from '../scripts/process.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
@@ -19,6 +20,25 @@ const node = (source, options = {}) => runProcess(process.execPath, ['-e', sourc
 async function rejection(promise) {
   try { await promise; } catch (error) { return error; }
   assert.fail('Expected the process invocation to reject');
+}
+function posixProcessRunning(pid) {
+  const result = spawnSync('/bin/ps', ['-p', String(pid), '-o', 'stat='], {
+    encoding: 'utf8', timeout: 1000,
+  });
+  assert.ifError(result.error);
+  assert.ok(result.status === 0 || result.status === 1, `Could not inspect fixture PID ${pid}: ${result.stderr}`);
+  const state = result.stdout.trim();
+  // An orphan may remain a zombie until the host's reaper collects it. kill(0)
+  // alone would incorrectly report that this already-terminated process runs.
+  return state !== '' && !state.startsWith('Z');
+}
+async function assertPosixProcessStopped(pid) {
+  assert.ok(Number.isInteger(pid) && pid > 0, 'The fixture must report its owned descendant PID');
+  const deadline = Date.now() + 2000;
+  while (posixProcessRunning(pid)) {
+    assert.ok(Date.now() < deadline, `Owned descendant ${pid} is still running after process-group cleanup`);
+    await pause(25);
+  }
 }
 
 test('peer workers need no terminal and retain configured login context without inheriting a Claude session', async () => {
@@ -115,6 +135,40 @@ test('a timed out parent with an inheriting descendant settles with honest termi
   }
 });
 
+test('POSIX timeout kills the owned process group including a ready grandchild', { skip: process.platform === 'win32' }, async () => {
+  const pidPath = path.join(root, 'posix-grandchild.pid');
+  const descendant = "process.send('ready');setTimeout(()=>process.exit(0),10000);";
+  const source = `
+    const {spawn}=require('node:child_process');
+    const c=spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:['ignore','ignore','ignore','ipc']});
+    require('node:fs').writeFileSync(${JSON.stringify(pidPath)},String(c.pid));
+    c.on('message',()=>console.log('grandchild-ready'));
+    setTimeout(()=>process.exit(2),10000);
+  `;
+  let descendantPid;
+  try {
+    const error = await rejection(node(source, { timeoutMs: 3000 }));
+    descendantPid = Number(await fs.readFile(pidPath, 'utf8'));
+    assert.match(error.stdout, /grandchild-ready/, 'The grandchild must start before timeout cleanup');
+    assert.equal(error.reason, 'timeout');
+    assert.equal(error.termination.method, 'process-group');
+    assert.equal(error.termination.treeRequested, true);
+    assert.equal(error.termination.treeRequestSucceeded, true);
+    assert.equal(error.termination.directExitObserved, true);
+    await assertPosixProcessStopped(descendantPid);
+  } finally {
+    // Recover the owned PID even if a startup/assertion failure occurred. Both
+    // fixture processes also expire independently if cleanup itself fails.
+    if (!Number.isInteger(descendantPid)) {
+      try { descendantPid = Number(await fs.readFile(pidPath, 'utf8')); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+    if (Number.isInteger(descendantPid) && descendantPid > 0 && posixProcessRunning(descendantPid)) {
+      try { process.kill(descendantPid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+    }
+  }
+});
+
 test('an exited parent cannot leave the invocation waiting indefinitely for inherited pipes', async () => {
   const descendant = "process.stdout.write('orphan-live\\n',()=>process.send('ready'));setTimeout(()=>{},8000);";
   const source = `const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:['ignore',1,2,'ipc'],windowsHide:true});console.log(JSON.stringify({descendantPid:c.pid}));c.on('message',()=>process.exit(0));setTimeout(()=>process.exit(2),3000);`;
@@ -129,6 +183,11 @@ test('an exited parent cannot leave the invocation waiting indefinitely for inhe
     if (result instanceof Error) {
       assert.equal(result.reason, 'retained_pipes');
       assert.equal(result.termination.treeRequested, process.platform !== 'win32');
+      if (process.platform !== 'win32') {
+        assert.equal(result.termination.method, 'process-group');
+        assert.equal(result.termination.treeRequestSucceeded, true);
+        await assertPosixProcessStopped(descendantPid);
+      }
     } else {
       // On Windows, Node may close this inherited pipe at parent exit. That is
       // successful completion, not proof that the remaining child was killed.

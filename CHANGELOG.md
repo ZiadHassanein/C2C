@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.11.1 — Linux and macOS compatibility
+
+- Adds full-suite CI on Linux x64/ARM64 and macOS Apple Silicon/Intel, alongside Windows, using Node 18, 22 and 24. Logs the actual platform/architecture; each job is bounded and one failure does not cancel other platforms.
+- Skips non-executable PATH candidates on Linux/macOS and rejects non-executable explicit CLI overrides. Adds executable symlink/shebang and installation-path coverage.
+- Stabilizes macOS process identities across time zones and locales. Ambiguous older live macOS locks require inspection instead of automatic reclamation; adds regression coverage for lock ownership and POSIX descendant cleanup.
+- Documents platform setup and distinguishes offline compatibility tests from real provider authentication and model calls.
+
 ## 0.11.0 — Keep planning when usage limits block a participant
 
 - Defaults to completing a provisional plan with the available chat when a confirmed or user-reported usage limit blocks a worker, or further calls cannot fit authorized ceilings. Explicit requests to wait or require both participants take precedence.

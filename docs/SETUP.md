@@ -111,6 +111,32 @@ Default locations (`~` means your user folder):
 
 If you already use `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, the installer uses that configured root. You do not need to set either variable for a normal installation.
 
+## Linux and macOS
+
+Use the same `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands as the quick start. Install as your normal user; `sudo` would target another user's configuration. Keep the uppercase `C2C` folder name on case-sensitive filesystems. C2C's scripts are run with Node, so they do not need their own executable bit.
+
+The test matrix runs the complete offline suite with Node 18, 22 and 24 on:
+
+| Platform | Architectures | GitHub runner |
+|---|---|---|
+| Linux (Ubuntu) | x64, ARM64 | `ubuntu-latest`, `ubuntu-24.04-arm` |
+| macOS | Apple Silicon, Intel | `macos-latest`, `macos-15-intel` |
+| Windows | x64 | `windows-latest` |
+
+See the [CI workflow](../.github/workflows/test.yml) and [GitHub runner definitions](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). These tests exercise installation, executable discovery, process cleanup, state/locks and planning workflows with local fixtures. They do not authenticate real provider accounts or establish compatibility with every Linux distribution, filesystem or OS version. Provider CLI requirements still apply: [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and [Claude Code setup](https://code.claude.com/docs/en/setup).
+
+If `doctor` cannot find a CLI, check the environment that starts your coordinating app:
+
+```sh
+command -v node
+command -v codex
+command -v claude
+```
+
+Installed CLIs must be executable and available on that process's `PATH`. npm/Homebrew executable symlinks and executable scripts with a valid shebang are supported on Linux/macOS; shell aliases and functions are not executables. A desktop app may inherit a different `PATH` from your terminal. Restart it after fixing its environment, or supply `COUNCIL_CODEX_BIN` / `COUNCIL_CLAUDE_BIN` with the absolute executable path in its launch environment. An explicit invalid or non-executable override fails instead of selecting another CLI. Use the provider's installer to repair missing executable permissions; C2C does not modify CLI permissions automatically.
+
+Store run folders on a local filesystem supporting hard links and atomic renames. Older macOS locks created before canonical process identities may need inspected recovery after the owner stops; C2C preserves ambiguous live locks rather than reclaiming them. Follow [lock recovery](../references/protocol.md#compatibility-and-recovery).
+
 ## Update the skill
 
 1. Get the latest repository files. For a Git clone, run `git pull` inside it; for a ZIP installation, download and extract the latest ZIP.

@@ -11,7 +11,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 
 [![Tests](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml)
 
-**Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+**Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
 [Quick start](#install) · [Usage](#use-it) · [Workflow](#how-it-works) · [FAQ](docs/FAQ.md) · [Benchmarks](docs/BENCHMARKS.md) · [Visual PDF guide](docs/C2C-LinkedIn-Guide.pdf)
 
@@ -59,7 +59,7 @@ node scripts/install.mjs
 
 Alternatively, [download the ZIP](https://github.com/ZiadHassanein/codex-claude-council/archive/refs/heads/main.zip), extract it, open a terminal in the folder containing `scripts`, and run `node scripts/install.mjs`.
 
-The installer adds the skill to both apps for your current user. No `npm install` is needed. [Install for only one app →](docs/SETUP.md#install-for-one-app-only)
+The installer adds the skill to both apps for your current user. No `npm install` is needed. The same Node commands work on Linux and macOS, including Intel and Apple Silicon Macs. [Platform checks and requirements →](docs/SETUP.md#linux-and-macos) · [Install for only one app →](docs/SETUP.md#install-for-one-app-only)
 
 ### 3. Check the connection
 

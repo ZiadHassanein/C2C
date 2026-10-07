@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.11.3 — Consistent C2C naming
+
+- Uses `ZiadHassanein/C2C` as the canonical repository name, with matching clone, ZIP, documentation, badge and guide links. Fresh Git clones use the `C2C` folder.
+- Renames private package metadata to `c2c` and documents how an existing clone updates its Git remote. `$C2C`, `/C2C` and installed skill folders keep their existing names.
+- Preserves legacy installation detection and migration instructions. Runtime behavior, saved planning runs and review stages are unchanged.
+
 ## 0.11.2 — Clear execution entry points
 
 - Requires a concise Start here block in the plan itself: first work item, project location/action, prerequisites, scope boundary and acceptance check. Unknown paths or commands lead to bounded discovery; a request to approve the plan remains separate from the implementation start.
@@ -87,7 +93,7 @@ The [v0.7 PDF guide](docs/C2C-LinkedIn-Guide.pdf) and [token benchmark](docs/BEN
 - Peer packets omit local bookkeeping such as byte counts and hashes; sealed local records retain it.
 - Agents can reuse reports already returned by the runner and request compact JSON output without dropping fields.
 - Two offline fixtures measured **8.19% fewer peer-input tokens** for a small feature and **10.93% fewer** for a production roadmap. The entry skill measured **12.18% fewer tokens**, separately. These are input-text proxies, not total billing savings or proof of equal model quality. [Method, numbers, and limits](docs/BENCHMARKS.md).
-- All **135 automated tests** passed locally; the [release commit's CI](https://github.com/ZiadHassanein/codex-claude-council/actions/runs/37445356743) passed on Windows and Ubuntu with Node 18, 22, and 24. No live provider calls were made for this update.
+- All **135 automated tests** passed locally; the [release commit's CI](https://github.com/ZiadHassanein/C2C/actions/runs/37445356743) passed on Windows and Ubuntu with Node 18, 22, and 24. No live provider calls were made for this update.
 
 Model settings and review depth stay unchanged: focused review uses two successful peer calls; independent planning uses three. Failed attempts also consume the run's attempt allowance.
 
@@ -108,7 +114,7 @@ The discussion shows recorded contributions and decisions; it does not display p
 
 ## 0.4.0 — Short invocation in both apps
 
-The installed skill identifier is `C2C`, with `$C2C` and `/C2C` entry points. The GitHub repository remains `codex-claude-council`. [Upgrade instructions](docs/SETUP.md#update-the-skill).
+This release changed the installed skill identifier to `C2C`, with `$C2C` and `/C2C` entry points. The repository kept its original name at that time; version 0.11.3 aligns it with `C2C`. [Upgrade instructions](docs/SETUP.md#update-the-skill).
 
 ## 0.3.0 — Understand the project before planning
 

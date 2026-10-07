@@ -18,8 +18,8 @@ The benchmark used fixed injected reports and made **zero provider calls**. It d
 
 | Item | Recorded value |
 |---|---|
-| Baseline | v0.6.0, commit [`d7b6607`](https://github.com/ZiadHassanein/codex-claude-council/commit/d7b6607fcdfdea430f9963fc75fffc0c9ce8ca88) |
-| Updated version | v0.7.0, commit [`a67657d`](https://github.com/ZiadHassanein/codex-claude-council/commit/a67657d4787c08bf89c22eb2ff6872797bcf061e) |
+| Baseline | v0.6.0, commit [`d7b6607`](https://github.com/ZiadHassanein/C2C/commit/d7b6607fcdfdea430f9963fc75fffc0c9ce8ca88) |
+| Updated version | v0.7.0, commit [`a67657d`](https://github.com/ZiadHassanein/C2C/commit/a67657d4787c08bf89c22eb2ff6872797bcf061e) |
 | Measurement recorded | 2026-10-06 |
 | Tokenizer | `tiktoken 0.12.0`, primarily `o200k_base` |
 | Scenarios | Small feature in review mode; production roadmap in plan mode |
@@ -86,7 +86,7 @@ Local snapshot bookkeeping remains available even when omitted from the peer pac
 
 ### Software validation
 
-Version 0.7.0 passed **135 automated tests** locally on Windows / Node 24. Its [GitHub Actions run at the release commit](https://github.com/ZiadHassanein/codex-claude-council/actions/runs/37445356743) passed all **six jobs** across Windows and Ubuntu with Node 18, 22, and 24.
+Version 0.7.0 passed **135 automated tests** locally on Windows / Node 24. Its [GitHub Actions run at the release commit](https://github.com/ZiadHassanein/C2C/actions/runs/37445356743) passed all **six jobs** across Windows and Ubuntu with Node 18, 22, and 24.
 
 This suite checks C2C's runner and related behavior, including context preservation, state, compatibility, discussion rendering, and compact output. It does not establish that a user's application or generated plan passes its own acceptance tests. Earlier live CLI observations and their limits are recorded separately in [project notes](../PROJECT_NOTES.md#validation-actually-performed).
 

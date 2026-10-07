@@ -9,7 +9,7 @@
 
 Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coordinates a real exchange through the peer's CLI, including security considerations, acceptance tests, and a visible record of decisions. Codex–Claude is the default; Codex-only or Claude-only discussion is an explicit choice.
 
-[![Tests](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml)
+[![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
 **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
@@ -52,12 +52,12 @@ Install both CLIs for cross-provider planning with a background author, or to us
 With Git installed, run these commands in **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
-git clone https://github.com/ZiadHassanein/codex-claude-council.git
-cd codex-claude-council
+git clone https://github.com/ZiadHassanein/C2C.git
+cd C2C
 node scripts/install.mjs
 ```
 
-Alternatively, [download the ZIP](https://github.com/ZiadHassanein/codex-claude-council/archive/refs/heads/main.zip), extract it, open a terminal in the folder containing `scripts`, and run `node scripts/install.mjs`.
+Alternatively, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, open a terminal in the folder containing `scripts`, and run `node scripts/install.mjs`.
 
 The installer adds the skill to both apps for your current user. No `npm install` is needed. The same Node commands work on Linux and macOS, including Intel and Apple Silicon Macs. [Platform checks and requirements →](docs/SETUP.md#linux-and-macos) · [Install for only one app →](docs/SETUP.md#install-for-one-app-only)
 

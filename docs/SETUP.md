@@ -6,7 +6,7 @@ Use this page when you need help with installation, updating, or a failed setup 
 
 ## Check your setup
 
-Open a terminal in the downloaded `codex-claude-council` folder and run:
+Open a terminal in the cloned `C2C` folder (or the extracted `C2C-main` ZIP folder) and run:
 
 ```sh
 node --version
@@ -34,7 +34,7 @@ Sign in through the native CLI once when needed. If the saved CLI login expires 
 | What you see | What to do |
 |---|---|
 | `node` is not recognized or not found | Install [Node.js](https://nodejs.org/en/download), reopen your terminal, and try `node --version`. |
-| `git` is not recognized or not found | Use the [ZIP download](https://github.com/ZiadHassanein/codex-claude-council/archive/refs/heads/main.zip), extract it, and open a terminal in the folder containing `scripts`. |
+| `git` is not recognized or not found | Use the [ZIP download](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/install.mjs` | You are in the wrong folder. Open a terminal in the extracted or cloned repository folder, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Install the required CLI using the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) setup guide. Reopen the terminal and check again. |
 | `doctor` reports signed out | If the same CLI works in your normal terminal, check the environment/access row below first. Otherwise run `claude auth login` or `codex login` for the required peer, then rerun `doctor`. |
@@ -138,6 +138,12 @@ Installed CLIs must be executable and available on that process's `PATH`. npm/Ho
 Store run folders on a local filesystem supporting hard links and atomic renames. Older macOS locks created before canonical process identities may need inspected recovery after the owner stops; C2C preserves ambiguous live locks rather than reclaiming them. Follow [lock recovery](../references/protocol.md#compatibility-and-recovery).
 
 ## Update the skill
+
+For a clone created before the repository was renamed to C2C, update its remote once from inside that clone:
+
+```sh
+git remote set-url origin https://github.com/ZiadHassanein/C2C.git
+```
 
 1. Get the latest repository files. For a Git clone, run `git pull` inside it; for a ZIP installation, download and extract the latest ZIP.
 2. Move each older installed `C2C` folder (or `codex-claude-council` from an earlier release) to a backup location **outside all skill directories**, such as `~/skill-backups/`. Use distinct backup names for Codex and Claude. Moving the backup outside prevents duplicate skill discovery.

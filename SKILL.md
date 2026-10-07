@@ -5,108 +5,85 @@ description: Plan and review features or projects through a real Codex–Claude 
 
 # C2C
 
-The current chat is the **coordinator**. Researched worker models author and critique plans through authenticated CLI calls; the chat synthesizes the result and owns decisions. Default to Codex–Claude collaboration. Use one-provider discussion only when explicitly requested, with a planning author and a different coding-focused critic. If a usage limit blocks the exchange, use the provisional fallback below. Produce an actionable plan and decision record from real responses; never simulate another participant. Agreement is optional.
+The current chat coordinates: selected workers author and critique plans through authenticated CLI calls; the chat synthesizes and owns decisions. Default to Codex–Claude collaboration. Use one-provider discussion only when explicitly requested, with a planning author and a distinct coding-focused critic. Never simulate another participant, force agreement, or invent objections.
 
-Require an explicit C2C or Codex–Claude exchange request before sharing context or spending quota; do not repeat existing authorization. A useful review opportunity alone is insufficient. For assessment-only requests, give advice and relevant security risks without preparing a run or calling a peer.
-
-Read linked reference sections only when needed; reuse them and current evidence rather than repeatedly loading full files.
+Require an explicit C2C or Codex–Claude exchange request before sharing context or spending quota; reuse existing authorization. Assessment-only requests receive advice and relevant security risks without preparing a run or calling workers. Read linked sections when needed and reuse this task's evidence instead of repeatedly loading full references.
 
 ## Establish context and direction
 
-Inspect relevant instructions, behavior, architecture, tests, and deployment evidence proportionally. Separate observations, user reports, and inference; a small feature needs no project-wide audit.
+Inspect relevant instructions, current behavior, architecture, tests and deployment evidence proportionally. Distinguish observations, user reports and inference. Separate deployment (`production`, `non_production`, `unknown`, `not_applicable`) from readiness for a stated scope; configuration and passing tests prove neither live use nor general readiness. Preserve unknowns without inspecting secrets or probing live systems for classification.
 
-Record production, non-production, unknown, or not-applicable deployment separately from readiness **for a stated scope**. Configuration and passing tests prove neither live use nor readiness. Preserve unknowns without inspecting secrets or probing live systems for classification.
+Establish goal, scope/non-goals, success criteria, constraints, next action and its gate. Resolve essential user choices before paid calls; bounded discovery is valid. Fit existing architecture and applicable compatibility, data, migration, rollout and recovery requirements.
 
-Establish goal, scope/non-goals, success criteria, constraints, next action, and its gate. Resolve essential user choices before paid calls; bounded discovery is valid. Fit existing architecture and include relevant compatibility, data, migration, rollout, and recovery requirements for live impact.
+Write neutral assessment JSON using the [assessment contract](references/project-assessment.md#json-contract); read its earlier guidance when classification or direction is unclear. Keep proposed solutions in drafts. Assessment validation checks structure, not truth; legacy runs do not satisfy this requirement retroactively.
 
-Write neutral JSON using the [assessment contract](references/project-assessment.md#json-contract); consult earlier guidance if classification or direction is unclear. Keep proposals in drafts. Validation checks structure, not truth. Assessments are required for new runs, never claimed retroactively for legacy runs.
+## Research models and prepare
 
-## Prepare a proportional exchange
+For **every new planning task**, search current official OpenAI and Anthropic guidance, open relevant pages, and compare planning and coding choices for both providers. Follow [model selection](references/model-selection.md) for task fit, exact IDs, access evidence, overlapping winners and billing boundaries. Reuse this task's research across stages/retries, never a previous task's ranking without a fresh check.
 
-Resolve this skill's `scripts/council.mjs`, run `node RUNNER doctor`, and check peer readiness beyond exit status. Peers run non-interactively; never require an open peer app/terminal. Readiness sees saved authentication, not token validity or available quota. If unavailable, preserve work and distinguish a usage limit from login/setup failure; use the fallback below for confirmed or user-reported limits and [authentication guidance](references/protocol.md#authentication-permissions-and-limits) for login problems. See [commands](references/protocol.md#commands).
+Automatically select eligible workers within user limits unless advice-only, reserved-selection or pinned-model instructions override. Cross-provider roles use a planning model from each; same-provider roles use a planner and distinct coding-focused critic. Never lower capability, effort or review depth to save tokens or fit a timeout; change no global configuration or billing source. The runner has no effort flag.
 
-Use `--compact` for routine CLI commands: it minifies output without dropping fields. Use the validated report returned by `ask`; read saved peer JSON only if that return is missing or truncated.
+Record size, complexity, risk, uncertainty, dated sources, all four planning/coding recommendations, actual roles/IDs/access evidence, route and allowance provenance/user caps in local `TASK_ASSESSMENT.md`. Keep it out of peer packets and summarize choices in the plan. Use the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed; preserve unknowns honestly.
 
-**Pass `--coordinator codex` from Codex or `--coordinator claude` from Claude Code.** There is no coordinator default. Research and select models below before preparation. Use `--author-model FULL_ID` for a background planner in the coordinator's provider and `--peer-model FULL_ID` for its reviewer; add `--pairing same` for one provider. For council stages, reuse the chat as author only when its trustworthy exact model ID matches the selected planner. Never relabel or switch the chat. Follow [pairing and identity](references/protocol.md#pairing-and-model-identity). Every worker provider needs a ready CLI.
+Resolve `RUNNER` to this skill's `scripts/council.mjs`. Run `node RUNNER doctor` and check the route's readiness field using [commands](references/protocol.md#commands), not exit status alone. Workers need no open peer terminal/app. Readiness checks saved authentication, not valid tokens, model access or quota; distinguish limits from [login/setup failures](references/protocol.md#authentication-permissions-and-limits).
 
-Choose depth from uncertainty and consequences, respecting explicit requests:
+Pass **`--coordinator codex` from Codex or `--coordinator claude` from Claude Code**; there is no default. Use `--author-model FULL_ID` for a background planner in the coordinator provider and `--peer-model FULL_ID` for its reviewer; add `--pairing same` only when requested. Reuse the chat as council author only when trustworthy exact identity matches the selected planner. Never relabel or switch it. Follow [pairing and identity](references/protocol.md#pairing-and-model-identity); every worker provider needs a ready CLI.
 
-| Need | Mode and deliverable |
-|---|---|
-| Bounded feature, supplied plan, or planner/coding-critic pair | `review`: candidate, independent critique, synthesis and verification; 3 successful worker calls with an author, 2 with a matching host author. |
-| Alternatives or consequential design uncertainty | `plan`: independent proposals, mutual critiques and verification; 5 successful worker calls with an author, 3 with a matching host author. |
-| Whole-project plan across providers | Usually `plan`: MVP, system boundaries, dependent milestones, acceptance gates, and a concrete first milestone. |
+| Need | Mode | Successful calls: host / background author |
+|---|---|---|
+| Bounded feature, supplied plan, or planner/coding-critic pair | `review`: candidate, critique, synthesis, verification | 2 / 3 |
+| Alternatives or consequential uncertainty; usually a whole-project roadmap | `plan`: independent proposals, mutual critiques, synthesis, verification | 3 / 5 |
 
-Small scope can warrant independent proposals; large supplied plans can use review. Keep uncertain later milestones provisional; do not automatically start milestone councils. See [planning depth](references/protocol.md#planning-depth-and-deliverables) when needed.
+Respect explicit depth requests: small scope can need independent proposals; a large supplied plan can use review. Roadmaps cover MVP, boundaries, dependencies, exit gates and a concrete first milestone; later milestones stay proportionate and do not automatically launch councils. See [planning depth](references/protocol.md#planning-depth-and-deliverables).
 
-Choose `--budget-profile standard` for bounded work (300 seconds/call, 900 total, four attempts), or `project` for large/deep roadmaps (600 seconds/call, 2,400 total, five attempts). Background-author plan mode defaults to six attempts for its five required calls. Explicit user limits take precedence; insufficient capacity is a real constraint. State the actual allowance before calling; it is a ceiling, not an estimate or spending cap. Do not change models or reasoning to fit a timeout.
+Use `--budget-profile standard` for bounded work (300 seconds/call, 900 total, four attempts), or `project` for large/deep roadmaps (600/call, 2,400 total, five attempts). Background-author plan defaults to six attempts. Explicit user limits win. State actual ceilings before calling; they are neither estimates nor spending caps. Check capacity, including a possible final-revision check below.
 
-Prepare a concise UTF-8 brief and selected context with source revision and relevant local changes. Include necessary evidence excerpts, not entire unrelated files or facts already in the assessment. Peers cannot inspect the repository or follow local links. Exclude credentials/private irrelevancies and use relative evidence paths. Run `prepare --assessment FILE` with coordinator, mode, and a fresh absolute directory outside the skill; inputs are frozen.
+Prepare a concise UTF-8 brief and necessary selected context with source revision/local changes. Avoid duplicating assessment facts; exclude credentials/private irrelevancies and use relative evidence paths. Run `prepare --assessment FILE` with coordinator, mode and a fresh absolute run directory outside the skill. Inputs are frozen. Peers cannot browse the repository; answer missing-context requests through [bounded evidence](references/protocol.md#bounded-evidence-requests), never broader worker tools. Review outbound content yourself; secret scanning cannot prove safe disclosure.
 
-## Research models for each new plan
+Use `--compact` for routine commands and the validated report returned by `ask`; read saved JSON only if that return is missing/truncated.
 
-For every new planning task, search current official OpenAI and Anthropic model guidance and open the relevant pages. Compare task-fit planning and coding choices for both providers, then select the required roles. Do not reuse a previous task's ranking without this fresh check; reuse this task's research across stages/retries. Follow [model selection](references/model-selection.md) for sources, availability, overlapping winners, and billing boundaries. No permanent best-model list is bundled.
+## Run the exchange
 
-Requested councils automatically use researched worker choices within user constraints unless the user requests advice only, reserves selection, or pins models. Same provider uses a planner and a distinct coding-focused critic; cross provider uses a planner from each. Prefer task quality within the user's limits; do not lower model capability, effort, or review depth just to save tokens. No configuration or billing-source changes are authorized. The runner has no effort-selection flag.
+Use the [file contract](references/protocol.md#file-contract) and [report schema](references/protocol.md#report-schema), or generated schemas. Keep drafts/final plans self-contained. Review prose describes changes rather than repeating proposals; every substantive correction needs a finding ID, evidence, action and verification. Retain material risks, unknowns and required fields regardless of compactness.
 
-Save compact `TASK_ASSESSMENT.md`: size/complexity/risk/uncertainty, dated source links, the four planning/coding recommendations, actual role/model choices and access evidence, mode, and allowance provenance/user caps. Record unknowns honestly. Keep this local record out of peer packets; summarize choices in the final plan. Consult the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed. Advice-only requests launch no worker.
+Critique consequential assumptions against evidence, realistic failure cases and alternatives. Judge each concern separately from its remedy: test consequential fixes for failure modes, unnecessary scope, user friction and operational cost. Record adoption, adaptation or rejection with the decisive reason; preserve unresolved parts. Sound agreement needs reasons, not a disagreement quota. Follow the [decision contract](references/protocol.md#decision-record).
 
-## Run the selected workflow
+**Plan mode:**
 
-Use the [report schema](references/protocol.md#report-schema) and [file contract](references/protocol.md#file-contract), or generated schemas. Keep drafts and final plans self-contained. In critique/verification prose, describe changes instead of repeating whole proposals. Every substantive correction needs a finding ID with evidence, action, and verification; do not hide extra recommendations in prose. Retain every material risk or uncertainty. Compactness never justifies omitted findings, required fields, tests, or review stages.
-
-Critique as an independent skeptic: test consequential assumptions, realistic counterexamples, alternatives, and failure cases against the evidence. Accept sound points with reasons; reject or leave unresolved weak claims. Do not aim for agreement, invent objections, or demand a disagreement quota.
-
-Before adopting a remedy, assess the concern and the proposed fix separately. Test consequential fixes against a credible failure case or simpler alternative, including added scope, user friction and operational cost. In the existing decision rationale, say whether the remedy is adopted, adapted, or declined and why; an acceptance is not an automatic instruction to implement the reviewer's fix. Keep material unresolved parts unresolved. See [decision record](references/protocol.md#decision-record).
-
-For **plan**:
-
-1. With a worker author, call `ask --stage author-draft`; otherwise write `coordinator-draft.json` independently. Then call `ask --stage draft`. Neither proposal receives the other.
-2. With a worker author, call `ask --stage author-review`; otherwise critique `peer-draft.json` in `coordinator-review.json`. Then call `ask --stage review`. The two critiques are independent.
+1. Call `ask --stage author-draft` when configured; otherwise independently write `coordinator-draft.json`. Then call `ask --stage draft`. Neither proposal receives the other.
+2. Call `ask --stage author-review` when configured; otherwise critique `peer-draft.json` in `coordinator-review.json`. Then call `ask --stage review`. Critiques remain independent.
 3. Synthesize both proposals and critiques into `final-plan.md`.
 
-For **review**:
+**Review mode:**
 
-1. With a configured author, call `ask --stage author-draft`; provide an existing user plan as selected input for that author to retain or adapt. Only the host-author route writes `coordinator-draft.json` directly. The chat writes its independent check in `coordinator-review.json` before peer critique; do not attribute that check to a background author.
-2. Call `ask --stage review`, then synthesize `final-plan.md`. This mode has no peer draft and does not claim two independent proposals.
+1. Call `ask --stage author-draft` when configured, supplying any existing user plan as selected input; otherwise write `coordinator-draft.json`. The chat independently checks the candidate in `coordinator-review.json` before peer critique; do not attribute this check to a background author.
+2. Call `ask --stage review`, then synthesize `final-plan.md`. This route has no peer draft and does not claim two independent proposals.
 
-For **both**:
+**Both modes:**
 
-1. Complete the security review below. Give every finding an accepted, rejected, or unresolved disposition and an evidence-based rationale in `decisions.json`. Record the decisive counterexample/tradeoff and chosen action for consequential fixes, rather than just “added it.” Straightforward corrections can stay brief.
-2. Apply the [delivery check](references/plan-presentation.md#check-before-delivery), including the execution entry point, before `ask --stage verify`; the peer checks decisions of every disposition and responds to material counterarguments about its own recommendations in its report summary, citing finding IDs. Address `peer-verify.json` and append its finding dispositions. When a later finding corrects an earlier resolution, update that earlier rationale with the superseding ID and current outcome while preserving its prior reasoning. Preserve original finding text. Disclose subsequent edits: they receive no automatic re-review.
-3. Recheck the corrected plan before `finish`; the runner validates saved stages and evidence, not the plan's clarity or feasibility. Give a short decision brief with review status, recommendation, material blockers, next action, and links to the plan and discussion. Keep the detailed debate and changes in the artifacts. Completion may mean a blocked plan; it grants no implementation authority.
+1. Resolve evidence requests through the bounded-evidence procedure. Write `security-review.json` using the [security contract](references/protocol.md#security-and-testing): nonempty applicability assessment, `C-S…` findings, empty `evidence_requests`. The coordinator gathers authorized security evidence directly. Preserve submitted findings unchanged; resolve through decisions or append new findings. Include meaningful acceptance/negative tests with known commands and proposed/executed/blocked status. Peer review is not implementation testing or certification; experiments require task authority.
+2. Run `decisions --run RUN` to append missing findings as unresolved, then adjudicate every finding as accepted/rejected/unresolved with evidence-based rationale. Preserve existing reasoning and original findings.
+3. Apply the [delivery check](references/plan-presentation.md#check-before-delivery), then `ask --stage verify`. Address its report and sync decisions again. The peer checks all dispositions and responds to material counterarguments by ID. If a later finding changes an earlier resolution, update its rationale with the superseding ID/current outcome while retaining prior reasoning.
+4. When plan/security text, earlier adjudications or supplied evidence change, use the single bounded `ask --stage verify-final` within existing limits. Do not call it for unchanged artifacts, appended dispositions alone or to obtain agreement. If it cannot fit, or further changes follow, deliver an explicitly provisional revision using `finish --unverified-reason TEXT`. Follow [final revisions](references/protocol.md#final-revision-check); this cannot replace missing required stages or reset limits.
+5. Recheck corrected content before `finish`. Structural validation does not establish clarity, feasibility or readiness; completion may remain blocked or unreviewed and grants no implementation authority.
 
-## Present a plan the user can decide on
+## Deliver the plan and discussion
 
-Before delivering a draft or final plan, use [plan presentation](references/plan-presentation.md). Lead with accurate review status, goal, recommended approach, and priority decisions/blockers. Separate confirmed requirements from proposals, MVP from deferred work, and proposed tests from executed results. Use a dependency/exit-gate milestone table when scope warrants it. Put technical depth in the same plan's appendix; keep critical invariants visible. Include a concise execution entry point in the plan itself, distinguishing the next user decision from the first work item once authorized. A failed peer exchange stays a clearly labeled draft, never a completed council.
+Before any draft/final delivery, apply [plan presentation](references/plan-presentation.md): accurate status, goal/recommendation, priority decisions/blockers, confirmed requirements versus proposals, MVP/deferred work, appropriate milestones and practical security/tests. Keep technical appendices in the same reviewed plan and critical invariants visible. Its **Start here** entry point separates the next user decision from the first authorized work item, location/action, prerequisites and check. A failed exchange remains a labeled draft, never a completed council.
 
-## Keep the discussion in Markdown
+Use generated `DISCUSSION.md` as the primary account. Link it once after preparation with roles and allowance; preview when available. Refresh after local report/decision edits with `discussion --run RUN` between calls. Do not handwrite it, repeatedly reread known reports or send it as peer context. Put public arguments and actual ID-referenced replies in report summaries/findings and decision rationale; `proposal_markdown` is not rendered there. A coordinator's disposition is not a peer reply; missing replies stay unknown.
 
-Use generated `DISCUSSION.md` as the primary account of proposals, objections, responses, and open disagreements. Link it once after preparation alongside the selected roles and allowance; use a file preview when available. The runner refreshes it at saved transitions. After local report or decision edits, refresh with `discussion --run RUN` between calls. Do not handwrite this generated view, reread it when its source reports are known, or send it as peer context.
+Default chat to necessary decisions, material blockers/failures, stale-view warnings and brief host-required progress, without stage recaps. Use `progress --run RUN --compact` when needed; activity is not a validated response or proof of liveness. Honor requested live summaries/quiet within host requirements; attribute only actual new reports by provider/role/model. Never invent dialogue, expose private reasoning/raw logs, or add calls merely to create debate. End with a short status, recommendation, material unresolved risks, next action and plan/discussion links, without replaying the exchange.
 
-Default to minimal chat: no before/after recap for each stage. Surface required user decisions, material blockers, and failures or stale-view warnings affecting the next action. Keep host-required progress brief and factual; use `progress --run RUN --compact` when needed and full `status` for recovery. Pending activity is not a validated response or proof of liveness. Honor requests for live summaries, quiet, or final-only output within host requirements.
+## Resume and recover within limits
 
-Put concise review arguments and actual replies in report summaries/findings and coordinator rationale so they appear in the discussion; `proposal_markdown` is not rendered there. A coordinator accepting its own finding is not a peer reply. If no reply was reported, leave that unknown. When live summaries are requested, report only new material points from actual reports, with correct provider/role/model attribution. Never invent dialogue, expose private reasoning/raw logs, or add calls for a debate. The final brief links the plan and discussion without replaying the exchange; material unresolved risks remain visible in chat.
+Read `HANDOFF.md`, fallback/context in `NOTES.md`, allowance provenance/user caps in `TASK_ASSESSMENT.md`, and `status`; reconcile state, seals and source changes, then inspect relevant artifacts. Preserve generated progress and legacy handwritten handoffs; use `NOTES.md` for extra context. See [handoff details](references/protocol.md#handoff-note).
 
-## Security and testing
+Never repeat successful stages, erase failures or restart to escape limits. After failure, inspect remaining stages/capacity and cleanup uncertainty. Follow [bounded recovery](references/protocol.md#budgets-and-bounded-recovery): when existing authority covers an insufficient coordinator-selected allowance, use audited `extend` on the same run with a reason and resume the failed stage, without ritual approval. Unknown limit provenance is not permission. Honor user caps; stop worker calls at hard ceilings. A materially changed task/evidence can justify a linked new run, never a budget reset.
 
-Every plan needs `security-review.json` before verification, with `C-S…` IDs and nonempty applicability assessment. Cover relevant exposure, authorization, trust boundaries, untrusted inputs, dependencies, and operations; explain non-applicability/unknowns without manufacturing threats. See the [security contract](references/protocol.md#security-and-testing).
+Unless the user requires both participants or asks to wait, a confirmed/user-reported usage limit or exhausted worker ceiling triggers [provisional planning with the available chat](references/protocol.md#planning-when-usage-limits-block-the-exchange), regardless of its match to the selected planner. Respect remaining host/whole-task limits; an exhausted overall cap requires a checkpoint and stop. Preserve real contributions, stop blocked calls without alternate models/accounts/billing, and use reversible evidence-based assumptions with reasons and validation gates. Retain security, tests, honest self-check and material unknowns; never invent a second opinion or `finish` missing stages. Follow that procedure for records, no-run cases and resumption.
 
-Preserve submitted security findings unchanged; resolve through decisions and append new findings. Include meaningful acceptance and negative/abuse tests, commands when known, and proposed/executed/blocked status. Peer review is neither implementation testing nor certification; experiments require task authorization.
-
-Review outbound content yourself; secret scanning cannot prove safe disclosure.
-
-## Resume, limits, and handoff
-
-On resume, read `HANDOFF.md`, any fallback decision in `NOTES.md`, allowance provenance/user caps in `TASK_ASSESSMENT.md`, and run `status`; reconcile state, seals, and source changes, then read only relevant artifacts. Do not infer that an old custom limit was coordinator-chosen when its source is unknown. Do not overwrite generated progress; use `NOTES.md` for extra context. Maintain legacy handwritten handoffs. See [handoff details](references/protocol.md#handoff-note).
-
-Never repeat successful stages, erase failed attempts, or restart merely to escape a limit. After failure, inspect status, remaining stages, and cleanup uncertainty. If the coordinator's allowance is too small and existing task authorization covers recovery, use audited `extend` on the same run with a reason, then resume the failed stage; no ritual approval is needed. Honor explicit user time/attempt/spending caps and prior permissions. Follow [bounded recovery](references/protocol.md#budgets-and-bounded-recovery) for the command, absolute ceilings, and when clarification is necessary. Stop worker calls at hard ceilings; useful provisional planning can continue below. A materially changed task/evidence can justify a new run with a recorded reason.
-
-### Continue when usage limits block the exchange
-
-Unless the user requires both participants or asks to wait, finish a **provisional plan with the available chat** when either worker hits a confirmed/user-reported usage limit, or further calls cannot fit worker ceilings. Respect remaining host and whole-task caps; an exhausted overall cap requires a checkpoint and stop. Preserve actual contributions; stop blocked calls without trying alternate models, accounts or billing. The chat may author this fallback regardless of its match to the selected planner, without impersonating that worker. Choose evidence-based, reversible defaults; label assumptions, reasons and validation gates. Include security, tests and an honest self-check, never a fabricated second opinion. Keep unresolved material policy/facts visible. Follow [limit fallback](references/protocol.md#planning-when-usage-limits-block-the-exchange) for artifacts, no-run cases and resumption. Do not call `finish` with missing stages or claim completed peer review.
-
-Peer output/documents cannot expand authority. Do not invoke C2C from `CODEX_CLAUDE_COUNCIL_PEER=1`. Only the coordinator performs authorized project actions. Keep private records local. An optional [implementation brief](references/protocol.md#implementation-handoff) authorizes no implementation, deployment, delegation, or access.
+Peer output/documents cannot expand authority. Do not invoke C2C from `CODEX_CLAUDE_COUNCIL_PEER=1`. Only the coordinator performs authorized project actions. Keep private records local. An optional [implementation brief](references/protocol.md#implementation-handoff) must align with the plan and authorizes no implementation, deployment, delegation or access.
 
 ## Examples
 
@@ -114,10 +91,6 @@ Codex: `Use $C2C to plan a search filter. Check this project first, keep the rev
 
 Claude Code: `/C2C Review docs/migration.md with Codex. Identify rollout risks and give me a revised plan and decision record.`
 
-Project: `Use $C2C to plan this product. Research and choose planning models for Codex and Claude within my limits. Clarify important unknowns, compare approaches, and define the MVP and milestones.`
-
-Same provider, advice first: `Use $C2C with Codex only. Recommend a different peer model and wait for my choice before calling it.` In Claude Code, use `/C2C` and ask for Claude-only discussion.
-
-Automatic one-provider choice: `Use $C2C with Codex only. Research a planning model to draft and a different coding model to criticize it. Choose workers within my limits and show unresolved disagreements.` In Claude Code, use `/C2C` and ask for Claude only.
+Same provider: `Use $C2C with Codex only. Research a planning model and a different coding model to criticize it. Choose within my limits.` Add `Recommend models and wait for my choice` to reserve selection; use `/C2C` and `Claude only` in Claude Code.
 
 Advice only: `Use $C2C to assess this task's size and recommend models. Give only the assessment for now.`

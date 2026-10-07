@@ -8,9 +8,10 @@ const REPORTS = [
   { name: 'peer-review.json', owner: 'peer', title: 'Review', stage: 'review' },
   { name: 'security-review.json', owner: 'coordinator', title: 'Security review' },
   { name: 'peer-verify.json', owner: 'peer', title: 'Final verification', stage: 'verify' },
+  { name: 'peer-verify-final.json', owner: 'peer', title: 'Revision verification', stage: 'verify-final' },
 ];
 const VERDICTS = { ready: 'ready', needs_changes: 'needs changes', insufficient_context: 'insufficient context' };
-const STAGES = { 'author-draft': 'Planner proposal', 'author-review': 'Planner review', draft: 'Independent proposal', review: 'Review', verify: 'Final verification' };
+const STAGES = { 'author-draft': 'Planner proposal', 'author-review': 'Planner review', draft: 'Independent proposal', review: 'Review', verify: 'Final verification', 'verify-final': 'Revision verification' };
 
 function reportSpecs(state) {
   return REPORTS.map(spec => state.author_model && (spec.name === 'coordinator-draft.json' || spec.name === 'coordinator-review.json' && state.mode === 'plan')
@@ -77,7 +78,7 @@ export function discussionSummary({ state, reports = [], decisions = [] }) {
 }
 
 /** Render only report summaries, findings, questions, and recorded coordinator decisions. */
-export function renderDiscussion({ state, reports = [], decisions = [], completion = state.completion, changesSinceVerification, warnings = [] }) {
+export function renderDiscussion({ state, reports = [], decisions = [], completion = state.completion, changesSinceVerification, warnings = [], evidenceRequests = [] }) {
   const summary = discussionSummary({ state, reports, decisions });
   const labels = { coordinator: authored(summary.coordinator), peer: authored(summary.peer), ...(summary.author ? { author: authored(summary.author) } : {}) };
   const visible = visibleReports(state, reports);
@@ -160,6 +161,7 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
     }
     if (report.assumptions?.length || report.open_questions?.length || report.limitations?.length) lines.push('');
   }
+  if (evidenceRequests.length) lines.push('## Evidence requests', '', ...evidenceRequests.map(request => `- **${authored(request.id)} · ${authored(request.status)}:** ${authored(request.question)}${request.path ? ` (${authored(request.path)})` : ''}${request.reason ? ` — ${authored(request.reason)}` : ''}${/^evidence-[1-9][0-9]*\.json$/.test(request.artifact || '') ? ` [Record](${request.artifact})` : ''}`), '', 'Resolved requests are preserved in sealed evidence records. File access is controlled by the coordinator.', '');
   lines.push('## Review boundary', '');
   const verified = state.stages?.verify?.status === 'succeeded';
   const changes = changesSinceVerification ?? completion?.changed_artifacts;
@@ -177,6 +179,7 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
   if (state.status === 'complete' && completion) {
     lines.push('The workflow is complete. [Final result](RESULT.md)', '');
     if (completion.peer_verdict) lines.push(`Final peer verdict: **${VERDICTS[completion.peer_verdict] || 'not recorded'}**.`, '');
+    if (completion.unverified_revision_reason) lines.push(`**Provisional revision:** ${authored(completion.unverified_revision_reason)}`, '');
     if (completion.source_changes?.length) lines.push('Some source inputs changed after the saved snapshot; the discussion uses that original snapshot.', '');
     if (completion.unavailable_sources?.length) lines.push('Some original inputs are now unavailable, so their current contents could not be compared.', '');
   }

@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, ask, finish, status, extend, discussion, validateReport, parsePeerResponse,
+  prepare, ask, finish, status, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -104,6 +104,148 @@ test('report validator rejects incomplete and invalid reports', () => {
   assert.throws(()=>validateReport(report(['C-D1','C-D1'])));
   assert.throws(()=>validateReport(report(['C-R1']),'C-D'));
   assert.equal(REPORT_SCHEMA.type,'object');
+});
+
+test('bounded final revision check reviews changed plan and prior counterarguments without replaying verification', async () => {
+  const f = await readyForVerify('revision-check', { mode:'review' });
+  await ask({run:f.out,stage:'verify'}, invocation(report(['P-V1'], 'Reject the unbounded remedy.')));
+  syncDecisions({run:f.out});
+  await write(path.join(f.out,'final-plan.md'), '# Revised plan\nUse a bounded remedy and verify its failure case.');
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  let packet;
+  await ask({run:f.out,stage:'verify-final'}, async request => {
+    packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    return invocation(report([], 'The revision addresses the material objection.'))(request);
+  });
+  assert.equal(packet.previous_verification.findings[0].id,'P-V1');
+  assert.ok(packet.changed_artifacts.includes('final-plan.md'));
+  assert.match(packet.final_plan,/bounded remedy/);
+  assert.match(packet.stage_instruction,/single bounded revision check/);
+  await assert.rejects(() => ask({run:f.out,stage:'verify-final'},invocation()), /already succeeded/);
+  const result = finish({run:f.out});
+  assert.equal(result.verification_stage,'verify-final');
+  assert.equal(result.delivered_plan_reviewed,true);
+  assert.equal(result.plan_changed_since_verification,false);
+  assert.equal(result.unresolved[0].finding_id,'P-V1');
+  assert.match(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8'), /Revision verification/);
+});
+
+test('bounded final checks preserve limits, failed attempts and explicit provisional completion', async () => {
+  const f = await readyForVerify('revision-limit',{mode:'review','max-attempts':'3'});
+  await ask({run:f.out,stage:'verify'},invocation());
+  await write(path.join(f.out,'final-plan.md'),'# Changed plan\nThis revision remains provisional.');
+  await assert.rejects(() => ask({run:f.out,stage:'verify-final'},async()=>{throw new Error('Synthetic limit');}), /Synthetic limit/);
+  await assert.rejects(() => ask({run:f.out,stage:'verify-final'},invocation()), /Attempt budget exhausted/);
+  assert.equal(status({run:f.out}).attempts_used,3);
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  const result=finish({run:f.out,'unverified-reason':'The explicit three-attempt allowance is exhausted; this revision is provisional.'});
+  assert.equal(result.outcome,'complete_with_unreviewed_revision');
+  assert.equal(result.delivered_plan_reviewed,false);
+  assert.equal(result.verification_stage,'verify');
+  assert.match(await fs.readFile(path.join(f.out,'RESULT.md'),'utf8'),/Provisional revision/);
+});
+
+test('changed adjudications require review while appended verifier dispositions and formatting do not', async () => {
+  const f = await readyForVerify('revision-decisions',{mode:'review'});
+  await ask({run:f.out,stage:'verify'},invocation(report(['P-V1'])));
+  const generated=syncDecisions({run:f.out});
+  assert.deepEqual(generated.added,['P-V1']);
+  const dp=path.join(f.out,'decisions.json');
+  const prior=await read(dp);
+  const changed=structuredClone(prior);changed[0].disposition='rejected';
+  changed[0].rationale='A new unsupported counterargument changed the decision.';
+  await write(dp,changed);
+  assert.throws(()=>finish({run:f.out}),/bounded verify-final/);
+  await write(dp,JSON.stringify(prior.slice().reverse()));
+  const result=finish({run:f.out});
+  assert.equal(result.adjudications_changed_since_verification,false);
+  assert.equal(result.delivered_plan_reviewed,true);
+});
+
+test('supplementary evidence is sealed, independently disclosed and accounted without extra calls', async () => {
+  const f = await fixture('request-evidence');
+  await hostDraft(f);
+  const peer=report([], 'The caller contract is missing.');
+  peer.evidence_requests=[{path:'caller.txt',id:'P-D-E1',question:'Does the caller require stable pagination?'}];
+  await ask({run:f.out,stage:'draft'},invocation(peer));
+  await write(path.join(f.project,'caller.txt'),'CALLER_FACT: pagination order must remain stable.');
+  assert.equal(status({run:f.out}).evidence_requests[0].status,'pending');
+  const supplied=evidence({run:f.out,request:'P-D-E1',status:'supplied',file:'caller.txt',reason:'The existing caller contract answers the missing requirement.','source-revision':'fixture revision 1'});
+  assert.equal(supplied.worker_calls,0);
+  assert.equal(status({run:f.out}).attempts_used,1);
+  assert.throws(()=>evidence({run:f.out,request:'P-D-E1',status:'supplied',file:'caller.txt',reason:'Attempt to overwrite earlier evidence.'}),/already resolved/);
+  await hostReview(f);
+  let packet;
+  await ask({run:f.out,stage:'review'},async request=>{
+    packet=JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    return invocation()(request);
+  });
+  assert.match(packet.supplementary_evidence[0].content,/CALLER_FACT/);
+  assert.equal(packet.supplementary_evidence[0].path,'caller.txt');
+  assert.equal(packet.supplementary_evidence[0].question,undefined);
+  assert.ok(!JSON.stringify(packet.supplementary_evidence).includes(f.project));
+  await write(path.join(f.out,'final-plan.md'),'# Plan\nRetain stable pagination ordering.');
+  await write(path.join(f.out,'security-review.json'),report());
+  await write(path.join(f.out,'decisions.json'),[]);
+  await ask({run:f.out,stage:'verify'},invocation(report(['P-V1'])));
+  syncDecisions({run:f.out});
+  await assert.rejects(()=>ask({run:f.out,stage:'verify-final'},invocation()),/No revised plan/);
+  assert.equal(status({run:f.out}).attempts_used,3,'Previously reviewed evidence and appended dispositions must not spend another attempt');
+  finish({run:f.out});
+  const record=await read(supplied.artifact);record.reason='Tampered immutable record';
+  await write(supplied.artifact,record);
+  assert.throws(()=>status({run:f.out}),/Sealed artifact changed/);
+});
+
+test('verification requires evidence dispositions and final evidence can trigger the bounded revision check', async () => {
+  const f=await readyForVerify('verification-evidence',{mode:'review'});
+  const verification=report();verification.evidence_requests=[{id:'P-V-E1',question:'What is the existing export limit?',path:'limits.txt'}];
+  await ask({run:f.out,stage:'verify'},invocation(verification));
+  assert.throws(()=>finish({run:f.out}),/pending evidence/);
+  await write(path.join(f.project,'limits.txt'),'The current exporter caps rows at 1000.');
+  evidence({run:f.out,request:'P-V-E1',status:'supplied',file:'limits.txt',reason:'The existing limit is available in the fixture.'});
+  assert.throws(()=>finish({run:f.out}),/bounded verify-final/);
+  let packet;
+  await ask({run:f.out,stage:'verify-final'},async request=>{
+    packet=JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);return invocation()(request);
+  });
+  assert.equal(packet.supplementary_evidence[0].status,'supplied');
+  assert.equal(finish({run:f.out}).evidence_changed_since_verification,false);
+});
+
+test('unavailable requested evidence stays explicit without inventing content or a paid call', async () => {
+  const f=await readyForVerify('unavailable-evidence',{mode:'review'});
+  const verification=report();verification.verdict='insufficient_context';
+  verification.evidence_requests=[{id:'P-V-E1',question:'Which data retention policy is approved?',path:''}];
+  await ask({run:f.out,stage:'verify'},invocation(verification));
+  evidence({run:f.out,request:'P-V-E1',status:'unavailable',reason:'The fixture supplies no approved retention policy; keep the decision conditional.'});
+  const result=finish({run:f.out});
+  assert.equal(result.peer_verdict,'insufficient_context');
+  assert.equal(result.successful_peer_calls,2);
+  assert.equal(result.evidence_changed_since_verification,false);
+  const visible=await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8');
+  assert.match(visible,/unavailable/);
+  assert.match(visible,/supplies no approved retention policy/);
+  assert.match(visible,/\[Record\]\(evidence-1.json\)/);
+  assert.equal(result.evidence_requests[0].status,'unavailable');
+});
+
+test('worker output schemas require evidence arrays while historical saved reports remain readable', () => {
+  assert.doesNotThrow(()=>validateReport(report()));
+  const args=buildPeerArgs('claude',{});
+  const schema=JSON.parse(args[args.indexOf('--json-schema')+1]);
+  assert.ok(schema.required.includes('evidence_requests'));
+  assert.throws(()=>validateReport({...report(),evidence_requests:[{id:'P-R-E1',path:'../private.txt',question:'Read this'}]},'P-R'),/traversal/);
+  assert.throws(()=>validateReport({...report(),evidence_requests:[{id:'P-D-E1',path:'src/a.txt',question:'Need contract'}]},'P-R'),/P-R-E/);
+});
+
+test('security evidence requests fail explicitly instead of becoming unresolvable worker requests', async () => {
+  const f=await readyForVerify('security-request');
+  const security=await read(path.join(f.out,'security-review.json'));
+  security.evidence_requests=[{id:'C-S-E1',question:'What is the authorization policy?',path:''}];
+  await write(path.join(f.out,'security-review.json'),security);
+  await assert.rejects(()=>ask({run:f.out,stage:'verify'},invocation()),/security-review.json must use an empty/);
+  assert.equal(status({run:f.out}).attempts_used,2);
 });
 
 test('project assessment rejects empty direction and unsupported deployment or readiness claims', () => {
@@ -310,7 +452,7 @@ test('prepare CLI accepts an explicit assessment and persists the preflight with
   assert.equal(result.status,0,result.stderr);
   assert.equal(JSON.parse(result.stdout).run,f.out);
   const manifest=await read(path.join(f.out,'run.json'));
-  assert.equal(manifest.version,4);
+  assert.equal(manifest.version,6);
   assert.equal(manifest.status,'prepared');
   assert.deepEqual(manifest.attempts,[]);
   assert.deepEqual(await read(path.join(f.out,'project-assessment.json')),assessment());
@@ -496,7 +638,8 @@ test('verification provenance identifies the version actually sent, including co
     return invocation()(req);
   });
   assert.ok(!prompt.includes('A completely new plan'));
-  const completed = await finish({run:f.out});
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   assert.equal(completed.changedSinceVerification,true,'runner falsely says modified plan was peer-verified');
   assert.deepEqual(completed.changed_artifacts,['final-plan.md']);
   assert.notEqual(completed.final_hashes['final-plan.md'],completed.reviewed_hashes['final-plan.md']);
@@ -508,7 +651,8 @@ test('post-verification plan edits cannot hide in a completed run', async () => 
   const f = await readyForVerify('verify-post-edit');
   await ask({run:f.out,stage:'verify'},invocation());
   await write(path.join(f.out,'final-plan.md'),'# Changed plan\nChanged after the peer returned.');
-  const completed = await finish({run:f.out});
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   assert.equal(completed.changedSinceVerification,true);
   await write(path.join(f.out,'final-plan.md'),'# Changed again\nChanged after completion.');
   await assert.rejects(async()=>status({run:f.out}));
@@ -778,6 +922,7 @@ test('completed runs reject budget changes and legacy runs retain their original
     const snapshotPath = path.join(f.out, 'snapshot.json');
     const snapshot = await read(snapshotPath);
     delete snapshot.participants;
+  delete snapshot.run_format;
     await write(snapshotPath, snapshot);
     manifest.seals['snapshot.json'] = createHash('sha256').update(await fs.readFile(snapshotPath)).digest('hex');
     await write(path.join(f.out, 'run.json'), manifest);
@@ -894,7 +1039,8 @@ test('security findings cannot be erased or rewritten after submission but new f
   await write(sp,second);
   await assert.rejects(async()=>finish({run:f.out}),/Missing decision for C-S2/);
   await write(dp,[...base,{finding_id:'C-S2',disposition:'unresolved',rationale:'New evidence needs another investigation before implementation.'}]);
-  const completed=await finish({run:f.out});
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   assert.ok(completed.changed_artifacts.includes('security-review.json'));
   assert.equal(completed.security_review.changed_since_verification,true);
   await write(sp,first);
@@ -909,7 +1055,8 @@ test('security edits during verification are reported against the submitted hash
     await write(sp,{...current,proposal_markdown:'Coordinator updated the security scope while peer verification was running.'});
     return invocation()(req);
   });
-  const completed=await finish({run:f.out});
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   assert.deepEqual(completed.changed_artifacts,['security-review.json']);
   assert.notEqual(completed.final_hashes['security-review.json'],completed.reviewed_hashes['security-review.json']);
 });
@@ -956,6 +1103,7 @@ test('legacy versions preserve their original security rules and never gain a pr
     const oldSnapshotPath=path.join(f.out,'snapshot.json');
     const oldSnapshot=await read(oldSnapshotPath);
     delete oldSnapshot.participants;
+    delete oldSnapshot.run_format;
     await write(oldSnapshotPath,oldSnapshot);
     manifest.seals['snapshot.json']=createHash('sha256').update(await fs.readFile(oldSnapshotPath,'utf8')).digest('hex');
     await write(path.join(f.out,'run.json'),manifest);
@@ -1432,7 +1580,8 @@ test('adjudication preserves adapted remedies, actual peer replies and later cor
   const updatedDecisions=decisions.map(decision=>decision.finding_id==='P-R1'?{...decision,rationale:updatedRationale}:decision);
   await write(path.join(f.out,'decisions.json'),[...updatedDecisions,{finding_id:'P-V1',disposition:'accepted',rationale:`Supersedes the P-R1 rationale: repeatability does not establish correct quoting. Current check: ${currentCheck}`}]);
   await write(path.join(f.out,'final-plan.md'),plan+'P-V1 supersedes the repeat-only check: compare independently specified expected CSV bytes and ensure a deliberate escaping defect fails.\n');
-  const completed=finish({run:f.out});
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   assert.equal(completed.successful_peer_calls,3);
   assert.equal(completed.attempts_used,3);
   assert.equal(completed.plan_changed_since_verification,true);
@@ -1661,7 +1810,8 @@ test('discussion preserves unresolved responses and post-verification revisions 
   assert.match(current,/Claude Code coordinates · Codex reviews/);
   assert.match(current,/plan changed after final peer verification/);
   assert.match(current,/Coordinator decision — unresolved/);
-  const completed=finish({run:f.out});
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   current=await fs.readFile(completed.discussion,'utf8');
   assert.match(current,/workflow is complete/);
   assert.match(current,/Final peer verdict: \*\*needs changes\*\*/);
@@ -1856,7 +2006,7 @@ test('selected background planners and critics complete both provider routes wit
     const models = authorModels(coordinator, pairing);
     const f = await fixture(`author-${coordinator}-${pairing}`, { coordinator, pairing, mode, ...models });
     const prepared = status({ run: f.out });
-    assert.equal((await read(path.join(f.out, 'run.json'))).version, 5);
+    assert.equal((await read(path.join(f.out, 'run.json'))).version, 6);
     assert.equal(prepared.participants.coordinator_model, null, 'The unknown host model must not be replaced by the selected planner');
     assert.equal(prepared.participants.author_model, models['author-model']);
     assert.equal(prepared.budget.successful_calls_remaining, mode === 'plan' ? 5 : 3);
@@ -2261,6 +2411,7 @@ test('a true version 3 cross-provider run remains resumable without identity dec
   const snapshotPath=path.join(f.out,'snapshot.json');
   const snapshot=await read(snapshotPath);
   delete snapshot.participants;
+  delete snapshot.run_format;
   await write(snapshotPath,snapshot);
   manifest.seals['snapshot.json']=createHash('sha256').update(await fs.readFile(snapshotPath)).digest('hex');
   await write(path.join(f.out,'run.json'),manifest);

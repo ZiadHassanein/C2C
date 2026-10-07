@@ -13,6 +13,9 @@ node RUNNER ask --run RUN --stage draft
 node RUNNER ask --run RUN --stage author-review
 node RUNNER ask --run RUN --stage review
 node RUNNER ask --run RUN --stage verify
+node RUNNER ask --run RUN --stage verify-final
+node RUNNER decisions --run RUN
+node RUNNER evidence --run RUN --request P-R-E1 --status supplied --file src/contract.txt --source-revision REVISION --reason "This scoped source answers the requested contract."
 node RUNNER progress --run RUN
 node RUNNER status --run RUN
 node RUNNER extend --run RUN --timeout-seconds NEW_CALL_TOTAL --budget-seconds NEW_RUN_TOTAL --reason "Coordinator-selected time allowance was too short; continuing the authorized plan."
@@ -53,7 +56,7 @@ For `--author-model`, also require the coordinator provider's `codex_only_ready`
 | `--author-model` | Optional background planning model in the coordinator provider. Its draft and, in plan mode, review use real CLI calls; the current chat remains coordinator. Requires a resolved peer model; same-provider workers must differ. |
 | `--peer-model` | Researched worker choice within the user's limits, or an explicitly pinned model. Required for an author worker and for `same`; legacy cross-provider manual commands may omit it. |
 
-`prepare` freezes selected inputs. It does not invoke a model, read the whole repository, or follow document links. Supply excerpts when full files contain unrelated or private content. An incomplete packet may correctly result in `insufficient_context`. Author-worker runs use version 5; host-authored runs retain version 4, and older formats remain readable. Version 3+ requires project assessment; `direction.clarity: needs_user_input` is rejected before creating a run. Resolve essential user choices first. `discovery_needed` supports bounded investigation with a next action and exit criterion.
+`prepare` freezes selected inputs. It does not invoke a model, read the whole repository, or follow document links. Supply excerpts when full files contain unrelated or private content. An incomplete packet may correctly result in `insufficient_context`. New runs use format 6 for evidence requests and explicit final-revision checks; formats 1–5 remain readable under their original completion rules. Version 3+ requires project assessment; `direction.clarity: needs_user_input` is rejected before creating a run. Resolve essential user choices first. `discovery_needed` supports bounded investigation with a next action and exit criterion.
 
 The project assessment contains shared facts and user constraints, not new architectural proposals. It is frozen in `snapshot.json`, saved as sealed `project-assessment.json`, rendered as `PROJECT_CONTEXT.md`, and sent once at every stage. Absolute project/input path metadata stays in the local snapshot; outbound file labels are relative or neutral. Authored evidence text is not automatically rewritten, so use relative source references and review it for private information. The runner checks shape and evidence-reference consistency, not the truth of deployment claims or production readiness. Read [project context and direction](project-assessment.md) before preparing it. Keep separate task/model advice out of peer packets.
 
@@ -62,6 +65,8 @@ Calls run sequentially. Do not edit reports while a call is running. Use `status
 Process handling lives in `scripts/process.mjs`. Streamed output already received is preserved in partial logs when a call times out or is interrupted. Use the safe status summary first, including any cleanup uncertainty, before a useful permitted retry. Raw logs are diagnostic evidence and may contain private reasoning or project content; do not repeatedly tail or expose them. Neither partial output nor attempted cleanup establishes successful review or confirmed termination.
 
 ## Budgets and bounded recovery
+
+The optional `verify-final` adds at most one successful worker call. It shares the original attempts/runtime and cannot repeat after success. Reserve capacity when revisions are likely; if none remains, deliver a provisional revision rather than expanding an explicit user cap. A five-call author route can use its sixth attempt for recovery or this check, not both unless earlier calls leave capacity.
 
 Use `standard` for bounded features and `project` for large or deep project planning. The profile supplies defaults; explicit flags win. Assess the actual task rather than giving every feature the largest allowance. Announce the selected per-call, cumulative runtime, and attempt ceilings before the first call. These limits bound subprocess runtime and launches, not money, tokens, or expected completion time. Slow useful activity does not extend a deadline automatically.
 
@@ -151,6 +156,43 @@ All JSON is UTF-8. Reports use the report schema below; the assessment uses its 
 | `IMPLEMENTATION_BRIEF.md` | Coordinator | Optional handoff for one selected milestone after plan completion; not executed or parsed by the runner. |
 
 Do not rewrite successful peer reports or earlier coordinator reports to erase disagreements. Use the final plan and decision record for synthesis. `finish` records reviewed and final hashes for the plan, decisions, and, in version 2 and newer runs, the security report. `changedSinceVerification` includes decision-record updates required for new verification findings. Use `plan_changed_since_verification` and `decisions_changed_since_verification` to distinguish them. Result counts separate successful peer responses from all launch attempts. Source status separates changed bytes from missing/unreadable originals. Disclose changes after verification; completion does not mean that revised artifacts received another peer check or that every recommendation is factually correct. Legacy version 1 completion does not satisfy the security requirement; legacy version 1/2 runs do not establish that the project assessment occurred.
+
+## Bounded evidence requests
+
+Reports may include `evidence_requests`: up to ten objects with `id`, `question`, and `path`. IDs use the report prefix plus `-E1`, for example `P-R-E1`; `path` is repository-relative or empty if unknown. CLI output schemas require an array, empty when nothing is needed. Historical/coordinator reports may omit it. Requests are public questions, not private reasoning or permission to access a source.
+
+The coordinator inspects each pending request, checks relevance and existing disclosure authority, and supplies only the necessary sanitized file. `--file` is relative to the prepared project; traversal, credential paths, binary input and symlink escapes are rejected. For an excerpt, create a sanitized file inside that project and use a clear relative `--label`. Record the original location/revision or an explicit unknown in the reason. A revision value is coordinator-declared provenance, not automatic Git attestation.
+
+```text
+node RUNNER evidence --run RUN --request P-R-E1 --status supplied --file src/contract.txt --source-revision REVISION --reason "This contract answers the requested compatibility question."
+node RUNNER evidence --run RUN --request P-R-E2 --status unavailable --reason "No approved policy exists in the supplied project; retain this as a decision gate."
+node RUNNER evidence --run RUN --request P-R-E3 --status rejected --reason "The requested private data is unnecessary; plan with the documented interface."
+```
+
+Each request receives one immutable resolution in sealed `evidence-N.json`; existing snapshots and successful reports stay intact. The runner applies credential scans and caps: 60 KB per supplied file, 20 supplemental files/120 KB, and 30 context files/240 KB combined with the original packet. At most 50 resolution records are retained. These limits do not prove safe disclosure. New facts augment the frozen evidence; conflicting revisions remain visible and may justify a new materially scoped run instead of mixing incompatible premises.
+
+Independent drafts receive no supplemental material. Critiques receive supplied facts without the requesting participant's question or rationale; verification sees full resolutions. Answer requests before verification and completion. Missing evidence stays unavailable/rejected with a reason; it must not become a fabricated fact or settled conclusion. Security-review evidence is gathered directly by the coordinator; `security-review.json` requires an empty request array. No evidence command launches a worker or broadens tool permissions. `status` and `DISCUSSION.md` list requests and outcomes.
+
+## Final revision check
+
+Run `decisions --run RUN` after reports to append missing findings as **unresolved**. Existing decisions are preserved. The generated rationale is a pending marker; the coordinator must still adjudicate the concern and remedy, keeping real unresolved risks visible. The command updates the discussion and makes no worker call.
+
+After `verify`, a format 6 run requires a review boundary for changed plan/security text, changes to earlier adjudications, or newly supplied evidence. Appending dispositions for new verifier findings and merely reformatting/reordering existing decisions do not require another call.
+
+```text
+node RUNNER ask --run RUN --stage verify-final
+node RUNNER finish --run RUN
+```
+
+This is one optional successful revision check, using the same peer and original shared budget. It includes the current plan, prior verification, decisions and evidence; findings use `P-F1` etc. It cannot run before verification, repeat after success, or launch when nothing material changed. Reviewers test consequential remedies and answer material counterarguments, preserving legitimate disagreement. It is not a consensus loop. Original reports and failed attempts remain intact.
+
+If there is insufficient authorized allowance, the provider is blocked, or further changes follow this last check, preserve a provisional revision:
+
+```text
+node RUNNER finish --run RUN --unverified-reason "The authorized allowance is exhausted; these corrections remain unreviewed."
+```
+
+All original required stages, finding dispositions and evidence-request resolutions must still exist. This option cannot manufacture a missing council. Completion records the latest successful verification, exact artifact hashes, whether the delivered plan was reviewed, and the reason for an unreviewed revision. Describe such a result as provisional. Unresolved findings or `needs_changes`/`insufficient_context` verdicts remain visible even when bytes match. Formats 1–5 retain their original completion behavior.
 
 ## Security and testing
 

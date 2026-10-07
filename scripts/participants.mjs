@@ -57,7 +57,8 @@ export function participantsFromOptions(options) {
 
 export function requiredStages(state) {
   const peer = state.mode === 'review' ? ['review', 'verify'] : ['draft', 'review', 'verify'];
-  return state.author_model ? state.mode === 'review' ? ['author-draft', ...peer] : ['author-draft', 'draft', 'author-review', 'review', 'verify'] : peer;
+  const stages = state.author_model ? state.mode === 'review' ? ['author-draft', ...peer] : ['author-draft', 'draft', 'author-review', 'review', 'verify'] : peer;
+  return state.version >= 6 && (state.stages?.['verify-final'] || state.attempts?.some(a => a.stage === 'verify-final')) ? [...stages, 'verify-final'] : stages;
 }
 
 export function stageWorker(state, stage) {

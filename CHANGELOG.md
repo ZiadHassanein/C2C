@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.11.2 — Clear execution entry points
+
+- Requires a concise Start here block in the plan itself: first work item, project location/action, prerequisites, scope boundary and acceptance check. Unknown paths or commands lead to bounded discovery; a request to approve the plan remains separate from the implementation start.
+- Checks organization and consistency before verification and after corrections, including scope, technical decisions, dependencies, finding dispositions, security and test status. Keeps consequential choices explicit without prescribing routine coding details.
+- Keeps the optional implementation brief aligned with the plan. Applies proportionally to small features, project roadmaps and provisional plans, using existing artifacts and review stages.
+- Changes skill guidance and documentation only. The runner does not enforce semantic plan quality; no additional peer calls or new performance/token-saving claims are introduced.
+
 ## 0.11.1 — Linux and macOS compatibility
 
 - Adds full-suite CI on Linux x64/ARM64 and macOS Apple Silicon/Intel, alongside Windows, using Node 18, 22 and 24. Logs the actual platform/architecture; each job is bounded and one failure does not cancel other platforms.

@@ -23,7 +23,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 | **Planning scaled to the task** | Uses focused review for a small feature or independent proposals for a design decision and project roadmap. |
 | **Mutual plan review** | Participants challenge assumptions and proposed fixes; decisions explain adopted or adapted remedies, tradeoffs, and unresolved findings. |
 | **Choice of participants** | Pair Codex with Claude, or explicitly request different models within Codex or Claude Code. |
-| **Clear plans** | Puts the recommendation, priority decisions, MVP, milestones, and next action before technical appendices. |
+| **Clear plans** | Puts decisions, MVP and milestones first, with a checked execution entry point before technical appendices. |
 | **Discussion in Markdown** | Updates `DISCUSSION.md` with attributed proposals, challenges, and responses; keeps chat focused on decisions and blockers. |
 | **Security and testing in every plan** | Requires a scoped security review and proposed acceptance checks, with gaps and unknowns preserved. |
 | **Current model research** | Checks official guidance for both providers on each new task, then selects suitable workers within your limits. Your chat model stays unchanged. |
@@ -192,13 +192,13 @@ For a prepared council, the chat links to the run folder. These are the main fil
 | File | Purpose |
 |---|---|
 | **`PROJECT_CONTEXT.md`** | Initial project evidence, deployment status, readiness gaps, and planning direction. |
-| **`final-plan.md`** | A decision brief, MVP/deferred scope, milestones or steps, security/testing checks, and technical appendices when needed. |
+| **`final-plan.md`** | A decision brief, MVP/deferred scope, milestones or steps, security/testing checks, a Start here block, and technical appendices when needed. |
 | **`RESULT.md`** | After completion: review outcome, remaining issues, and changes since verification. |
 | **`DISCUSSION.md`** | Generated account of proposals, challenges, decisions, and open questions as the exchange progresses. |
 | **`TASK_ASSESSMENT.md`** | Task size, risk, dated model research, selected roles, and allowance provenance. |
 | **`HANDOFF.md`** | Generated progress, evidence links, and the next action. |
 
-The run also retains detailed decisions and the security review. An optional `IMPLEMENTATION_BRIEF.md` hands off one selected milestone.
+The run also retains detailed decisions and the security review. **Start here** identifies the first work item, project entry point, prerequisites, action and acceptance check. The coordinator checks its consistency before verification and after corrections; unknowns become discovery tasks. An optional `IMPLEMENTATION_BRIEF.md` reuses this entry point for one selected milestone. Planning completion alone does not authorize coding.
 
 The plan starts with its real review status, recommendation, and priority decisions. Confirmed requirements stay separate from proposed choices. Larger plans use milestone dependencies and exit gates; technical depth follows the brief in the same document. A provisional plan identifies missing review; its council remains incomplete. If a usage block prevents preparation, the chat saves a standalone plan without claiming a run or discussion file exists. [Plan layout →](references/plan-presentation.md)
 

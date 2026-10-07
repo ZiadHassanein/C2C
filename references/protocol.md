@@ -175,7 +175,7 @@ At the first verification launch, the runner seals `security-review-submitted.js
 
 ## Implementation handoff
 
-After plan completion, the coordinator may write a concise `IMPLEMENTATION_BRIEF.md` for the selected milestone. It is a handoff document, not a runner command or an automatic implementation trigger. Include:
+Every delivered plan includes an [execution entry point](plan-presentation.md#make-the-execution-entry-point-explicit). After plan completion, the coordinator may extract a concise `IMPLEMENTATION_BRIEF.md` for the selected milestone. Keep it aligned with the current plan and its review status; new decisions require a plan revision, not a conflicting second plan. It is a handoff document, not a runner command or an automatic implementation trigger. Include:
 
 - Milestone ID, objective, scope/non-goals, and its relationship to the reviewed plan.
 - Link to `PROJECT_CONTEXT.md`, deployment evidence, readiness scope/gaps and any prerequisite for work with live impact.

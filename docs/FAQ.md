@@ -48,6 +48,12 @@ The user-facing plan leads with review status, the goal, a recommendation, and p
 
 If a peer call fails, C2C presents an organized draft and identifies the missing review. It does not label that work jointly approved or treat a planned test as an executed one.
 
+## How do I know where implementation starts?
+
+The plan includes a **Start here** block: first work item, relevant project location and action, prerequisites, scope boundary, and an acceptance check. Unknown paths or commands become explicit discovery tasks. If you requested approval before coding, it shows both your next decision and where implementation would begin afterward.
+
+The coordinator checks the plan's consistency before verification and again after corrections, including dependencies, finding dispositions, security and test status. This is an instruction-level check; the runner's `finish` command does not judge plan quality. An optional implementation brief reuses the same entry point. See the [execution entry point and delivery check](../references/plan-presentation.md#make-the-execution-entry-point-explicit).
+
 ## Does every plan include security and tests?
 
 Every new council requires a scoped security review and proposed acceptance checks. The plan preserves missing evidence, unresolved risks, and the distinction between proposed tests and tests actually executed. Completing the discussion does not certify security, production readiness, or a working implementation. The current runner's automated test evidence is documented in [benchmarks and validation](BENCHMARKS.md#software-validation).

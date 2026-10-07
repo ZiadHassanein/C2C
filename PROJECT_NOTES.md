@@ -22,6 +22,7 @@ The user explicitly requested suitability for both small features and big-projec
 - Version 0.10.3 preserves valid worker finding IDs and rejects malformed stage IDs without silently rewriting references. Historical benchmark instructions now pin the measured revisions.
 - Version 0.11.0 lets the available chat complete a provisional plan when a participant's usage limit blocks the council. Assumptions and missing review are explicit; hard task limits, actual evidence and partial run state are preserved.
 - Version 0.11.1 adds Linux/macOS compatibility fixes and native CI across Linux x64/ARM64 and macOS Apple Silicon/Intel. Windows remains covered.
+- Version 0.11.2 puts the execution entry point in every delivered plan and checks consistency before verification and after corrections. The optional implementation brief reuses that entry point.
 - Installed copies are audited against the previous release before updating, backed up outside discovery folders, and verified against all seventeen packaged files. Current machine-specific versions and backup paths are maintained in the private handoff.
 - Version 0.5.0 addresses the external reliability review: npm discovery and capability preflight, explicit coordinator routing, linked entrypoints, durable current-state recovery, process-identity locks, accurate progress/provenance, smaller private-context packets, wider secret checks, generated handoffs and line-ending-compatible installs. The version 3 planning format is retained.
 - Version 0.4.0 makes `C2C` the actual skill identifier and installed folder name. The installer refuses selected legacy folders before writing any files; users move those folders to backups outside all skill directories before reinstalling. Planning behavior and the version 3 run format are unchanged.
@@ -33,6 +34,16 @@ The user explicitly requested suitability for both small features and big-projec
 - Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
+
+### Version 0.11.2: plan organization and execution entry point
+
+The user requested an explicit check that a completed plan is organized and shows where execution begins. Existing presentation guidance covered scope, milestones, security/testing and a next action, but its detailed implementation contract was in an optional handoff. A plan could end at a request for approval without showing the first implementation action.
+
+The plan now contains a concise Start here block with the first work item, inspected or explicitly proposed project location, action, prerequisites, boundary and acceptance check. Missing paths/tooling lead to bounded discovery; pure product choices remain decisions instead of invented investigations. User decisions and the first authorized implementation action are distinct. Technical choices that control execution retain their rationale and status; routine coding details stay with implementation. Small features use a few lines, while roadmaps detail their first milestone.
+
+The coordinator checks consistency before peer verification and again after corrections, reconciling scope, technical decisions, milestone dependencies, finding dispositions and the entry point. Security/test status and unreviewed changes stay visible. This is instruction-level behavior, not semantic enforcement by finish. The same delivery guidance covers provisional plans within available limits, without claiming missing peer review or adding implementation authority. An optional implementation brief must remain aligned rather than becoming a contradictory second plan. Runtime, worker prompts, schemas and review-stage counts are unchanged.
+
+Validation: an independent audit and post-edit review found no blocking issue; a minor correction makes discovery conditional where a user choice needs no investigation. Four independent offline presentation scenarios covered a small feature awaiting a plan decision, authorized local work with production/payment blockers, a no-repository usage-limit fallback and a stale handoff contradicting reviewed .NET decisions. Their plans provided actionable or explicitly conditional entry points and retained review/test limits. Four installer checks passed locally with one expected POSIX skip; all 139 documentation targets and discovery/UI metadata checks passed. These are synthetic instruction/packaging checks, not live provider calls or a guarantee of model behavior. Platform results remain in the [CI workflow runs](https://github.com/ZiadHassanein/codex-claude-council/actions/workflows/test.yml).
 
 ### Version 0.11.1: Linux and macOS verification
 

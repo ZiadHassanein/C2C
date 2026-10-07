@@ -86,9 +86,9 @@ async function hostReview(f, ids = [], token = 'HOST_REVIEW_SECRET_952') {
 async function readyForVerify(label, options = {}) {
   const f = await fixture(label,options);
   await hostDraft(f,['C-D1']);
-  if ((options.mode ?? 'plan') === 'plan') await ask({run:f.out,stage:'draft'},invocation(report(['peer-any-id'])));
+  if ((options.mode ?? 'plan') === 'plan') await ask({run:f.out,stage:'draft'},invocation(report(['P-D1'])));
   await hostReview(f,['C-R1']);
-  await ask({run:f.out,stage:'review'},invocation(report(['peer-any-id'])));
+  await ask({run:f.out,stage:'review'},invocation(report(['P-R1'])));
   const ids = ['C-D1','C-R1','P-R1'];
   if ((options.mode ?? 'plan') === 'plan') ids.push('P-D1');
   await write(path.join(f.out,'security-review.json'),report([], 'SECURITY_REVIEW_PRIVATE_481: synthetic review of input handling; tests remain proposed'));
@@ -333,7 +333,7 @@ test('draft and mutual critique remain independent', async () => {
   await hostDraft(f);
   await write(path.join(f.out,'security-review.json'), report([], 'SECURITY_PRIVATE_BEFORE_VERIFICATION'));
   let draftRequest;
-  await ask({run:f.out,stage:'draft'},async req=>{ draftRequest=req; return invocation(report(['untrusted-id']))(req); });
+  await ask({run:f.out,stage:'draft'},async req=>{ draftRequest=req; return invocation(report(['P-D1']))(req); });
   assert.ok(draftRequest.prompt.includes('INPUT_CONTEXT_TOKEN'));
   assert.ok(!draftRequest.prompt.includes('HOST_DRAFT_SECRET_714'),'peer independent draft saw the coordinator draft');
   assert.ok(!draftRequest.prompt.includes('SECURITY_PRIVATE_BEFORE_VERIFICATION'));
@@ -429,7 +429,7 @@ test('all findings require a disposition before verification', async () => {
   await write(decisionsPath,[...decisions,{finding_id:'UNKNOWN',disposition:'accepted',rationale:'An unknown finding must not be silently accepted.'}]);
   await assert.rejects(async()=>ask({run:f.out,stage:'verify'},invocation()));
   await write(decisionsPath,decisions);
-  await ask({run:f.out,stage:'verify'},invocation(report(['untrusted-id'])));
+  await ask({run:f.out,stage:'verify'},invocation(report(['P-V1'])));
   await assert.rejects(async()=>finish({run:f.out}));
   await write(decisionsPath,[...decisions,{finding_id:'P-V1',disposition:'unresolved',rationale:'Further validation is required before proceeding.'}]);
   const completion = await finish({run:f.out});
@@ -1290,7 +1290,8 @@ test('lean packets preserve exact evidence, reports and verification data at eve
   const captured=[];
   const capture=async req=>{
     captured.push({prompt:req.prompt,packet:JSON.parse(req.prompt.split('COUNCIL_PACKET_JSON\n')[1])});
-    return invocation(report(['peer-finding'],'A material finding with complete evidence'))(req);
+    const id = { draft: 'P-D1', review: 'P-R1', verify: 'P-V1' }[captured.at(-1).packet.stage];
+    return invocation(report([id],'A material finding with complete evidence'))(req);
   };
   await hostDraft(f,['C-D1'],'Full independent proposal with unique architecture constraints');
   await ask({run:f.out,stage:'draft'},capture);
@@ -1341,10 +1342,10 @@ test('lean packets preserve exact evidence, reports and verification data at eve
 
 test('changes-only peer reviews can omit revision prose while retaining every finding', async () => {
   const f=await readyForVerify('delta-report',{mode:'review'});
-  const delta={...report(['new-finding'],'One remaining authorization gap'),proposal_markdown:''};
+  const delta={...report(['P-V1'],'One remaining authorization gap'),proposal_markdown:''};
   const result=await ask({run:f.out,stage:'verify'},invocation(delta));
   assert.equal(result.report.proposal_markdown,'');
-  assert.deepEqual(result.report.findings,[{...delta.findings[0],id:'P-V1'}]);
+  assert.deepEqual(result.report.findings,delta.findings);
   const decisions=await read(path.join(f.out,'decisions.json'));
   decisions.push({finding_id:'P-V1',disposition:'unresolved',rationale:'Requires the missing authorization policy before coding.'});
   await write(path.join(f.out,'decisions.json'),decisions);
@@ -1513,7 +1514,7 @@ test('common provider tokens and password-bearing connection strings are rejecte
 
 test('new verification dispositions do not imply the plan changed', async () => {
   const f=await readyForVerify('decision-only-change',{mode:'review'});
-  await ask({run:f.out,stage:'verify'},invocation(report(['some-id'])));
+  await ask({run:f.out,stage:'verify'},invocation(report(['P-V1'])));
   const decisions=await read(path.join(f.out,'decisions.json'));
   decisions.push({finding_id:'P-V1',disposition:'rejected',rationale:'The cited fixture evidence already addresses this concern.'});
   await write(path.join(f.out,'decisions.json'),decisions);
@@ -1613,7 +1614,7 @@ test('discussion updates before and after a real stage transition without enteri
     assert.match(current,/running \(last recorded state\)/);
     assert.doesNotMatch(current,/Peer public summary/);
     assert.doesNotMatch(request.prompt,/C2C generated discussion|COORDINATOR_DRAFT_NOT_IN_PEER_INPUT/);
-    return invocation(report(['peer-id'],'Peer public summary'))(request);
+    return invocation(report(['P-D1'],'Peer public summary'))(request);
   });
   assert.equal(result.discussion,path.join(f.out,'DISCUSSION.md'));
   const current=await fs.readFile(result.discussion,'utf8');
@@ -1650,7 +1651,7 @@ test('invalid mutable discussion decisions are flagged rather than rendered as a
 
 test('discussion preserves unresolved responses and post-verification revisions at completion', async () => {
   const f=await readyForVerify('discussion-completion',{mode:'review',coordinator:'claude'});
-  await ask({run:f.out,stage:'verify'},invocation(report(['new-finding'],'Final concern from Codex')));
+  await ask({run:f.out,stage:'verify'},invocation(report(['P-V1'],'Final concern from Codex')));
   const decisions=await read(path.join(f.out,'decisions.json'));
   decisions.push({finding_id:'P-V1',disposition:'unresolved',rationale:'The owner must choose this policy before implementation.'});
   await write(path.join(f.out,'decisions.json'),decisions);
@@ -1742,6 +1743,113 @@ const authorModels = (provider, pairing = 'same') => ({
   'peer-model': pairing === 'same' ? sameModels(provider)['peer-model'] : provider === 'codex' ? 'claude-opus-4-6' : 'gpt-5.4',
 });
 
+const workerReportStages = [
+  ['author-draft', 'coordinator-draft.json', 'C-D'],
+  ['draft', 'peer-draft.json', 'P-D'],
+  ['author-review', 'coordinator-review.json', 'C-R'],
+  ['review', 'peer-review.json', 'P-R'],
+  ['verify', 'peer-verify.json', 'P-V'],
+];
+
+test('all worker stages preserve gapped and out-of-order IDs and authored references through completion', async () => {
+  for (const coordinator of ['codex', 'claude']) {
+    const f = await fixture(`stable-worker-ids-${coordinator}`, { coordinator, ...authorModels(coordinator, 'cross') });
+    const reports = new Map(), packets = new Map(), savedReports = new Map();
+    const earlier = { 'author-draft': '', draft: '', 'author-review': 'C-D3 and P-D3', review: 'C-D3 and P-D3', verify: 'C-R3 and P-R3' };
+    for (const [stage, , prefix] of workerReportStages) {
+      const refs = `${prefix}3 is the first finding; ${prefix}1 is the second.${earlier[stage] ? ` Earlier findings ${earlier[stage]} retain their separate meaning.` : ''}`;
+      const value = report([`${prefix}3`, `${prefix}1`], refs);
+      value.proposal_markdown = `Public supporting context: ${refs}\nQuoted evidence: café, 車.`;
+      value.findings = value.findings.map(finding => ({ ...finding,
+        evidence: `Hypothetical fixture for ${finding.id}. ${refs}`,
+        action: `Resolve ${finding.id} without changing the other finding. ${refs}`,
+        verification: `Check the distinct condition recorded by ${finding.id}. ${refs}`,
+      }));
+      value.assumptions = [`Assumptions for ${prefix}3 and ${prefix}1 remain proposed.`];
+      reports.set(stage, value);
+    }
+    const worker = async request => {
+      const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+      packets.set(packet.stage, packet);
+      return invocation(reports.get(packet.stage))(request);
+    };
+    const decisions = [];
+    for (const [stage, file] of workerReportStages) {
+      if (stage === 'verify') {
+        await write(path.join(f.out, 'security-review.json'), report([], 'Synthetic security assessment; checks remain proposed.'));
+        await write(path.join(f.out, 'final-plan.md'), '# Plan\nPreserve the separate conditions and their original finding references.');
+        await write(path.join(f.out, 'decisions.json'), decisions);
+      }
+      const returned = await ask({ run: f.out, stage }, worker);
+      assert.deepEqual(returned.report, reports.get(stage), `${stage} returned report changed authored content`);
+      assert.deepEqual(await read(path.join(f.out, file)), reports.get(stage), `${stage} saved report changed authored content`);
+      savedReports.set(file, await fs.readFile(path.join(f.out, file), 'utf8'));
+      decisions.push(...reports.get(stage).findings.map(finding => ({ finding_id: finding.id,
+        disposition: finding.id === 'P-V3' ? 'unresolved' : 'accepted',
+        rationale: `${finding.id} retains its own condition; implementation checks remain proposed.`,
+      })));
+    }
+    for (const stage of ['author-review', 'review', 'verify']) {
+      assert.deepEqual(packets.get(stage).coordinator_proposal, reports.get('author-draft'));
+      assert.deepEqual(packets.get(stage).peer_proposal, reports.get('draft'));
+    }
+    assert.deepEqual(packets.get('verify').coordinator_review, reports.get('author-review'));
+    assert.deepEqual(packets.get('verify').peer_review, reports.get('review'));
+    assert.deepEqual(packets.get('verify').decisions, decisions.filter(item => !item.finding_id.startsWith('P-V')));
+    await write(path.join(f.out, 'decisions.json'), decisions);
+    const completed = finish({ run: f.out });
+    assert.equal(completed.successful_worker_calls, 5);
+    assert.deepEqual(completed.unresolved.map(item => item.finding_id), ['P-V3']);
+    assert.deepEqual(await read(path.join(f.out, 'decisions.json')), decisions);
+    const view = (await fs.readFile(path.join(f.out, 'DISCUSSION.md'), 'utf8')).replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    for (const [stage, file, prefix] of workerReportStages) {
+      assert.equal(await fs.readFile(path.join(f.out, file), 'utf8'), savedReports.get(file), 'Later stages must not rewrite sealed reports');
+      assert.ok(view.includes(reports.get(stage).summary));
+      for (const finding of reports.get(stage).findings) {
+        assert.ok(view.includes(`### ${finding.id} · major`));
+        assert.ok(view.includes(finding.evidence));
+        assert.ok(view.includes(finding.action));
+        assert.ok(view.includes(finding.verification));
+      }
+      assert.ok(!view.includes(`### ${prefix}2 ·`), 'Missing IDs must not be silently assigned');
+    }
+  }
+});
+
+test('all worker stages reject wrong-prefix and mixed malformed IDs while preserving failed output', async () => {
+  for (const [index, [stage, file, prefix]] of workerReportStages.entries()) {
+    const wrongPrefix = prefix === 'P-V' ? 'C-R' : 'P-V';
+    for (const ids of [[`${wrongPrefix}9`], [`${prefix}3`, 'arbitrary-id']]) {
+      const f = await fixture(`malformed-worker-ids-${stage}`, { ...authorModels('codex', 'cross') });
+      for (const [precedingStage] of workerReportStages.slice(0, index)) await ask({ run: f.out, stage: precedingStage }, invocation());
+      if (stage === 'verify') {
+        await write(path.join(f.out, 'security-review.json'), report());
+        await write(path.join(f.out, 'final-plan.md'), '# Plan\nKeep acceptance checks explicit.');
+        await write(path.join(f.out, 'decisions.json'), []);
+      }
+      const supplied = report(ids, `MALFORMED_REPORT_${stage}: preserve references to ${ids.join(', ')}.`);
+      let raw, provider;
+      await assert.rejects(() => ask({ run: f.out, stage }, async request => {
+        provider = request.provider;
+        const response = await invocation(supplied)(request);
+        raw = response.stdout;
+        return response;
+      }), new RegExp(`Finding ID must start with ${prefix} followed by a positive integer`));
+      const current = await read(path.join(f.out, 'run.json'));
+      assert.equal(current.status, 'peer_failed');
+      assert.equal(current.stages[stage], undefined);
+      assert.equal(current.seals[file], undefined);
+      assert.equal(current.attempts.length, index + 1);
+      assert.equal(current.attempts.at(-1).status, 'failed');
+      await assert.rejects(() => fs.access(path.join(f.out, file)));
+      const savedRaw = await fs.readFile(path.join(f.out, `attempt-${index + 1}-stdout.txt`), 'utf8');
+      assert.equal(savedRaw, raw);
+      assert.deepEqual(parsePeerResponse(provider, savedRaw).report, supplied, 'Malformed raw evidence must remain unchanged');
+      assert.doesNotMatch(await fs.readFile(path.join(f.out, 'DISCUSSION.md'), 'utf8'), /MALFORMED_REPORT/);
+    }
+  }
+});
+
 test('selected background planners and critics complete both provider routes with truthful provenance', async () => {
   for (const coordinator of ['codex', 'claude']) for (const pairing of ['same', 'cross']) {
     const mode = pairing === 'same' ? 'review' : 'plan';
@@ -1779,7 +1887,8 @@ test('selected background planners and critics complete both provider routes wit
       if (pairing === 'same' && !author) assert.match(packet.stage_instruction, /coding-focused implementation critic.*buildability.*testability/);
       if (pairing === 'cross') assert.doesNotMatch(packet.stage_instruction, /coding-focused implementation critic/);
       requestRecords.push({ stage: packet.stage, provider: request.provider });
-      return invocationWithModels(report(packet.stage === 'verify' ? [] : ['transport-id'], `REPORT_${packet.stage}`), [expectedModel])(request);
+      const id = { 'author-draft': 'C-D1', draft: 'P-D1', 'author-review': 'C-R1', review: 'P-R1' }[packet.stage];
+      return invocationWithModels(report(packet.stage === 'verify' ? [] : [id], `REPORT_${packet.stage}`), [expectedModel])(request);
     };
     const authorResult = await ask({ run: f.out, stage: 'author-draft' }, worker);
     assert.equal(authorResult.worker.role, 'author');

@@ -535,8 +535,8 @@ export async function ask(options, injectedInvoker) {
       for (const [file, hash] of Object.entries(state.seals)) required(sha(readText(path.join(dir, file))) === hash, `Sealed artifact changed during peer call: ${file}`);
       required(JSON.stringify(validateParticipants(loadRun(dir).state)) === JSON.stringify(validateParticipants(state)), 'Participant identities changed during peer call');
       const prefix = stage === 'author-draft' ? 'C-D' : stage === 'author-review' ? 'C-R' : stage === 'draft' ? 'P-D' : stage === 'review' ? 'P-R' : 'P-V';
-      // IDs are transport-assigned so each report has globally unique findings.
-      parsed.report.findings.forEach((finding, index) => { finding.id = `${prefix}${index + 1}`; });
+      // Preserve authored references; reject invalid stage IDs instead of renumbering findings.
+      validateReport(parsed.report, prefix);
       const file = stage === 'author-draft' ? 'coordinator-draft.json' : stage === 'author-review' ? 'coordinator-review.json' : `peer-${stage}.json`;
       write(path.join(dir, file), parsed.report); seal(dir, state, file);
       state.stages[stage] = { status: 'succeeded', file, attempt: attempt.number, input_sha256: attempt.input_sha256, reviewed_hashes: reviewedHashes };

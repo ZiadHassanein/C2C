@@ -2,9 +2,11 @@
 
 ## Version 0.10.0
 
-The current lossless efficiency change measured **2.00–3.54% smaller worker inputs** across four matching ordinary-input routes. Deliberately repeated-context cases saved **12.21–16.04%**; these conditional results are not normal-input expectations or additive to the first range. All evidence, roles, review stages and final hashes were preserved in fixed-output comparisons.
+The v0.10.0 lossless efficiency change measured **2.00–3.54% smaller worker inputs** across four matching ordinary-input routes. Deliberately repeated-context cases saved **12.21–16.04%**; these conditional results are not normal-input expectations or additive to the first range. All evidence, roles, review stages and final hashes were preserved in fixed-output comparisons.
 
 Read the [full v0.10.0 results](benchmarks/v0.10.0.md), [measurement JSON](benchmarks/v0.10.0-lossless-input.json), and [reproducible benchmark](../benchmarks/README.md). The test ran 24 offline workflows and 78 injected prompts, with no provider calls. It does not establish equal live-model quality, lower bills or faster responses. New background-author routing adds calls when needed, so compare each route against itself.
+
+The recorded comparison uses baseline commit `738afbf68a993a7ac81b6c4c1da5fbf6d05d63a2` and candidate `v0.10.0`. These percentages have not been remeasured for later releases or their changed prompts and chat behavior. Use the pinned checkout commands in the benchmark instructions to reproduce this historical result; newer prompt-changing releases are not expected to satisfy its exact instruction-equivalence check.
 
 ## Historical version 0.7.0
 

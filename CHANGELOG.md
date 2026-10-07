@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.10.3 — Stable references in the discussion
+
+- Preserves worker finding IDs, including gaps and report order, so replies, decision records and later review packets keep their references. Previously, silent renumbering could leave a reply pointing at a missing or different finding.
+- Rejects invalid or wrong-stage IDs in new worker reports instead of rewriting them. Failed output stays available for diagnosis; existing saved reports are not rewritten. Stage counts, prompts, budgets and run formats are unchanged.
+- Pins historical benchmark reproduction to the measured source versions. Version 0.10.0 measurements are not presented as measurements of later review prompts.
+
 ## 0.10.2 — Critique the fixes as well as the plan
 
 - Separates finding validity from remedy suitability. Consequential decisions explain the evidence, counterexample or alternative, chosen remedy and check; accepting a concern need not adopt its proposed fix.

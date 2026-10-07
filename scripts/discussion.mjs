@@ -1,5 +1,5 @@
 // A readable view of validated public reports. No model calls, log reads, or raw prompts.
-import { participantLabel } from './participants.mjs';
+import { participantLabel, requiredStages } from './participants.mjs';
 const PRODUCTS = { codex: 'Codex', claude: 'Claude Code' };
 const REPORTS = [
   { name: 'coordinator-draft.json', owner: 'coordinator', title: 'Proposal' },
@@ -10,7 +10,12 @@ const REPORTS = [
   { name: 'peer-verify.json', owner: 'peer', title: 'Final verification', stage: 'verify' },
 ];
 const VERDICTS = { ready: 'ready', needs_changes: 'needs changes', insufficient_context: 'insufficient context' };
-const STAGES = { draft: 'Independent proposal', review: 'Review', verify: 'Final verification' };
+const STAGES = { 'author-draft': 'Planner proposal', 'author-review': 'Planner review', draft: 'Independent proposal', review: 'Review', verify: 'Final verification' };
+
+function reportSpecs(state) {
+  return REPORTS.map(spec => state.author_model && (spec.name === 'coordinator-draft.json' || spec.name === 'coordinator-review.json' && state.mode === 'plan')
+    ? { ...spec, owner: 'author', stage: spec.name === 'coordinator-draft.json' ? 'author-draft' : 'author-review' } : spec);
+}
 
 // Encode punctuation before Markdown parsing, including URL punctuation and HTML.
 // Flatten authored newlines so they cannot introduce headings, lists, or link definitions.
@@ -29,7 +34,7 @@ function reportSource(state, entry) {
 }
 
 function visibleReports(state, reports) {
-  return REPORTS.flatMap(spec => {
+  return reportSpecs(state).flatMap(spec => {
     if (state.mode === 'review' && spec.stage === 'draft') return [];
     if (spec.stage && (state.stages?.[spec.stage]?.status !== 'succeeded' || !state.seals?.[spec.name])) return [];
     const entry = reports.find(item => item.name === spec.name);
@@ -58,14 +63,15 @@ export function discussionSummary({ state, reports = [], decisions = [] }) {
       counts[Object.hasOwn(counts, disposition) ? disposition : 'awaiting_response']++;
     }
   }
-  const stages = (state.mode === 'review' ? ['review', 'verify'] : ['draft', 'review', 'verify'])
+  const stages = requiredStages(state)
     .map(stage => ({ stage, status: stageStatus(state, stage) }));
   return {
-    coordinator: state.pairing === 'same' || state.coordinator_model ? participantLabel(state, 'coordinator') : PRODUCTS[state.coordinator] || 'Coordinator',
+    coordinator: state.author_model || state.pairing === 'same' || state.coordinator_model ? participantLabel(state, 'coordinator') : PRODUCTS[state.coordinator] || 'Coordinator',
     peer: state.pairing === 'same' || state.peer_model ? participantLabel(state, 'peer') : PRODUCTS[state.peer] || 'Peer',
+    ...(state.author_model ? { author: participantLabel(state, 'author'), successful_worker_calls: (state.attempts || []).filter(attempt => attempt.status === 'succeeded').length } : {}),
     pairing: state.pairing || 'cross',
     mode: state.mode, status: state.status, stages, findings: counts,
-    successful_peer_calls: (state.attempts || []).filter(attempt => attempt.status === 'succeeded').length,
+    successful_peer_calls: (state.attempts || []).filter(attempt => attempt.status === 'succeeded' && attempt.role !== 'author').length,
     attempts_used: (state.attempts || []).length,
   };
 }
@@ -73,23 +79,25 @@ export function discussionSummary({ state, reports = [], decisions = [] }) {
 /** Render only report summaries, findings, questions, and recorded coordinator decisions. */
 export function renderDiscussion({ state, reports = [], decisions = [], completion = state.completion, changesSinceVerification, warnings = [] }) {
   const summary = discussionSummary({ state, reports, decisions });
-  const labels = { coordinator: authored(summary.coordinator), peer: authored(summary.peer) };
+  const labels = { coordinator: authored(summary.coordinator), peer: authored(summary.peer), ...(summary.author ? { author: authored(summary.author) } : {}) };
   const visible = visibleReports(state, reports);
   const dispositions = new Map(decisions.map(item => [item.finding_id, item]));
   const counts = summary.findings;
   const lines = [
     '# C2C — discussion', '',
     `**${labels.coordinator} coordinates · ${labels.peer} reviews · ${state.mode === 'review' ? 'Focused review' : 'Independent planning'}**`, '',
+    ...(state.author_model ? [`**${labels.author}** drafts${state.mode === 'plan' ? ' and reviews the peer proposal' : ''}. The current chat synthesizes the plan and owns security review and finding decisions.`, ''] : []),
     ...(state.pairing === 'same' || state.coordinator_model || state.peer_model ? [
       `Pairing: **${state.pairing === 'same' ? 'same provider, separate model sessions' : 'cross provider'}**. Coordinator model: declared by the host or user. Peer model: ${state.peer_model ? 'requested via the CLI' : 'provider default'}. These labels do not attest the runtime model identity.`, '',
     ] : []),
     'This view shows authored report summaries, findings, and recorded responses. It is not a verbatim conversation or private reasoning. It refreshes at saved transitions or when the discussion command runs.', '',
     state.mode === 'review'
-      ? 'One coordinator proposal is reviewed. This mode does not produce two independent proposals.'
+      ? `One ${state.author_model ? 'selected planner' : 'coordinator'} proposal is reviewed. This mode does not produce two independent proposals.`
       : 'Both agents propose independently, then review. The coordinator records each decision; final verification checks the submitted synthesis.', '',
     '## Progress', '',
     `Run: **${state.status === 'complete' ? 'complete' : 'in progress'}**. Successful peer calls: **${summary.successful_peer_calls}**; attempts: **${summary.attempts_used}**.`, '',
-    '| Peer stage | Status |', '| --- | --- |',
+    ...(state.author_model ? [`Successful worker calls (author and peer): **${summary.successful_worker_calls}**.`, ''] : []),
+    '| Worker stage | Status |', '| --- | --- |',
     ...summary.stages.map(stage => `| ${STAGES[stage.stage]} | ${stage.status} |`), '',
   ];
   if (summary.stages.some(stage => stage.status.startsWith('running'))) {
@@ -101,7 +109,7 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
   lines.push(`Findings: **${counts.accepted} accepted · ${counts.rejected} rejected · ${counts.unresolved} unresolved · ${counts.awaiting_response} awaiting response**.`, '',
     'Decisions are the coordinator’s recorded judgments. An accepted finding does not prove the fix was implemented; a rejected finding does not prove the peer agreed.', '',
     state.seals?.['decisions.json'] ? 'Decision record: sealed at completion.' : 'Decision record: current working record; responses may change.', '');
-  const unavailable = REPORTS.filter(spec => spec.stage && state.stages?.[spec.stage]?.status === 'succeeded'
+  const unavailable = reportSpecs(state).filter(spec => spec.stage && state.stages?.[spec.stage]?.status === 'succeeded'
     && !visible.some(entry => entry.name === spec.name));
   const rejectedSources = reports.filter(entry => REPORTS.some(spec => spec.name === entry.name) && !reportSource(state, entry));
   const viewWarnings = [...warnings,
@@ -120,10 +128,10 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
       : entry.name === 'security-review.json' ? 'Current working copy; not sealed' : 'Current working draft; not yet submitted';
     const title = entry.name === 'coordinator-review.json'
       ? state.mode === 'review' ? 'Review of the candidate plan' : `Review of the ${labels.peer} proposal`
-      : entry.name === 'peer-review.json' ? `Review of the ${labels.coordinator} proposal` : entry.title;
+      : entry.name === 'peer-review.json' ? `Review of the ${labels.author || labels.coordinator} proposal` : entry.title;
     lines.push(`## ${product} · ${title}`, '', `**${provenance}.** [Report](${entry.source})`, '',
       authored(report.summary), '', `Report verdict: **${VERDICTS[report.verdict] || 'not recorded'}**.`, '');
-    if (entry.stage && state.pairing === 'same') {
+    if (entry.stage && (state.pairing === 'same' || state.author_model)) {
       const attemptNumber = state.stages?.[entry.stage]?.attempt;
       const attempt = Number.isSafeInteger(attemptNumber)
         ? (state.attempts || []).find(item => item.number === attemptNumber && item.status === 'succeeded') : null;

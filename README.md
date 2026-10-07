@@ -26,7 +26,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 | **Clear plans** | Puts the recommendation, priority decisions, MVP, milestones, and next action before technical appendices. |
 | **Visible discussion** | Shows stage updates and saves attributed proposals, challenges, and responses in `DISCUSSION.md`. |
 | **Security and testing in every plan** | Requires a scoped security review and proposed acceptance checks, with gaps and unknowns preserved. |
-| **Task sizing and model advice** | Recommends planning depth and suitable models without changing your settings. |
+| **Current model research** | Checks official guidance for both providers on each new task, then selects suitable workers within your limits. Your chat model stays unchanged. |
 | **Saved context and progress** | Keeps Markdown plans and handoffs, structured evidence, bounded attempts, and recovery checkpoints. |
 | **Proportional time and recovery** | Gives large plans more time, shows safe activity while waiting, and extends an existing run within audited ceilings when authorized. |
 | **Less repeated context** | Reuses reports and reduces prompt and output formatting overhead while retaining review stages and selected evidence. |
@@ -44,7 +44,7 @@ Install [Node.js 18 or newer](https://nodejs.org/en/download) and the **peer's c
 | Codex | [Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login` |
 | Claude Code | [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) | `codex login` |
 
-Install both CLIs to use the skill in both directions. For Codex-only discussion, install and sign in to Codex CLI; for Claude-only discussion, use Claude Code CLI. **You do not need the peer app or its terminal open.** C2C launches it without a window and reuses saved CLI authentication. Keep working in your starting chat. The installer does not install these prerequisites or sign you in.
+Install both CLIs for cross-provider planning with a background author, or to use the skill in both directions. The table covers a chat that supplies its own planning draft. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. **You do not need another app or terminal open.** C2C launches workers without windows and reuses saved CLI authentication. Keep working in your starting chat. The installer does not install these prerequisites or sign you in.
 
 ### 2. Download and install
 
@@ -74,7 +74,7 @@ Look for the readiness value matching your starting app:
 |---|---|
 | `"codex_chat_ready": true` | `"claude_chat_ready": true` |
 
-Only your chosen direction needs to be ready. For same-provider options, see [setup checks](docs/SETUP.md#check-your-setup). Older CLIs may lack required controls; follow the reported guidance. This checks setup and visible saved authentication without a model request; credentials may still expire or be rejected. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
+The peer's route must be ready. A background author also needs its own provider's CLI ready; cross-provider runs with both workers need both CLIs. See [setup checks](docs/SETUP.md#check-your-setup). Older CLIs may lack required controls; follow the reported guidance. This checks visible saved authentication without a model request; credentials may still expire or be rejected. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
 
 ### 4. Start a project chat
 
@@ -102,17 +102,17 @@ Replace the example with your task. Include relevant files, constraints, and suc
 
 ```text
 Use $C2C with Codex only to plan this feature.
-Recommend a different peer model; wait for my choice before calling it.
+Choose a planning model and a different coding-focused reviewer within my limits.
 Challenge assumptions, show disagreements, and put decisions before technical details.
 ```
 
 ```text
 /C2C Use Claude only to review this project plan.
-Recommend a different peer model; wait for my choice before calling it.
+Research current models and choose a planning author and a distinct coding critic.
 Challenge the approach with evidence and give me a clear revised plan.
 ```
 
-Same-provider discussion needs the current chat's full model ID and a different supported peer model ID. C2C resolves these from available evidence and your choice; it asks if a necessary ID or selection is missing. You can explicitly delegate choosing the peer model. The current chat stays unchanged. Separate calls provide independent contributions, but different models can share blind spots and the CLI may not report its actual model identity. [Pairing details →](docs/SETUP.md#choose-the-participants)
+Same-provider discussion uses a planning author and a different coding-focused critic. C2C researches both providers for each new task and selects suitable available workers within your limits. If your chat exactly matches the selected planner, it can supply the author's work; otherwise a background author runs without changing your chat. Different models can share blind spots, and reported identity may remain incomplete. [Pairing details →](docs/SETUP.md#choose-the-participants)
 
 The skill assesses your project first. You do not need to fill in a form or write the assessment files yourself.
 
@@ -123,9 +123,9 @@ The skill assesses your project first. You do not need to fill in a form or writ
 | **Whole project** | MVP scope, architecture, milestone dependencies, and a detailed first milestone. |
 | **Existing plan** | Review of a named plan file, with proposed changes and reasons. |
 
-**Model advice stays advisory.** Recommendations do not change your settings. For advice without a peer discussion, add: “Assess the task and recommend models. Keep my settings; advice only.”
+**You control model selection.** C2C chooses workers within your limits, records its reasons, and honors exact model choices. Your chat and global settings stay unchanged. For recommendations without worker calls, add: “Assess the task and recommend models; advice only.” [Selection policy →](references/model-selection.md)
 
-**Time follows the task.** Bounded work starts with up to 5 minutes per call, 15 cumulative peer minutes, and four attempts. Large/deep project plans use up to 10 minutes per call, 40 cumulative minutes, and five attempts. C2C states the allowance first and honors your explicit limits. If a call times out, it preserves completed work and can recover within the same run; it does not need a fresh start or an open peer terminal. These are ceilings, not duration estimates or spending caps. [Progress and recovery →](docs/SETUP.md#when-a-peer-call-takes-longer)
+**Time follows the task.** Bounded work starts with up to 5 minutes per call, 15 cumulative worker minutes, and four attempts. Large/deep plans use up to 10 minutes per call, 40 cumulative minutes, and five attempts. Independent planning with a background author defaults to six attempts for its five calls. Explicit caps take precedence. A timeout preserves completed work for recovery in the same run. These are ceilings, not duration estimates or spending caps. [Progress and recovery →](docs/SETUP.md#when-a-peer-call-takes-longer)
 
 **Less repetition by default.** In two offline v0.7.0 fixtures, peer-input tokens fell **8.19%** for a small feature and **10.93%** for a project roadmap; entry instructions were **12.18%** smaller. These are separate input-text measurements, not total-session savings or proof of equal planning quality. Review stages and selected evidence were retained. [Benchmark method and limits →](docs/BENCHMARKS.md)
 
@@ -151,7 +151,12 @@ The route can be a new build, an extension, hardening, discovery, or non-softwar
   <img src="docs/assets/workflow.svg" alt="Independent plan mode: assess project state and clarify direction, separate Codex and Claude proposals, mutual critique, coordinator synthesis with security and test checks, peer verification, then a final plan with decisions and open questions." width="960">
 </picture>
 
-**Independent planning** follows the six stages above and uses **3 successful peer calls**. **Focused review** starts with one candidate plan, followed by independent critiques, synthesis, and peer verification; it uses **2 successful peer calls**. Both include a security review.
+**Independent planning** follows the six stages above. **Focused review** starts with one candidate plan, followed by critiques, synthesis, and verification. Both include a security review. The illustration shows the host chat authoring its side; a selected background author supplies that work when needed.
+
+| Author of the plan | Focused review | Independent planning |
+|---|---|---|
+| Current chat matches the selected planner | 2 successful worker calls | 3 successful worker calls |
+| Selected background author | 3 successful worker calls | 5 successful worker calls, including the author's critique |
 
 The same stages apply to explicitly selected same-provider pairs. The final decision record explains which findings were accepted, rejected, or left unresolved. Edits made after peer verification are marked clearly. Reviewers challenge consequential assumptions and plausible failure cases; they need evidence for objections, not a quota of disagreements. Agreement is not required to finish.
 
@@ -187,7 +192,7 @@ The chat links to the run folder. These are the main files to read:
 | **`final-plan.md`** | A decision brief, MVP/deferred scope, milestones or steps, security/testing checks, and technical appendices when needed. |
 | **`RESULT.md`** | After completion: review outcome, remaining issues, and changes since verification. |
 | **`DISCUSSION.md`** | Generated account of proposals, challenges, decisions, and open questions as the exchange progresses. |
-| **`TASK_ASSESSMENT.md`** | Task size, risk, uncertainty, and model recommendations. |
+| **`TASK_ASSESSMENT.md`** | Task size, risk, dated model research, selected roles, and allowance provenance. |
 | **`HANDOFF.md`** | Generated progress, evidence links, and the next action. |
 
 The run also retains detailed decisions and the security review. An optional `IMPLEMENTATION_BRIEF.md` hands off one selected milestone.

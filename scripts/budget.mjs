@@ -1,4 +1,5 @@
 // Explicit runtime allowances and recovery accounting. No process or model calls.
+import { requiredStages } from './participants.mjs';
 const required = (ok, message) => { if (!ok) throw new Error(message); };
 const PROFILES = {
   standard: { timeout_ms: 300000, budget_ms: 900000, max_attempts: 4 },
@@ -22,7 +23,9 @@ function parsedLimits(options, defaults) {
 export function prepareBudget(options) {
   const profile = options['budget-profile'] ?? 'standard';
   required(Object.hasOwn(PROFILES, profile), 'budget-profile must be standard or project');
-  const limits = parsedLimits(options, PROFILES[profile]);
+  const defaults = { ...PROFILES[profile] };
+  if (options['author-model'] && (options.mode ?? 'plan') === 'plan') defaults.max_attempts = 6;
+  const limits = parsedLimits(options, defaults);
   return { ...limits, budget_profile: profile, initial_limits: { ...limits }, limit_history: [] };
 }
 
@@ -37,7 +40,7 @@ export function budgetSummary(state) {
   for (const [option, key, multiplier, min, max] of OPTIONS) {
     required(Number.isInteger(limits[key]) && limits[key] >= min * multiplier && limits[key] <= max * multiplier, `Invalid ${option} in run state`);
   }
-  const pending = (state.mode === 'review' ? ['review', 'verify'] : ['draft', 'review', 'verify'])
+  const pending = requiredStages(state)
     .filter(stage => state.stages[stage]?.status !== 'succeeded');
   const running = state.attempts.filter(attempt => attempt.status === 'running');
   for (const attempt of running) required(Number.isInteger(attempt.timeout_ms) && attempt.timeout_ms > 0 && attempt.timeout_ms <= 900000, 'Running attempt has an invalid reserved timeout');

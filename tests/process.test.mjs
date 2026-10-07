@@ -87,41 +87,57 @@ test('successful calls return stdout, stderr and exit status while streaming fil
 test('timeout retains emitted diagnostics and logs are visible before settlement', async () => {
   const stdoutPath = path.join(root, 'timeout-stdout.txt');
   const stderrPath = path.join(root, 'timeout-stderr.txt');
+  const timeoutMs = 3000;
   const began = Date.now();
   const pending = node("console.log('started');console.error('waiting');setTimeout(()=>{},8000);", {
-    timeoutMs: 700, stdoutPath, stderrPath,
+    timeoutMs, stdoutPath, stderrPath,
   });
-  const caught = rejection(pending);
-  let streamed = '';
-  for (let i = 0; i < 30; i++) {
-    streamed = await fs.readFile(stdoutPath, 'utf8');
-    if (streamed.includes('started')) break;
-    await pause(10);
+  let settled = false;
+  const caught = pending.then(
+    () => { settled = true; return null; },
+    error => { settled = true; return error; },
+  );
+  try {
+    let streamed = '';
+    const streamingDeadline = began + timeoutMs;
+    while (!settled && Date.now() < streamingDeadline) {
+      streamed = await fs.readFile(stdoutPath, 'utf8');
+      if (streamed.includes('started')) break;
+      await pause(10);
+    }
+    assert.match(streamed, /started/, 'Child did not emit startup output before the streaming deadline');
+    assert.equal(settled, false, 'Startup output must be observed before process settlement');
+    const error = await caught;
+    assert.ok(error, 'Expected the process invocation to reject');
+    assert.equal(error.reason, 'timeout');
+    assert.match(error.stdout, /started/);
+    assert.match(error.stderr, /waiting/);
+    assert.equal(await fs.readFile(stdoutPath, 'utf8'), error.stdout);
+    assert.equal(await fs.readFile(stderrPath, 'utf8'), error.stderr);
+    // Include the runtime's 2000 ms cleanup grace plus scheduling headroom.
+    assert.ok(Date.now() - began < timeoutMs + 2500, 'timeout settlement exceeded its bounded grace');
+    assert.ok(Object.hasOwn(error, 'code'));
+    assert.ok(Object.hasOwn(error, 'signal'));
+    assert.equal(error.termination.treeRequested, true);
+  } finally {
+    await caught;
   }
-  assert.match(streamed, /started/, 'stdout was only written after completion');
-  const error = await caught;
-  assert.equal(error.reason, 'timeout');
-  assert.match(error.stdout, /started/);
-  assert.match(error.stderr, /waiting/);
-  assert.equal(await fs.readFile(stdoutPath, 'utf8'), error.stdout);
-  assert.equal(await fs.readFile(stderrPath, 'utf8'), error.stderr);
-  assert.ok(Date.now() - began < 3500, 'timeout settlement exceeded its bounded grace');
-  assert.ok(Object.hasOwn(error, 'code'));
-  assert.ok(Object.hasOwn(error, 'signal'));
-  assert.equal(error.termination.treeRequested, true);
 });
 
 test('a timed out parent with an inheriting descendant settles with honest termination diagnostics', async () => {
   const descendant = "process.stdout.write('descendant-live\\n',()=>process.send('ready'));setTimeout(()=>{},8000);";
   const source = `const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:['ignore',1,2,'ipc'],windowsHide:true});console.log(JSON.stringify({descendantPid:c.pid}));setTimeout(()=>process.exit(2),8000);`;
+  const timeoutMs = 3000;
   const began = Date.now();
   let descendantPid;
   try {
-    const error = await rejection(node(source, { timeoutMs: 700 }));
-    descendantPid = JSON.parse(error.stdout.split(/\r?\n/).find(line => line.startsWith('{'))).descendantPid;
+    const error = await rejection(node(source, { timeoutMs }));
     assert.equal(error.reason, 'timeout');
+    const pidLine = error.stdout.split(/\r?\n/).find(line => line.startsWith('{'));
+    assert.ok(pidLine, 'Parent fixture did not emit descendant PID metadata before timeout');
+    descendantPid = JSON.parse(pidLine).descendantPid;
     assert.match(error.stdout, /descendant-live/);
-    assert.ok(Date.now() - began < 4000, 'parent/descendant timeout did not settle promptly');
+    assert.ok(Date.now() - began < timeoutMs + 2500, 'parent/descendant timeout did not settle promptly');
     assert.equal(error.termination.directExitObserved, true);
     assert.equal(error.termination.treeRequested, true);
     // A request/fallback is diagnostic evidence, not a claim that the descendant

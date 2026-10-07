@@ -7,6 +7,7 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 - Uses `ZiadHassanein/C2C` as the canonical repository name, with matching clone, ZIP, documentation, badge and guide links. Fresh Git clones use the `C2C` folder.
 - Renames private package metadata to `c2c` and documents how an existing clone updates its Git remote. `$C2C`, `/C2C` and installed skill folders keep their existing names.
 - Preserves legacy installation detection and migration instructions. Runtime behavior, saved planning runs and review stages are unchanged.
+- Gives two process-test fixtures more startup time on slower CI hosts while retaining timeout, streamed-output and termination checks. Runtime deadlines are unchanged.
 
 ## 0.11.2 — Clear execution entry points
 

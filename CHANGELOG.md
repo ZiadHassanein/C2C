@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.10.2 — Critique the fixes as well as the plan
+
+- Separates finding validity from remedy suitability. Consequential decisions explain the evidence, counterexample or alternative, chosen remedy and check; accepting a concern need not adopt its proposed fix.
+- Verification scrutinizes every disposition and the verifier's own earlier advice. Its summary records actual replies to material counterarguments with finding IDs, without manufactured disagreement or extra rounds.
+- Requires substantive corrections to have finding IDs and later corrections to be linked from earlier decision rationales. Markdown keeps peer replies distinct from coordinator judgments and does not infer missing responses.
+- Keeps existing schemas, run formats, stages, call limits, model selection, security and minimal-chat behavior. No new model-quality or token-saving guarantee is claimed.
+
 ## 0.10.1 — Discussion in Markdown, less repeated chat
 
 - Makes generated `DISCUSSION.md` the primary discussion record. Links it at kickoff and completion, without recapping every stage in chat by default.

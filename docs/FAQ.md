@@ -38,6 +38,10 @@ Yes. Open the linked `DISCUSSION.md`: it records attributed proposals, findings,
 
 Reviewers are asked to challenge consequential assumptions with evidence, counterexamples, and alternatives. Sound points may survive review; there is no required objection count and no instruction to agree. Same-provider updates distinguish the roles and known/requested models.
 
+## What if every finding is accepted?
+
+Acceptance alone does not tell you whether the review was critical. The decision rationale must distinguish the concern from its suggested fix: adopt a sound remedy, adapt an overbroad one, or leave a material gap unresolved. Consequential fixes need an evidence-based failure check or alternative and a clear tradeoff. Verification challenges accepted fixes as well as rejections, including its own earlier recommendations. Actual peer replies appear in report summaries; the coordinator cannot invent them. If a later finding replaces an earlier resolution, the decision record links that correction instead of leaving contradictory decisions current. [Decision contract](../references/protocol.md#decision-record).
+
 ## How is the plan organized?
 
 The user-facing plan leads with review status, the goal, a recommendation, and priority decisions or blockers. It separates confirmed requirements from proposals and MVP scope from deferred work. Project roadmaps use milestone deliverables, dependencies, and exit gates; smaller features use concise steps. Security and test checks show whether they are proposed, executed, or blocked. Review changes and the next action stay visible; technical detail follows in the same plan's appendix. See the [presentation guide](../references/plan-presentation.md).

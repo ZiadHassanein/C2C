@@ -107,7 +107,7 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
     lines.push('Failed or interrupted attempts provide no validated peer position. Partial output is excluded from this discussion.', '');
   }
   lines.push(`Findings: **${counts.accepted} accepted · ${counts.rejected} rejected · ${counts.unresolved} unresolved · ${counts.awaiting_response} awaiting response**.`, '',
-    'Decisions are the coordinator’s recorded judgments. An accepted finding does not prove the fix was implemented; a rejected finding does not prove the peer agreed.', '',
+    'Decisions are the coordinator’s recorded judgments. An accepted concern may use an adapted remedy; read the rationale for the recorded choice. Counts do not establish peer agreement, and no unrecorded reply is inferred. An accepted finding does not prove the fix was implemented; a rejected finding does not prove the peer agreed.', '',
     state.seals?.['decisions.json'] ? 'Decision record: sealed at completion.' : 'Decision record: current working record; responses may change.', '');
   const unavailable = reportSpecs(state).filter(spec => spec.stage && state.stages?.[spec.stage]?.status === 'succeeded'
     && !visible.some(entry => entry.name === spec.name));
@@ -149,8 +149,8 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
           `- **Proposed change:** ${authored(finding.action)}`,
           `- **Check:** ${authored(finding.verification)}`, '',
           decision
-            ? `**${labels.coordinator} response — ${authored(decision.disposition)}:** ${authored(decision.rationale)}`
-            : `**${labels.coordinator} response:** Awaiting a recorded decision.`, '');
+            ? `**${labels.coordinator} · Coordinator decision — ${authored(decision.disposition)}:** ${authored(decision.rationale)}`
+            : `**${labels.coordinator} · Coordinator decision:** Awaiting a recorded decision.`, '');
       }
     } else {
       lines.push('No findings recorded in this report. This does not establish agreement or absence of risk.', '');

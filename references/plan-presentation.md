@@ -32,7 +32,7 @@ Summarize applicable security measures and meaningful acceptance/negative checks
 
 ## Show what review changed
 
-Briefly connect significant challenges to the coordinator's decision: accepted and changed, rejected with evidence, or unresolved with its consequence. Cite finding IDs or report links when useful. Preserve a meaningful disagreement even if it prevents implementation. Empty findings do not require an invented argument; “no material objection reported” does not prove correctness or agreement with later edits.
+Briefly connect significant challenges to the coordinator's decision: concern accepted with remedy adopted or adapted, rejected with evidence, or unresolved with its consequence. State the decisive tradeoff when adapting a fix; reference superseding finding IDs when a later correction replaces an earlier resolution. Distinguish the peer's actual reply from the coordinator's own judgment. Preserve a meaningful disagreement even if it prevents implementation. Empty findings do not require an invented argument; “no material objection reported” does not prove correctness or agreement with later edits.
 
 End with the **next action**, its owner if known, and the condition for proceeding. For “show me the plan before coding,” the next action is the user's decision on the plan, not implementation started implicitly.
 

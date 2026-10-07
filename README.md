@@ -21,7 +21,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 |---|---|
 | **Project assessment first** | Records project evidence, production status, scoped readiness, goals, and the first useful action. |
 | **Planning scaled to the task** | Uses focused review for a small feature or independent proposals for a design decision and project roadmap. |
-| **Mutual plan review** | Independent participants challenge assumptions and failure cases; the coordinator records accepted, rejected, and unresolved findings. |
+| **Mutual plan review** | Participants challenge assumptions and proposed fixes; decisions explain adopted or adapted remedies, tradeoffs, and unresolved findings. |
 | **Choice of participants** | Pair Codex with Claude, or explicitly request different models within Codex or Claude Code. |
 | **Clear plans** | Puts the recommendation, priority decisions, MVP, milestones, and next action before technical appendices. |
 | **Discussion in Markdown** | Updates `DISCUSSION.md` with attributed proposals, challenges, and responses; keeps chat focused on decisions and blockers. |
@@ -158,7 +158,7 @@ The route can be a new build, an extension, hardening, discovery, or non-softwar
 | Current chat matches the selected planner | 2 successful worker calls | 3 successful worker calls |
 | Selected background author | 3 successful worker calls | 5 successful worker calls, including the author's critique |
 
-The same stages apply to explicitly selected same-provider pairs. The final decision record explains which findings were accepted, rejected, or left unresolved. Edits made after peer verification are marked clearly. Reviewers challenge consequential assumptions and plausible failure cases; they need evidence for objections, not a quota of disagreements. Agreement is not required to finish.
+The same stages apply to explicitly selected same-provider pairs. The final decision record explains which findings were accepted, rejected, or left unresolved. Accepting a concern does not automatically adopt its suggested fix: the coordinator checks consequential remedies against failure cases and simpler alternatives. Verification scrutinizes accepted fixes as well as rejections, including the verifier's own advice, and records actual replies to material counterarguments. Edits made after verification remain clearly marked. Agreement is not required, and no disagreement quota is imposed.
 
 ## Follow the discussion
 

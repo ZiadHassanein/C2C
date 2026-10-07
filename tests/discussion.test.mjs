@@ -35,7 +35,7 @@ test('reverse-role review attributes findings and recorded decisions to actual p
   assert.doesNotMatch(text, /\| Independent proposal \|/);
   assert.match(text, /## Codex · Review/);
   assert.match(text, /\*\*Codex:\*\* Anonymous inventory writes are possible&#46;/);
-  assert.match(text, /\*\*Claude Code response — accepted:\*\* Add the role check to the plan&#46;/);
+  assert.match(text, /\*\*Claude Code · Coordinator decision — accepted:\*\* Add the role check to the plan&#46;/);
   assert.match(text, /Sealed submitted report/);
   assert.match(text, /\[Report\]\(peer-review.json\)/);
 });
@@ -85,7 +85,7 @@ test('all finding details, disagreements, open questions, and unresolved respons
   const text = renderDiscussion(input);
   assert.deepEqual(discussionSummary(input).findings, { accepted: 0, rejected: 1, unresolved: 1, awaiting_response: 1 });
   for (const phrase of ['The proposal has no authorization step', 'Check the admin role for every inventory mutation',
-    'An unauthenticated request must fail', 'response — rejected', 'response — unresolved', 'Awaiting a recorded decision',
+    'An unauthenticated request must fail', 'Coordinator decision — rejected', 'Coordinator decision — unresolved', 'Awaiting a recorded decision',
     'Who can delete inventory', 'One seller', 'No repository access']) assert.ok(text.includes(phrase), phrase);
   assert.match(text, /rejected finding does not prove the peer agreed/);
 });
@@ -98,6 +98,33 @@ test('authored Markdown, HTML, links, controls, and forged headings cannot becom
   assert.match(text, /&#60;script&#62;alert&#40;1&#41;&#60;&#47;script&#62;/);
   assert.match(text, /&#35; Forged/);
   assert.match(text, /\[Report\]\(coordinator-draft.json\)/);
+});
+
+test('adapted remedies and peer replies remain separately attributed without inventing missing replies', () => {
+  const concern=finding('P-R1',{claim:'Quoted fields lack a regression check.',evidence:'The brief requires quoted fields to round-trip.',
+    action:'Replace the serializer subsystem.',verification:'Compare output with independently specified expected CSV bytes.'});
+  const rationale='Concern accepted; remedy adapted. Keep the existing serializer and use its quote helper to avoid compatibility risk; check expected CSV bytes and ordering.';
+  const run=state({mode:'review',stages:{review:{status:'succeeded'}},seals:{'peer-review.json':'review-hash'}});
+  const reports=[{name:'peer-review.json',report:report({summary:'P-R1 raises a quoting concern.',findings:[concern]})}];
+  const decisions=[{finding_id:'P-R1',disposition:'accepted',rationale}];
+  const decode=text=>text.replace(/&#(\d+);/g,(_,code)=>String.fromCharCode(Number(code)));
+  const before=decode(renderDiscussion({state:run,reports,decisions}));
+  assert.ok(before.includes(`**Proposed change:** ${concern.action}`));
+  assert.ok(before.includes(`**Codex · Coordinator decision — accepted:** ${rationale}`));
+  assert.match(before,/accepted concern may use an adapted remedy/);
+  assert.match(before,/Counts do not establish peer agreement/);
+  assert.match(before,/no unrecorded reply is inferred/);
+  assert.doesNotMatch(before,/## Claude Code · Final verification/);
+  const reply='On P-R1, I revise my rewrite recommendation: the supplied quote helper supports the narrower remedy without changing the format contract.';
+  run.stages.verify={status:'succeeded'};
+  run.seals['peer-verify.json']='verify-hash';
+  reports.push({name:'peer-verify.json',report:report({summary:reply,proposal_markdown:''})});
+  const after=decode(renderDiscussion({state:run,reports,decisions}));
+  assert.ok(!before.includes(reply));
+  assert.ok(!after.split('## Claude Code · Final verification')[0].includes(reply));
+  assert.ok(after.split('## Claude Code · Final verification')[1].includes(reply));
+  assert.match(after,/No findings recorded in this report. This does not establish agreement or absence of risk/);
+  assert.deepEqual(discussionSummary({state:run,reports,decisions}).findings,{accepted:1,rejected:0,unresolved:0,awaiting_response:0});
 });
 
 test('verification limits distinguish changed plan, changed decisions, and unknown current hashes', () => {
@@ -203,7 +230,7 @@ test('same-provider discussions distinguish the model roles and retain disagreem
     assert.equal(summary.findings.unresolved, 1);
     const text = renderDiscussion(input).replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
     assert.ok(text.includes(`${peerModel} (peer):** Anonymous inventory writes are possible.`));
-    assert.ok(text.includes(`${coordinatorModel} (coordinator) response — unresolved:`));
+    assert.ok(text.includes(`${coordinatorModel} (coordinator) · Coordinator decision — unresolved:`));
     assert.match(text, /separate model sessions/);
     assert.match(text, /do not attest the runtime model identity/);
     assert.match(text, /access policy still needs an owner decision/);

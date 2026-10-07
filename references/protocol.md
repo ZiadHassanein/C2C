@@ -276,7 +276,7 @@ Each draft, review, security review, and verification report uses this complete 
 {
   "summary": "Concise account of the proposal or review result.",
   "verdict": "needs_changes",
-  "proposal_markdown": "The independent proposal, reviewed plan, or proposed revisions.",
+  "proposal_markdown": "The independent proposal, or optional supporting context for a review.",
   "findings": [
     {
       "id": "C-R1",
@@ -298,8 +298,8 @@ Each draft, review, security review, and verification report uses this complete 
 - All top-level keys and all finding keys are required. Empty arrays are valid; do not manufacture findings merely to fill them.
 - Coordinator draft IDs use `C-D1`, `C-D2`, and so on; coordinator critique IDs use `C-R1`, `C-R2`, and so on; security review IDs use `C-S1`, `C-S2`, and so on. Peer IDs use `P-D1`, `P-R1`, or `P-V1` with increasing numbers within that report. Keep IDs unique and stable.
 - Cite relevant supplied sources or observed experiment results in `evidence`. An assumption or hypothetical failure must be labeled as such. An absence of evidence is not proof of a defect.
-- `proposal_markdown` carries the independent plan for a draft and useful proposed changes for a review; do not claim that proposed tests have already run.
-- Review and verification `proposal_markdown` may be empty when structured findings contain all useful changes. Do not duplicate findings or restate the whole plan there. Drafts still need complete nonempty proposals; security reviews still need their nonempty applicability assessment. There is no minimum report word count. Retain all material findings, assumptions, questions and limitations.
+- `proposal_markdown` carries the independent plan for a draft. For review/verification it is optional supporting context; substantive corrections belong in numbered findings. Do not claim that proposed tests have already run.
+- Review and verification `proposal_markdown` may be empty. Do not duplicate findings, restate whole plans or hide additional action items there. Put concise pressure tests and actual ID-referenced replies in `summary` or findings so the discussion view shows them. Drafts still need complete nonempty proposals; security reviews still need their nonempty applicability assessment. There is no minimum report word count. Retain all material findings, assumptions, questions and limitations.
 
 ## Token efficiency
 
@@ -316,14 +316,22 @@ The efficiency change does not reduce models, effort, security or review stages.
 ```json
 [
   {
-    "finding_id": "C-R1",
+    "finding_id": "P-R1",
     "disposition": "accepted",
-    "rationale": "Added the restore checkpoint and a rehearsal acceptance criterion in final-plan.md."
+    "rationale": "The supplied handler lacks an owner check, so the concern is accepted. Replacing the authentication service would expand scope without fixing this boundary; adapt the remedy by using the existing owner policy on this route. The plan includes a cross-user negative test, still proposed."
   }
 ]
 ```
 
-`disposition` is `accepted`, `rejected`, or `unresolved`. Record a specific reason for each choice. A rejection should explain why the finding is incorrect, inapplicable, or outweighed by a concrete constraint; "disagree" is inadequate. For unresolved findings, explain the missing evidence or decision and its effect on proceeding. Related or duplicate findings retain separate IDs and may reference the same resolution. With no findings, use `[]`.
+`disposition` is `accepted`, `rejected`, or `unresolved`. Judge the concern separately from its proposed remedy. Accepting a concern may mean adopting or adapting the remedy, or retaining an existing control supported by evidence; say which in `rationale`. Accepting every finding is neither proof of a good review nor automatically wrong. Do not require a rejection quota.
+
+For consequential remedies, record the supplied evidence, a credible counterexample or practical alternative and its tradeoff, the chosen action, and the check or decision still needed. Consider whether the fix introduces a failure mode, user friction, dependency or unnecessary scope. A tautological acceptance check does not validate the fix. Keep straightforward corrections concise; repeating a checklist for every minor point wastes context.
+
+Reject incorrect, inapplicable or disproportionate recommendations with evidence and the chosen alternative. Use `unresolved` if a material part of the concern remains open; agreement with only part of it must not hide that gap. New business policy remains proposed pending the user's decision. Every disposition receives the same scrutiny during verification, including the verifier's own earlier advice. Structural validation checks IDs, coverage and bounded rationale text; it cannot prove sound judgment.
+
+When a later finding overturns an earlier resolution, update the earlier rationale to say what was originally chosen, which finding supersedes it, and the current action/check. Preserve the original finding and substantive prior reasoning; do not leave contradictory decisions appearing current. Related or duplicate findings retain separate IDs and may reference one resolution. With no findings, use `[]`; the report summary can explain the decisive evidence and review limits without invented objections.
+
+The peer's verification summary supplies its actual response to material counterarguments about its own proposal or recommendations, citing the relevant finding IDs and whether its position stands, changes, or remains uncertain. A coordinator's disposition of its own critique is not that response. Put substantive new corrections in numbered findings, including corrections first discussed in prose; `proposal_markdown` is supporting context, not a second untracked task list. Do not invent a peer finding ID or agreement when an older report lacks one: identify any resulting coordinator-proposed change and its review limit explicitly in the plan.
 
 ## Authentication, permissions, and limits
 

@@ -53,9 +53,11 @@ Save compact `TASK_ASSESSMENT.md`: size/complexity/risk/uncertainty, dated sourc
 
 ## Run the selected workflow
 
-Use the [report schema](references/protocol.md#report-schema) and [file contract](references/protocol.md#file-contract), or generated schemas. Keep drafts and final plans self-contained. In critique/verification prose, describe changes instead of repeating whole proposals. Write each substantive finding once with evidence, correction, and verification; retain every material risk or uncertainty. Compactness never justifies omitted findings, required fields, tests, or review stages.
+Use the [report schema](references/protocol.md#report-schema) and [file contract](references/protocol.md#file-contract), or generated schemas. Keep drafts and final plans self-contained. In critique/verification prose, describe changes instead of repeating whole proposals. Every substantive correction needs a finding ID with evidence, action, and verification; do not hide extra recommendations in prose. Retain every material risk or uncertainty. Compactness never justifies omitted findings, required fields, tests, or review stages.
 
 Critique as an independent skeptic: test consequential assumptions, realistic counterexamples, alternatives, and failure cases against the evidence. Accept sound points with reasons; reject or leave unresolved weak claims. Do not aim for agreement, invent objections, or demand a disagreement quota.
+
+Before adopting a remedy, assess the concern and the proposed fix separately. Test consequential fixes against a credible failure case or simpler alternative, including added scope, user friction and operational cost. In the existing decision rationale, say whether the remedy is adopted, adapted, or declined and why; an acceptance is not an automatic instruction to implement the reviewer's fix. Keep material unresolved parts unresolved. See [decision record](references/protocol.md#decision-record).
 
 For **plan**:
 
@@ -70,8 +72,8 @@ For **review**:
 
 For **both**:
 
-1. Complete the security review below. Give every finding an accepted, rejected, or unresolved disposition and substantive rationale in `decisions.json` ([contract](references/protocol.md#decision-record)).
-2. Call `ask --stage verify`; address `peer-verify.json` and append its finding dispositions. Preserve earlier findings. Disclose subsequent edits: they receive no automatic re-review.
+1. Complete the security review below. Give every finding an accepted, rejected, or unresolved disposition and an evidence-based rationale in `decisions.json`. Record the decisive counterexample/tradeoff and chosen action for consequential fixes, rather than just “added it.” Straightforward corrections can stay brief.
+2. Call `ask --stage verify`; the peer checks decisions of every disposition and responds to material counterarguments about its own recommendations in its report summary, citing finding IDs. Address `peer-verify.json` and append its finding dispositions. When a later finding corrects an earlier resolution, update that earlier rationale with the superseding ID and current outcome while preserving its prior reasoning. Preserve original finding text. Disclose subsequent edits: they receive no automatic re-review.
 3. Run `finish`. Give a short decision brief with review status, recommendation, material blockers, next action, and links to the plan and discussion. Keep the detailed debate and changes in the artifacts. Completion may mean a blocked plan; it grants no implementation authority.
 
 ## Present a plan the user can decide on
@@ -84,7 +86,7 @@ Use generated `DISCUSSION.md` as the primary account of proposals, objections, r
 
 Default to minimal chat: no before/after recap for each stage. Surface required user decisions, material blockers, and failures or stale-view warnings affecting the next action. Keep host-required progress brief and factual; use `progress --run RUN --compact` when needed and full `status` for recovery. Pending activity is not a validated response or proof of liveness. Honor requests for live summaries, quiet, or final-only output within host requirements.
 
-When live summaries are requested, report only new material points from actual reports. Attribute provider, role, and known/requested model correctly. Coordinator decisions do not prove peer agreement. Never invent dialogue, expose private reasoning/raw logs, or add calls for a debate. The final brief links the plan and discussion without replaying the exchange; material unresolved risks remain visible in chat.
+Put concise review arguments and actual replies in report summaries/findings and coordinator rationale so they appear in the discussion; `proposal_markdown` is not rendered there. A coordinator accepting its own finding is not a peer reply. If no reply was reported, leave that unknown. When live summaries are requested, report only new material points from actual reports, with correct provider/role/model attribution. Never invent dialogue, expose private reasoning/raw logs, or add calls for a debate. The final brief links the plan and discussion without replaying the exchange; material unresolved risks remain visible in chat.
 
 ## Security and testing
 

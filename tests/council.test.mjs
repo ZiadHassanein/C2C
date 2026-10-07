@@ -1351,6 +1351,101 @@ test('changes-only peer reviews can omit revision prose while retaining every fi
   assert.equal(finish({run:f.out}).unresolved[0].finding_id,'P-V1');
 });
 
+test('adjudication preserves adapted remedies, actual peer replies and later corrections within the existing stages', async () => {
+  // Fictional authored reports check transport and provenance, not model judgment quality.
+  const f=await inputFixture('adjudication');
+  await write(f.context,'The synchronous exporter handles at most 200 rows. Its existing serializer has stable ordering and a quote-escaping helper. No download retention policy is supplied.');
+  await prepare(prepareOptions(f));
+  const finding=(id,claim,evidence,action,verification)=>({id,severity:'major',claim,evidence,action,verification});
+  const peerDraft={...report(),summary:'Retain reliable CSV output; proposed changes require review.',findings:[
+    finding('P-D1','The quote-escaping path needs coverage.','The brief requires quoted fields to round-trip.','Replace the serializer subsystem.','Check embedded quotes against an independently specified expected CSV value.'),
+    finding('P-D2','Exports need a job queue.','Hypothesis: exports may grow beyond synchronous capacity.','Add a queue and worker service.','Measure throughput at the stated maximum row count.'),
+  ]};
+  const coordinatorReview={...report(),summary:'C-R1 challenges the scope of the peer remedy.',findings:[
+    finding('C-R1','Replacing the serializer adds compatibility risk without resolving a demonstrated subsystem defect.','The supplied fixture has a stable serializer and an existing quote helper.','Exercise the helper and repair only its quoted-field path if needed.','Check expected CSV bytes and unchanged ordering at the 200-row limit.'),
+  ]};
+  const peerReview={...report(),summary:'P-R1 proposes a quoted-field regression check.',findings:[
+    finding('P-R1','The plan lacks a quoted-field regression check.','The candidate names escaping but has no concrete input.','Compare two exports of the same quoted-field input.','Both calls must return identical strings.'),
+  ]};
+  const reply='C-R1 and the P-D1 decision persuade me to revise the serializer rewrite: the supplied quote helper supports the narrower remedy. P-D2 remains unsupported at the stated 200-row bound. My earlier P-R1 check was inadequate; P-V1 records the correction.';
+  const peerVerify={...report(),summary:reply,verdict:'needs_changes',proposal_markdown:'',findings:[
+    finding('P-V1','The accepted P-R1 rationale and my earlier suggested check confuse repeatability with correct quoting.','The P-R1 rationale says repeat exports prove quoting; a deterministic escaping defect would satisfy that check.','Supersede that rationale and compare quoted-field output with independently specified expected CSV bytes.','A deliberately wrong quote escape must fail the expected-output comparison even if repeated exports match.'),
+  ]};
+  const responses={draft:peerDraft,review:peerReview,verify:peerVerify};
+  const captured=[];
+  const worker=async request=>{
+    const packet=JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    captured.push({packet,prompt:request.prompt});
+    return invocation(responses[packet.stage])(request);
+  };
+  await hostDraft(f,[],'Keep the existing serializer and add quoted-field checks.');
+  await ask({run:f.out,stage:'draft'},worker);
+  await write(path.join(f.out,'coordinator-review.json'),coordinatorReview);
+  await ask({run:f.out,stage:'review'},worker);
+  const security={...report(),summary:'Retention remains an explicit unknown.',findings:[
+    finding('C-S1','Download retention is unspecified.','No retention policy was supplied.','Resolve retention before storing downloadable exports.','A policy owner must specify retention and deletion behavior.'),
+  ]};
+  await write(path.join(f.out,'security-review.json'),security);
+  const adapted='Concern accepted; remedy adapted. The existing quote helper avoids the compatibility and maintenance cost of a serializer rewrite. Check independently specified CSV bytes and existing ordering.';
+  const oldRationale='Repeat exports match, so quoting is correct.';
+  const decisions=[
+    {finding_id:'P-D1',disposition:'accepted',rationale:adapted},
+    {finding_id:'P-D2',disposition:'rejected',rationale:'The supplied maximum of 200 rows does not justify a queue or worker service.'},
+    {finding_id:'C-R1',disposition:'accepted',rationale:'Keep the quote helper and existing ordering contract; P-D1 records the narrower remedy and compatibility check.'},
+    {finding_id:'P-R1',disposition:'accepted',rationale:oldRationale},
+    {finding_id:'C-S1',disposition:'unresolved',rationale:'Retention has no supplied owner decision; persistent downloadable exports remain blocked.'},
+  ];
+  const plan='# Plan\nRetain the serializer and quote helper. Compare repeat exports; preserve ordering. Persistent downloads remain blocked by C-S1.\n';
+  await write(path.join(f.out,'final-plan.md'),plan);
+  await write(path.join(f.out,'decisions.json'),decisions);
+  discussion({run:f.out});
+  const decode=text=>text.replace(/&#(\d+);/g,(_,code)=>String.fromCharCode(Number(code)));
+  assert.ok(!decode(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8')).includes(reply),'A coordinator decision must not fabricate a peer reply');
+  const preservedFiles=['coordinator-review.json','peer-draft.json','peer-review.json'];
+  const earlierReports=await Promise.all(preservedFiles.map(file=>fs.readFile(path.join(f.out,file),'utf8')));
+  await ask({run:f.out,stage:'verify'},worker);
+  const verification=captured.at(-1);
+  assert.deepEqual(captured.map(item=>item.packet.stage),['draft','review','verify']);
+  assert.equal(captured[0].packet.coordinator_proposal,undefined);
+  assert.equal(captured[1].packet.coordinator_review,undefined);
+  assert.deepEqual(verification.packet.coordinator_review,coordinatorReview);
+  assert.deepEqual(verification.packet.peer_review,peerReview);
+  assert.deepEqual(verification.packet.decisions,decisions);
+  assert.deepEqual(verification.packet.security_review,security);
+  assert.equal(verification.packet.final_plan,plan);
+  // Prompt assertions cover the requested interface; the fixture does not prove compliance by a model.
+  assert.match(verification.packet.stage_instruction,/accepted, rejected and unresolved dispositions, including your own earlier advice/);
+  assert.match(verification.packet.stage_instruction,/coordinator_review or decisions materially counter your proposal/);
+  assert.match(verification.packet.stage_instruction,/reply concisely in summary using the relevant finding IDs/);
+  assert.match(verification.prompt,/every substantive correction, including one mentioned in summary or proposal_markdown, must have a finding ID/);
+  assert.deepEqual(await read(path.join(f.out,'peer-verify.json')),peerVerify);
+  const current=decode(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8'));
+  const peerSection=current.split('## Claude Code · Final verification')[1];
+  assert.ok(peerSection.includes(reply));
+  assert.ok(peerSection.includes(peerVerify.findings[0].evidence));
+  assert.ok(current.includes(adapted));
+  assert.ok(current.includes(oldRationale));
+  assert.match(peerSection,/Awaiting a recorded decision/);
+  const currentCheck='Compare independently specified expected CSV bytes and ensure a deliberate escaping defect fails.';
+  const updatedRationale=`Original reason: ${oldRationale} Superseded by P-V1: repeatability does not establish correct quoting. Current check: ${currentCheck}`;
+  const updatedDecisions=decisions.map(decision=>decision.finding_id==='P-R1'?{...decision,rationale:updatedRationale}:decision);
+  await write(path.join(f.out,'decisions.json'),[...updatedDecisions,{finding_id:'P-V1',disposition:'accepted',rationale:`Supersedes the P-R1 rationale: repeatability does not establish correct quoting. Current check: ${currentCheck}`}]);
+  await write(path.join(f.out,'final-plan.md'),plan+'P-V1 supersedes the repeat-only check: compare independently specified expected CSV bytes and ensure a deliberate escaping defect fails.\n');
+  const completed=finish({run:f.out});
+  assert.equal(completed.successful_peer_calls,3);
+  assert.equal(completed.attempts_used,3);
+  assert.equal(completed.plan_changed_since_verification,true);
+  assert.equal(completed.decisions_changed_since_verification,true);
+  assert.deepEqual(completed.unresolved.map(item=>item.finding_id),['C-S1']);
+  const finalDecisions=await read(path.join(f.out,'decisions.json'));
+  assert.equal(finalDecisions.find(decision=>decision.finding_id==='P-R1').rationale,updatedRationale);
+  assert.deepEqual(finalDecisions.filter(decision=>!['P-R1','P-V1'].includes(decision.finding_id)),decisions.filter(decision=>decision.finding_id!=='P-R1'));
+  const finalDiscussion=decode(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8'));
+  assert.ok(finalDiscussion.includes(`**Codex · Coordinator decision — accepted:** ${updatedRationale}`));
+  assert.ok(finalDiscussion.includes(currentCheck));
+  assert.deepEqual(await Promise.all(preservedFiles.map(file=>fs.readFile(path.join(f.out,file),'utf8'))),earlierReports);
+});
+
 test('compact CLI output preserves full parsed status and Unicode without changing state', async () => {
   const f=await inputFixture('compact-cli');
   const value={...assessment(),summary:'Quoted "status" with café, 車 and a newline\nthat must survive.'};
@@ -1564,7 +1659,7 @@ test('discussion preserves unresolved responses and post-verification revisions 
   let current=await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8');
   assert.match(current,/Claude Code coordinates · Codex reviews/);
   assert.match(current,/plan changed after final peer verification/);
-  assert.match(current,/response — unresolved/);
+  assert.match(current,/Coordinator decision — unresolved/);
   const completed=finish({run:f.out});
   current=await fs.readFile(completed.discussion,'utf8');
   assert.match(current,/workflow is complete/);

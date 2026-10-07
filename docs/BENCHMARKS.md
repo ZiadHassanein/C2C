@@ -1,5 +1,11 @@
 # C2C token-efficiency measurements
 
+## Planning outcome evaluation
+
+The [outcome evaluation harness](../evals/README.md) separately supports actual plan-quality and whole-task resource measurements. It includes frozen feature/production tasks, preregistered arms and limits, private imports, blind scoring and checks for incomplete or mismatched evidence. A partial live pilot is not a completed comparison; no current release claims superior plan quality or total cost savings. See [current validation notes](../PROJECT_NOTES.md#version-0120-evidence-and-outcome-review-improvements).
+
+The entry instructions in v0.12.0 contain 1,794 whitespace-delimited words versus 2,356 in v0.11.3 (23.9% fewer). This is an instruction-length measurement only. Detailed procedures remain in references; actual loading, provider envelopes, outputs and coordinator activity determine total usage.
+
 ## Version 0.10.0
 
 The v0.10.0 lossless efficiency change measured **2.00–3.54% smaller worker inputs** across four matching ordinary-input routes. Deliberately repeated-context cases saved **12.21–16.04%**; these conditional results are not normal-input expectations or additive to the first range. All evidence, roles, review stages and final hashes were preserved in fixed-output comparisons.

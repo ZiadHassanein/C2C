@@ -1,0 +1,21 @@
+{
+  "requirements": [
+    {"id":"F1","criterion":"Combined filters and shareable URL; preserve existing response array and page links."},
+    {"id":"F2","criterion":"Inclusive dollar bounds converted safely to integer minor units; accept zero, reject malformed/negative/reversed/non-finite bounds."},
+    {"id":"F3","criterion":"Default published-only and explicitly allowed sold availability; never expose drafts."},
+    {"id":"F4","criterion":"Keep deterministic pagination with bounded valid page input and test filter/page interaction."},
+    {"id":"F5","criterion":"Scope stays small and includes API/UI compatibility, empty result, validation, and public visibility tests."}
+  ],
+  "risks": [
+    {"id":"FR1","criterion":"Recognizes public status selection can expose drafts unless an allowlist is enforced."},
+    {"id":"FR2","criterion":"Recognizes major/minor-unit or zero/truthiness price bugs with concrete prevention."},
+    {"id":"FR3","criterion":"Recognizes backwards compatibility and pagination/order stability, with concrete checks."}
+  ],
+  "implementability": [
+    {"id":"FI1","criterion":"First action names the supplied route/contract/test location or a bounded justified discovery step."},
+    {"id":"FI2","criterion":"Dependencies and acceptance checks permit a developer to begin without inventing core behavior."},
+    {"id":"FI3","criterion":"Rollout/revert is proportionate; performance assertions are conditional on measurements."}
+  ],
+  "harmful_remedy_examples": ["Expose all statuses to implement availability", "Replace the response array with an envelope without compatibility", "Silently coerce malformed prices", "Rebuild the database before filtering"],
+  "scoring_note": "Judge meaning against source, not keyword inclusion. Record correct findings, missing requirements, unsupported claims and harmful accepted remedies separately. Do not reward disagreement count or length. Alternative correct designs are valid."
+}

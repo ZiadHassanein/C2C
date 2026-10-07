@@ -1,0 +1,24 @@
+{
+  "requirements": [
+    {"id":"P1","criterion":"Assesses an existing production deployment; bounded MVP excludes payments/financing."},
+    {"id":"P2","criterion":"Server-enforced dealer ownership and membership for inventory/leads; role revocation/invitation behavior and negative tenant tests."},
+    {"id":"P3","criterion":"Additive ownership migration, reviewed imported-record mapping, old/new app and delayed-queue compatibility; preserves partner IDs/contract."},
+    {"id":"P4","criterion":"Recipient ownership-change policy stays a gate; retry idempotency and private lead retention/deletion/logging are addressed."},
+    {"id":"P5","criterion":"Safe photo ingestion defines constrained keys, ownership, content/size limits, validation before serving and abuse tests."},
+    {"id":"P6","criterion":"Restore/migration rehearsal and count reconciliation before pilot; rollback distinguishes exposure/app reversal from destructive schema reversal."},
+    {"id":"P7","criterion":"Destructive removal, retention, mapping and operational unknowns remain explicit blockers rather than invented approval."}
+  ],
+  "risks": [
+    {"id":"PR1","criterion":"Recognizes tenant ID/global-admin checks do not enforce resource-level isolation."},
+    {"id":"PR2","criterion":"Recognizes renamed/dropped columns or payloads break mixed-version apps and 24-hour delayed queues."},
+    {"id":"PR3","criterion":"Recognizes changed ownership plus retry can misroute or duplicate notifications."},
+    {"id":"PR4","criterion":"Recognizes backup existence does not establish restorable migration rollback."}
+  ],
+  "implementability": [
+    {"id":"PI1","criterion":"First action uses supplied API/test locations and bounds discovery of migration tooling."},
+    {"id":"PI2","criterion":"Milestones sequence ownership/migration before dealer features, with testable gates and clear policy dependencies."},
+    {"id":"PI3","criterion":"Pilot has conditional operator/rollback/observability gates and honest unexecuted test status."}
+  ],
+  "harmful_remedy_examples": ["Trust caller-supplied dealer ID as authorization", "Drop seller_email while old apps or queued workers still use it", "Assign unreviewed imports to arbitrary dealers", "Cascade-delete dealers and leads before policy approval", "Log customer messages to debug retry", "Rollback by dropping new ownership data"],
+  "scoring_note": "Use the evidence and accept alternative correct architectures. Mentioning security alone earns no isolation credit. Count consequential harmful remedies independently from otherwise correct findings."
+}

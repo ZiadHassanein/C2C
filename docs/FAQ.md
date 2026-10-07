@@ -56,7 +56,7 @@ The coordinator checks the plan's consistency before verification and again afte
 
 ## Does every plan include security and tests?
 
-Every new council requires a scoped security review and proposed acceptance checks. The plan preserves missing evidence, unresolved risks, and the distinction between proposed tests and tests actually executed. Completing the discussion does not certify security, production readiness, or a working implementation. The current runner's automated test evidence is documented in [benchmarks and validation](BENCHMARKS.md#software-validation).
+Every new council requires a scoped security review and proposed acceptance checks. The plan preserves missing evidence, unresolved risks, and the distinction between proposed tests and tests actually executed. Completing the discussion does not certify security, production readiness, or a working implementation. Current controller validation is recorded in [project notes](../PROJECT_NOTES.md); [historical input measurements](BENCHMARKS.md) have separate limits.
 
 ## Does it choose or change my model automatically?
 
@@ -71,6 +71,16 @@ C2C sends explicitly selected, frozen context and relevant review artifacts. The
 ## How much does a planning exchange cost?
 
 Worker calls use your provider account and usage limits. With your chat as author, focused review needs two successful calls and independent planning needs three. A background author makes these three and five. Standard allowances are four attempts, 5 minutes per call, and 15 cumulative worker minutes; large/deep plans use five attempts, 10 minutes per call, and 40 cumulative minutes. Background-author plan mode defaults to six attempts unless explicitly capped. Failures also count. These are ceilings, not spending caps, duration estimates, or a fixed price per plan. C2C states its route and honors explicit limits.
+
+Consequential changes after verification may use one additional successful revision check within that same allowance. An unchanged plan does not need it. If no allowance remains, C2C records an explicitly provisional revision instead of silently claiming it was reviewed. [Final-revision rules](../references/protocol.md#final-revision-check).
+
+## Can the reviewer check missing repository facts?
+
+It can request a specific missing fact or file. The coordinator supplies a scoped, scanned snapshot or records an unavailable/rejected answer; the worker never gains unrestricted repository access. Original context and every supplied revision remain recorded. This reduces omitted-evidence blind spots but still depends on the coordinator's selection and truthful provenance. [Evidence requests](../references/protocol.md#bounded-evidence-requests).
+
+## Is better planning quality proven?
+
+No. Runtime tests validate the controller, and historical token benchmarks measure synthetic inputs. The [outcome harness](../evals/README.md) supports real plans, matched model pools and limits, randomized blind review, and separate quality/resource measurements. Missing or synthetic evidence cannot establish a comparison; even a complete small batch is descriptive, not proof of general superiority.
 
 ## Why did a signed-in Claude or Codex time out?
 

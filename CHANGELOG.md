@@ -2,6 +2,14 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.12.0 — Evidence, final revisions and managed updates
+
+- Lets reviewers request scoped missing evidence. Coordinator-supplied files and unavailable/rejected answers form an immutable record; workers retain restricted tools and independent drafts stay isolated.
+- Adds one bounded final-revision check using the same participants and allowance. Changed plans, security conclusions, prior adjudications or new supplied evidence require review or an explicit provisional-completion reason. Original stages and legacy runs remain intact.
+- Generates pending finding dispositions without overwriting decisions, reducing repetitive coordination while preserving substantive adjudication.
+- Adds managed installation updates, retained backups, rollback and restartable interrupted-update recovery. Release hashes recognize clean v0.11.3 installations; local changes are protected.
+- Adds a dependency-free outcome evaluation harness with frozen tasks, selected comparison arms, blind scoring, provenance checks and explicit missing measurements. Fixture tests do not establish better plan quality, lower cost or live performance gains.
+
 ## 0.11.3 — Consistent C2C naming
 
 - Uses `ZiadHassanein/C2C` as the canonical repository name, with matching clone, ZIP, documentation, badge and guide links. Fresh Git clones use the `C2C` folder.

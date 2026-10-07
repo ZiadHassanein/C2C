@@ -31,6 +31,9 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 | **Proportional time and recovery** | Gives large plans more time, shows safe activity while waiting, and extends an existing run within audited ceilings when authorized. |
 | **Planning through usage limits** | Lets the available chat complete a provisional plan when a participant hits a reported usage limit, preserving real contributions and identifying missing review. |
 | **Less repeated context** | Removes repeated source paths and redundant prompt metadata; reuses reports and compact progress while retaining distinct evidence and review stages. |
+| **Missing-evidence requests** | Lets reviewers request specific facts; the coordinator supplies scoped, scanned files or records why evidence is unavailable. |
+| **Final-revision checks** | Reviews consequential changes once within the existing allowance, or clearly marks the delivered revision provisional. |
+| **Managed updates** | Updates clean installations with retained backups, rollback and interrupted-update recovery; protects local edits. |
 
 See the [FAQ](docs/FAQ.md) for usage limits. The [v0.7 visual guide](docs/C2C-LinkedIn-Guide.pdf) covers cross-provider setup and historical measurements; use this README for the newer pairing options and plan format.
 
@@ -60,6 +63,8 @@ node scripts/install.mjs
 Alternatively, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, open a terminal in the folder containing `scripts`, and run `node scripts/install.mjs`.
 
 The installer adds the skill to both apps for your current user. No `npm install` is needed. The same Node commands work on Linux and macOS, including Intel and Apple Silicon Macs. [Platform checks and requirements →](docs/SETUP.md#linux-and-macos) · [Install for only one app →](docs/SETUP.md#install-for-one-app-only)
+
+Already installed? From your updated clone, run `node scripts/install.mjs --update`. It prints a rollback command and preserves a backup. [Update and recovery →](docs/SETUP.md#update-the-skill)
 
 ### 3. Check the connection
 
@@ -162,6 +167,12 @@ The route can be a new build, an extension, hardening, discovery, or non-softwar
 | Selected background author | 3 successful worker calls | 5 successful worker calls, including the author's critique |
 
 The same stages apply to explicitly selected same-provider pairs. The final decision record explains which findings were accepted, rejected, or left unresolved. Accepting a concern does not automatically adopt its suggested fix: the coordinator checks consequential remedies against failure cases and simpler alternatives. Verification scrutinizes accepted fixes as well as rejections, including the verifier's own advice, and records actual replies to material counterarguments. Edits made after verification remain clearly marked. Agreement is not required, and no disagreement quota is imposed.
+
+When consequential revisions follow verification, C2C can use **one additional revision check within the same limits**. If it cannot fit—or further changes follow that check—the result explicitly records an unreviewed provisional revision. Unchanged evidence and newly appended finding dispositions alone do not trigger another call. [Review boundary →](references/protocol.md#final-revision-check)
+
+Reviewers can request missing repository facts without browsing the project themselves. The coordinator selects a scoped file, records its provenance, or explains why it was withheld/unavailable. Original evidence stays frozen; requests and outcomes appear in the discussion. [Evidence requests →](references/protocol.md#bounded-evidence-requests)
+
+To evaluate actual plan quality, use the [outcome evaluation harness](evals/README.md): frozen small-feature and production tasks, blind scoring, and matched workflow comparisons. It measures useful findings and harmful remedies separately. Automated controller tests and synthetic input savings do not establish superior plans or lower total cost.
 
 ## Follow the discussion
 

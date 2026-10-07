@@ -36,6 +36,24 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 0.12.0: evidence and outcome review improvements
+
+A source audit identified omitted-evidence blind spots, unreviewed final corrections, repetitive coordination, manual upgrades and missing comparative outcome measurements. This release addresses the workflow and measurement infrastructure without claiming superior model judgment.
+
+Format 6 freezes its format identifier with the original snapshot. Optional report evidence requests can receive coordinator-approved, scanned repository-relative files or explicit unavailable/rejected answers. Numbered sealed records preserve each resolution and declared source revision; cumulative limits include original evidence. Drafts receive no supplemental facts; critiques receive facts without another reviewer's questions, and verification receives full resolutions. Workers never gain repository tools. Security evidence remains the coordinator's responsibility. Unknown or denied facts remain planning constraints, not invented evidence.
+
+After verification, changed plan/security content, revised existing decisions or newly supplied evidence require one bounded `verify-final`, or an explicit `finish --unverified-reason`. The additional successful stage is optional, cannot repeat, and shares the original hard ceilings. Appending new verifier dispositions or merely reordering decisions does not trigger it. A further revision remains provisional. Legacy runs keep their original completion contract. The generated `decisions` command appends unresolved entries only; it does not perform adjudication.
+
+The installer stages updates, verifies all selected destinations, protects local edits, and retains backups outside discovery. Managed receipts plus exact v0.11.3 baseline hashes distinguish known clean installs. Rollback and interrupted recovery are explicit. Independent review reproduced and fixed interrupted-recovery replay and aliased-directory concurrency failures. Physical-root locks/transaction stores cover aliases, with distinct stores for sibling custom roots. Receipts are local integrity records, not signed release attestation.
+
+The outcome harness freezes small-feature and production tasks, selected arms, a model pool and limits; separates participant packets from evaluator rubrics; imports actual plans; shuffles blind review candidates; and reports evidence-backed quality measures separately from usage. Missing, synthetic, unmatched or insufficiently measured results cannot establish a matched comparison. No unit test demonstrates live plan quality. Current test and pilot results are recorded below when complete; historical input measurements remain unchanged.
+
+The entry instructions were reduced from 2,356 words in v0.11.3 to 1,794 words (23.9%), retaining detailed procedures through targeted reference links. This measures whitespace-delimited words, not total tokens, bills, response speed or equivalent model performance. Discovery/UI metadata is unchanged; the explicit user-selected uppercase C2C exception to the generic lowercase-name validator remains.
+
+Validation: the full Windows / Node 24 suite passed 246 tests with six expected platform skips (252 total, 179.1 seconds). Six focused cases passed after the final evidence-discussion change. The managed installer suite covers interrupted commit/recovery, aliased-directory races, sibling physical roots, modified-file protection and rollback. All 148 documentation targets passed. Native platform outcomes are published in [CI workflow runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml). These tests use isolated fixtures and do not establish live model compliance or account readiness.
+
+A bounded live pilot obtained one real baseline plan but could not complete the comparison arms. A separate rubric-based review of that single plan found no missing rubric criteria, which does not establish any advantage for the council. No matched quality, total-token, cost or end-to-end speed result is claimed. Raw run/account evidence remains private; later comparison requires fresh, compatible observations rather than invented replacements.
+
 ### Version 0.11.3: consistent repository naming
 
 The short skill command already used C2C, but installation commands and GitHub links still exposed the original repository name. The user requested consistent C2C naming. Active links now target ZiadHassanein/C2C, fresh clones use C2C, downloaded ZIP guidance identifies C2C-main, and private package metadata uses lowercase c2c. Existing-clone guidance updates the remote without requiring users to move their checkout.

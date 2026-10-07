@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, ask, finish, status, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse,
+  prepare, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -562,6 +562,148 @@ test('successful peer reports about expired authentication are not mistaken for 
   assert.equal((await read(path.join(f.out, 'run.json'))).stages.draft.status, 'succeeded');
 });
 
+test('provider usage limits preserve prior reports and prioritize no-paid fallback over exhausted local attempts', async () => {
+  for (const peer of ['claude', 'codex']) {
+    const f = await readyForVerify(`provider-limit-${peer}`, { coordinator: peer === 'claude' ? 'codex' : 'claude', 'max-attempts': '3' });
+    const preservedFiles = ['coordinator-draft.json', 'coordinator-review.json', 'peer-draft.json', 'peer-review.json', 'final-plan.md', 'decisions.json'];
+    const before = new Map(await Promise.all(preservedFiles.map(async name => [name, await fs.readFile(path.join(f.out, name), 'utf8')])));
+    const failure = peer === 'claude'
+      ? { code: 0, stdout: JSON.stringify({ type: 'result', is_error: true, result: 'Weekly limit reached. private-provider-detail' }), stderr: '' }
+      : { code: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { code: 'usage_limit_reached', message: 'private-provider-detail' } }), stderr: '' };
+    let calls = 0;
+    await assert.rejects(() => ask({ run: f.out, stage: 'verify' }, async () => { calls++; return failure; }), error => {
+      assert.equal(error.reason, 'usage_limit');
+      assert.match(error.message, /Do not buy or use paid credits/);
+      assert.match(error.message, /current chat only within its available included allowance/);
+      assert.match(error.message, /otherwise checkpoint and wait/);
+      assert.doesNotMatch(error.message, /private-provider-detail/);
+      return true;
+    });
+    assert.equal(calls, 1, 'A quota rejection must never launch a fallback or retry');
+    const failed = await read(path.join(f.out, 'run.json'));
+    assert.equal(failed.attempts.length, 3);
+    assert.equal(failed.attempts[2].status, 'failed');
+    assert.equal(failed.attempts[2].reason, 'usage_limit');
+    assert.equal(failed.stages.verify, undefined);
+    await assert.rejects(() => fs.access(path.join(f.out, 'peer-verify.json')));
+    assert.equal(await fs.readFile(path.join(f.out, 'attempt-3-stdout.txt'), 'utf8'), failure.stdout);
+    for (const [name, content] of before) assert.equal(await fs.readFile(path.join(f.out, name), 'utf8'), content);
+    const current = status({ run: f.out });
+    assert.equal(current.budget.attempts_sufficient, false);
+    assert.equal(current.successful_peer_calls, 2);
+    assert.equal(current.provider_limit.provider, peer);
+    assert.equal(current.provider_limit.attempt, 3);
+    assert.deepEqual(progress({ run: f.out }).provider_limit, current.provider_limit);
+    const handoff = await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8');
+    assert.match(handoff, /Next: .*Stop calls to the blocked worker/);
+    assert.match(handoff, /Local extend.*cannot restore provider quota/);
+    assert.doesNotMatch(handoff, /Inspect the failure and use extend|private-provider-detail/);
+    assert.doesNotMatch(JSON.stringify(current), /private-provider-detail/);
+    await assert.rejects(() => ask({ run: f.out, stage: 'verify' }, async () => { calls++; return invocation()({ provider: peer }); }), /Stop calls to the blocked worker/);
+    assert.equal(calls, 1, 'Exhausted local allowance must not launch another call');
+    // An authorized local extension is not evidence of restored provider usage.
+    extend({ run: f.out, 'max-attempts': '4', reason: 'Synthetic future resumption after included usage resets.' });
+    assert.equal(status({ run: f.out }).provider_limit.reason, 'usage_limit');
+    assert.match(await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8'), /Next: .*Stop calls to the blocked worker/);
+    // Simulate a later explicitly requested call after allowance has returned.
+    await ask({ run: f.out, stage: 'verify' }, invocation());
+    assert.equal(status({ run: f.out }).provider_limit, null);
+    assert.equal(progress({ run: f.out }).provider_limit, null);
+    const resumed = await read(path.join(f.out, 'run.json'));
+    assert.equal(resumed.attempts.length, 4);
+    assert.equal(resumed.attempts[2].reason, 'usage_limit');
+    assert.equal(resumed.stages.verify.attempt, 4);
+    for (const [name, content] of before) assert.equal(await fs.readFile(path.join(f.out, name), 'utf8'), content);
+  }
+});
+
+test('successful quota discussion and unrelated failures never imply a provider-allowance block', async () => {
+  const f = await fixture('quota-report-prose');
+  await hostDraft(f);
+  const peerReport = report([], 'Add negative tests for weekly limit reached, insufficient_quota and payment required.');
+  const result = await ask({ run: f.out, stage: 'draft' }, async request => ({
+    ...await invocation(peerReport)(request), stderr: 'A supplied test case mentions weekly limit reached.',
+  }));
+  assert.equal(result.report.summary, peerReport.summary);
+  assert.equal(status({ run: f.out }).provider_limit, null);
+  for (const [name, reason, response] of [
+    ['rate-limit', undefined, { code: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: 'Too many requests', status: 429 } }), stderr: '' }],
+    ['authentication', 'authentication_error', { code: 1, stdout: '', stderr: 'OAuth token has expired' }],
+    ['timeout', 'timeout', null],
+  ]) {
+    const g = await fixture(`not-quota-${name}`);
+    await hostDraft(g);
+    let calls = 0;
+    await assert.rejects(() => ask({ run: g.out, stage: 'draft' }, async () => {
+      calls++;
+      if (response) return response;
+      const error = new Error('Synthetic timeout'); error.reason = 'timeout'; throw error;
+    }));
+    assert.equal(calls, 1);
+    const saved = await read(path.join(g.out, 'run.json'));
+    assert.equal(saved.attempts[0].reason, reason);
+    assert.equal(status({ run: g.out }).provider_limit, null);
+    assert.equal(progress({ run: g.out }).provider_limit, null);
+  }
+});
+
+test('background author quota failures identify the blocked author provider without launching a peer', async () => {
+  const f = await fixture('author-usage-limit', {
+    coordinator: 'codex', mode: 'review', 'author-model': 'gpt-5.4', 'peer-model': 'claude-opus-4-6',
+  });
+  let calls = 0;
+  await assert.rejects(() => ask({ run: f.out, stage: 'author-draft' }, async request => {
+    calls++;
+    assert.equal(request.provider, 'codex');
+    return { code: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { code: 'insufficient_quota' } }), stderr: '' };
+  }), error => error.reason === 'usage_limit');
+  const current = status({ run: f.out });
+  assert.equal(calls, 1);
+  assert.equal(current.peer, 'claude');
+  assert.equal(current.provider_limit.provider, 'codex');
+  assert.equal(current.successful_worker_calls, 0);
+  assert.equal(current.successful_peer_calls, 0);
+  assert.equal(current.stages['author-draft'], undefined);
+  await assert.rejects(() => fs.access(path.join(f.out, 'coordinator-draft.json')));
+  const saved = await read(path.join(f.out, 'run.json'));
+  assert.equal(saved.attempts[0].role, 'author');
+  assert.equal(saved.attempts[0].reason, 'usage_limit');
+  assert.match(await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8'), /Next: codex reported a usage/);
+});
+
+test('explicit usage limits take precedence over login advice in mixed failed responses', async () => {
+  const f = await fixture('mixed-usage-auth-failure');
+  await hostDraft(f);
+  await ask({ run: f.out, stage: 'draft' }, invocation(report(['P-D1'])));
+  await hostReview(f);
+  const originalDraft = await fs.readFile(path.join(f.out, 'peer-draft.json'), 'utf8');
+  const failure = { code: 1, stdout: JSON.stringify({
+    type: 'result', subtype: 'error_during_execution', is_error: true,
+    errors: ['Usage limit reached. private-provider-detail', 'Please run /login'],
+  }), stderr: '' };
+  let calls = 0;
+  await assert.rejects(() => ask({ run: f.out, stage: 'review' }, async () => { calls++; return failure; }), error => {
+    assert.equal(error.reason, 'usage_limit');
+    assert.match(error.message, /Stop calls to the blocked worker/);
+    assert.match(error.message, /Do not buy or use paid credits/);
+    assert.doesNotMatch(error.message, /Renew the configured credential|auth login|resume this stage|private-provider-detail/);
+    return true;
+  });
+  assert.equal(calls, 1, 'Mixed failures must not cause an authentication retry or another worker call');
+  const saved = await read(path.join(f.out, 'run.json'));
+  assert.equal(saved.attempts.length, 2);
+  assert.equal(saved.attempts[0].status, 'succeeded');
+  assert.equal(saved.attempts[1].reason, 'usage_limit');
+  assert.equal(saved.attempts[1].status, 'failed');
+  assert.equal(saved.stages.draft.status, 'succeeded');
+  assert.equal(saved.stages.review, undefined);
+  assert.equal(await fs.readFile(path.join(f.out, 'peer-draft.json'), 'utf8'), originalDraft);
+  assert.equal(await fs.readFile(path.join(f.out, 'attempt-2-stdout.txt'), 'utf8'), failure.stdout);
+  assert.equal(status({ run: f.out }).provider_limit.reason, 'usage_limit');
+  assert.match(await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8'), /Next: .*Stop calls to the blocked worker/);
+  await assert.rejects(() => fs.access(path.join(f.out, 'peer-review.json')));
+});
+
 test('all findings require a disposition before verification', async () => {
   const f = await readyForVerify('decisions');
   const decisionsPath = path.join(f.out,'decisions.json');
@@ -975,7 +1117,8 @@ test('progress CLI polls only safe metadata without repeating private evidence o
   });
   assert.equal(result.status, 0, result.stderr);
   const current = JSON.parse(result.stdout);
-  assert.deepEqual(Object.keys(current), ['run', 'status', 'peer', 'peer_progress']);
+  assert.deepEqual(Object.keys(current), ['run', 'status', 'peer', 'provider_limit', 'peer_progress']);
+  assert.equal(current.provider_limit, null);
   assert.equal(current.run, f.out);
   assert.equal(current.status, 'awaiting_coordinator');
   assert.equal(current.peer, 'claude');

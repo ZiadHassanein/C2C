@@ -23,6 +23,8 @@ For **every new planning task**, search current official OpenAI and Anthropic gu
 
 Automatically select eligible workers within user limits unless advice-only, reserved-selection or pinned-model instructions override. Cross-provider roles use a planning model from each; same-provider roles use a planner and distinct coding-focused critic. Never lower capability, effort or review depth to save tokens or fit a timeout; change no global configuration or billing source. The runner has no effort flag.
 
+**No paid limit recovery:** never buy credits, enable extra usage/auto-reload, raise spend limits, upgrade plans or switch to API/cloud billing to bypass a limit. A request to continue C2C is not spending authorization. Respect included-usage-only constraints before calls; see [billing boundaries](references/protocol.md#no-paid-limit-recovery).
+
 Record size, complexity, risk, uncertainty, dated sources, all four planning/coding recommendations, actual roles/IDs/access evidence, route and allowance provenance/user caps in local `TASK_ASSESSMENT.md`. Keep it out of peer packets and summarize choices in the plan. Use the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed; preserve unknowns honestly.
 
 Resolve `RUNNER` to this skill's `scripts/council.mjs`. Run `node RUNNER doctor` and check the route's readiness field using [commands](references/protocol.md#commands), not exit status alone. Workers need no open peer terminal/app. Readiness checks saved authentication, not valid tokens, model access or quota; distinguish limits from [login/setup failures](references/protocol.md#authentication-permissions-and-limits).

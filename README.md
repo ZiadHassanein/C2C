@@ -228,6 +228,8 @@ Start a new chat afterward. The updater retains backups and prints a rollback co
 
 Runtime tests and synthetic input benchmarks do not prove better plans, lower total cost or faster responses. See the [evaluation methods](docs/BENCHMARKS.md) for how these can be assessed separately.
 
+C2C does not buy credits or switch to paid billing when a provider limit blocks planning. It continues provisionally within available limits or saves a checkpoint. [Billing boundaries](docs/FAQ.md#will-c2c-buy-credits-or-require-paid-usage-after-a-limit).
+
 ---
 
 Built for Codex and Claude Code. Distributed under the [MIT license](LICENSE).

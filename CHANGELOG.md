@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.12.1 — No paid recovery from provider limits
+
+- Makes the spending boundary explicit: no credit purchases, extra usage, auto-reload, increased spend caps, upgrades or API/cloud-billing fallback to bypass a limit. Continue within the available chat's authorized allowance or checkpoint without requesting paid recovery.
+- Classifies explicit quota, credit-balance and payment-required worker failures, preserves the failed attempt and provides static fallback guidance. Generic rate limits, timeouts, authentication failures and successful report prose remain distinct.
+- Gives provider-limit guidance priority over allowance-extension advice in saved handoffs. Local runtime allowances cannot repair provider quota. Explicit later resumption remains the coordinator's responsibility; this is not a provider billing cap or CLI retry lock.
+- Clarifies that CLI readiness does not verify remaining included usage or account overage settings. Included-only constraints require billing eligibility before calls; the skill does not silently change credentials or account controls.
+
 ## 0.12.0 — Evidence, final revisions and managed updates
 
 - Lets reviewers request scoped missing evidence. Coordinator-supplied files and unavailable/rejected answers form an immutable record; workers retain restricted tools and independent drafts stay isolated.

@@ -20,6 +20,8 @@ Use canonical versioned IDs. Modern Claude dateless IDs can be fixed snapshots; 
 
 Exclude models outside the known authorized billing scope. In particular, [Claude Fable in non-interactive mode](https://code.claude.com/docs/en/model-config#fable-and-usage-credits) may bill additional usage credits without a consent prompt. Runtime/attempt ceilings are not spending caps. Do not enable credits, change accounts, or assume a CLI will request permission.
 
+When the user forbids extra spending, a saved login or available API key is not permission to use paid credits, overage or API/cloud billing. Establish that the selected credential/model fits the authorized allowance using available read-only evidence or existing user confirmation; never inspect secret values or make a paid access probe. If included-only eligibility remains unknown, preserve useful planning through the [billing-boundary fallback](protocol.md#no-paid-limit-recovery), rather than assuming the call is free. Do not solicit purchases or upgrades to unblock a council.
+
 ## Assign real roles
 
 - **Cross provider:** select the best task-fit planning worker available within limits from each provider. Both evaluate feasibility, security, and tests.

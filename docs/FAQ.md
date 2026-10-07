@@ -74,6 +74,12 @@ Worker calls use your provider account and usage limits. With your chat as autho
 
 Consequential changes after verification may use one additional successful revision check within that same allowance. An unchanged plan does not need it. If no allowance remains, C2C records an explicitly provisional revision instead of silently claiming it was reviewed. [Final-revision rules](../references/protocol.md#final-revision-check).
 
+## Will C2C buy credits or require paid usage after a limit?
+
+No. C2C must not buy credits, enable extra usage or auto-reload, raise spending limits, upgrade your plan, or switch to API/cloud billing to keep an exchange running. Asking it to continue does not authorize those actions. It stops the blocked worker and uses the current chat's remaining authorized allowance for a clearly provisional plan; if none remains, it saves a checkpoint and waits. It does not ask you to pay to unblock the plan.
+
+Provider billing remains separate. An existing paid-credit or overage setting can allow charges without a quota error, and a configured API key may select API billing. C2C does not verify or change those account controls, and a ready CLI is not a zero-charge guarantee. With an included-usage-only constraint, unknown billing eligibility must be resolved before worker calls. See [billing boundaries](../references/protocol.md#no-paid-limit-recovery) and your provider's usage settings.
+
 ## Can the reviewer check missing repository facts?
 
 It can request a specific missing fact or file. The coordinator supplies a scoped, scanned snapshot or records an unavailable/rejected answer; the worker never gains unrestricted repository access. Original context and every supplied revision remain recorded. This reduces omitted-evidence blind spots but still depends on the coordinator's selection and truthful provenance. [Evidence requests](../references/protocol.md#bounded-evidence-requests).

@@ -107,10 +107,9 @@ export function buildCodexArgs({ schemaPath, model, codexFeatures = CODEX_DISABL
 const CLAUDE_AUTH_METHODS = new Set(['none', 'claude.ai', 'oauth_token', 'api_key', 'api_key_helper', 'third_party']);
 const AUTH_FAILURE = /\b(?:authentication[_ -](?:failed|error)|invalid[_ -](?:api[_ -]?key|grant)|token[_ -](?:expired|invalid|revoked|reused)|(?:oauth(?:[_ -]token)?|access[_ -]token|refresh[_ -]token|login|session)[\s\S]{0,60}(?:expired|invalid|revoked|rejected|already used)|(?:expired|invalid|revoked|rejected)[\s\S]{0,60}(?:oauth|access[_ -]token|refresh[_ -]token)|not logged in|please (?:run )?\/login|(?:http|status|api error)\s*:?\s*401)\b/i;
 
-// Inspect failure envelopes, never successful report prose. Return a static
-// diagnostic so credentials or account details in provider errors cannot leak.
-export function peerAuthenticationFailure(provider, { code, stdout = '', stderr = '' } = {}) {
-  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+// Only failed transport envelopes are eligible for classification. Successful
+// reports can legitimately discuss limits, billing and authentication tests.
+function failureEvents(stdout) {
   let events;
   try { events = [JSON.parse(stdout.trim())]; }
   catch {
@@ -118,18 +117,25 @@ export function peerAuthenticationFailure(provider, { code, stdout = '', stderr 
       try { return [JSON.parse(line)]; } catch { return []; }
     });
   }
-  const failed = events.filter(event => event && typeof event === 'object' && (
+  return events.filter(event => event && typeof event === 'object' && (
     ['error', 'turn.failed'].includes(event.type)
     || (event.type === 'result' && (event.is_error === true || String(event.subtype).startsWith('error_')))
     || (event.type === 'assistant' && typeof event.error === 'string')
   ));
-  const errorText = (value, depth = 0) => {
-    if (depth > 3) return '';
-    if (typeof value === 'string') return value.slice(0, 8192);
-    if (!value || typeof value !== 'object') return '';
-    const entries = Array.isArray(value) ? value.slice(0, 20) : [value.type, value.code, value.message, value.error];
-    return entries.map(entry => errorText(entry, depth + 1)).join('\n');
-  };
+}
+function errorText(value, depth = 0) {
+  if (depth > 5) return '';
+  if (typeof value === 'string') return value.slice(0, 8192);
+  if (!value || typeof value !== 'object') return '';
+  const entries = Array.isArray(value) ? value.slice(0, 20) : [value.type, value.code, value.message, value.error, value.content, value.text];
+  return entries.map(entry => errorText(entry, depth + 1)).join('\n');
+}
+
+// Inspect failure envelopes, never successful report prose. Return a static
+// diagnostic so credentials or account details in provider errors cannot leak.
+export function peerAuthenticationFailure(provider, { code, stdout = '', stderr = '' } = {}) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  const failed = failureEvents(stdout);
   const isAuth = failed.some(event => {
     const error = event.error;
     const status = event.status ?? event.status_code ?? error?.status ?? error?.status_code;
@@ -138,6 +144,35 @@ export function peerAuthenticationFailure(provider, { code, stdout = '', stderr 
   if (!isAuth) return null;
   const login = provider === 'claude' ? 'claude auth login' : 'codex login';
   return { reason: 'authentication_error', message: `${provider} authentication was rejected or its saved login expired. Renew the configured credential; for a saved CLI login, run ${login} once in the same account/configuration, then resume this stage. A credential environment override must be repaired at its source; signing in does not replace it. No peer terminal or app needs to stay open. No automatic retry was made.` };
+}
+
+// A generic 429/rate-limit error may be transient; it does not establish that
+// included usage is exhausted. Require an explicit quota/credit/payment signal.
+const USAGE_LIMIT_PATTERNS = [
+  /\b(?:usage_limit_reached|insufficient_quota|insufficient_credits|credit_balance_too_low|billing_hard_limit_reached|spending_limit_reached|payment_required)\b/i,
+  /\b(?:usage|weekly|monthly|daily|subscription|spending|spend|billing|credit)[ -]limit\s+(?:(?:has been|is)\s+)?(?:reached|exceeded|exhausted)\b/i,
+  /\b(?:reached|exceeded|exhausted|hit)\s+(?:(?:your|the|its)\s+)?(?:usage|weekly|monthly|daily|subscription|spending|spend|billing|credit)\s+limit\b/i,
+  /\byou(?:['’]ve| have)?\s+(?:hit|reached)\s+your\s+(?:usage\s+)?limit\b/i,
+  /\b(?:quota|credits?)\s+(?:(?:has been|is|are)\s+)?(?:exceeded|exhausted|depleted)\b/i,
+  /\b(?:exceeded|exhausted)\s+(?:(?:your|the|its)\s+)?(?:current\s+)?quota\b/i,
+  /\b(?:credit balance\s+(?:(?:is|was)\s+)?too low|insufficient\s+(?:quota|credits?|credit balance)|(?:no (?:remaining )?|out of )credits?(?: remaining| available)?|payment required)\b/i,
+];
+const isUsageLimit = text => USAGE_LIMIT_PATTERNS.some(pattern => pattern.test(text));
+
+export function usageLimitGuidance(provider) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  return `${provider} reported a usage, quota, credit or payment limit. Stop calls to the blocked worker. Do not buy or use paid credits, enable overage, switch to paid API access, change accounts or billing, or try other models to bypass the limit. Preserve this run and its reports. Continue a provisional plan in the current chat only within its available included allowance, clearly identifying missing review; otherwise checkpoint and wait for included usage to reset. Local extend changes only C2C runtime/attempt allowances and cannot restore provider quota. No automatic retry was made.`;
+}
+
+export function peerUsageLimitFailure(provider, { code, stdout = '', stderr = '' } = {}) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  const blocked = failureEvents(stdout).some(event => {
+    const status = event.status ?? event.status_code ?? event.error?.status ?? event.error?.status_code;
+    return status === 402 || isUsageLimit(
+      [event.code, event.message, event.error, event.errors, event.result].map(value => errorText(value)).join('\n'),
+    );
+  }) || (Number.isInteger(code) && code !== 0 && isUsageLimit(stderr));
+  return blocked ? { reason: 'usage_limit', message: usageLimitGuidance(provider) } : null;
 }
 
 // Only metadata and authentication-status commands run here, never a model turn.
@@ -172,6 +207,8 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve =
     provider, executable, version: version.stdout.trim(), authenticated,
     auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,
     authentication_note: 'CLI credential status does not validate token freshness, refresh success, or model access. No peer terminal or app needs to stay open.',
+    billing_check: 'not_checked', included_allowance_verified: false,
+    billing_note: 'Local credential status does not attest included allowance, paid-credit balance, billing or overage settings. This check makes no model call and does not authorize spending.',
     login_command: provider === 'codex' ? 'codex login' : 'claude auth login',
     ...(codexFeatures ? { codex_features: codexFeatures, disabled_features: CODEX_DISABLED_FEATURES.filter(name => codexFeatures.includes(name)) } : {}),
   };

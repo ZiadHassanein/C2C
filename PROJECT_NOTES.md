@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 0.12.1: no paid limit recovery
+
+Provider limits must not become purchase, upgrade, auto-reload, spend-limit or alternate-billing instructions. Continue provisionally in the current chat only within its remaining authorized allowance, or preserve a checkpoint. For included-usage-only work, establish eligibility before calls without billable probes; a saved login does not establish billing scope. Provider account controls remain separate: C2C cannot guarantee zero charges or silently enforce disabled overage.
+
+The runner recognizes explicit failed-envelope quota/credit/payment signals, including HTTP 402, and records `usage_limit` with static guidance. Generic 429 responses, timeouts, authentication-only errors and successful report prose are not evidence of exhausted quota. An unresolved limit notice takes priority over local extension advice in generated handoffs and appears in status/progress. A later successful, explicitly requested call can clear the notice without deleting the failure. This is diagnosis and coordinator guidance, not a persisted launch lock or a new state format. No automatic retry, account switch, credential mutation or account setting change is introduced.
+
+Independent review identified and verified fixes for structured HTTP 402 and mixed authentication/quota errors. The final Windows / Node 24 suite passed 252 tests with six expected platform skips (258 total); fourteen focused cases also passed. All 149 local documentation targets passed. An independent offline instruction walkthrough produced a useful provisional plan without credit-purchase suggestions, alternate worker probes or fabricated peer review. These checks use synthetic provider responses and cannot prove live account eligibility or enforce provider billing settings. No paid call or live quota bypass was used. Native platform results remain available in [CI workflow runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml).
+
 ### Measurement tooling and public documentation
 
 On 2026-10-07, refreshed the offline measurement tools for pinned v0.11.3 and v0.12.0 sources. The harnesses retain original evidence, report content, participants, required stages and final hashes while explicitly allowing changed review instructions and the current worker schema's empty evidence-request field. Full prompt text and actual CLI schema representations are counted separately. Historical harnesses remain available for reproducibility.

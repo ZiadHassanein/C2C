@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure } from '../scripts/adapters.mjs';
+import { resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-adapters-test-'));
@@ -191,6 +191,9 @@ test('compatible Codex preflight preserves required restrictions without model c
   const result = await probeProvider('codex', root, fixture);
   assert.equal(result.authenticated, true);
   assert.equal(result.version, 'codex-cli 0.160.1');
+  assert.equal(result.billing_check, 'not_checked');
+  assert.equal(result.included_allowance_verified, false);
+  assert.match(result.billing_note, /does not attest included allowance.*billing or overage/);
   assert.deepEqual(result.disabled_features, CODEX_DISABLED_FEATURES);
   const args = buildCodexArgs({ schemaPath: 'schema with spaces.json', codexFeatures: result.codex_features });
   assert.ok(args.includes('view_image'));
@@ -259,6 +262,9 @@ test('authentication metadata distinguishes local credential status from request
     assert.equal(result.authenticated, true);
     assert.equal(result.authentication_check, 'local_status_only');
     assert.equal(result.request_auth_verified, false);
+    assert.equal(result.billing_check, 'not_checked');
+    assert.equal(result.included_allowance_verified, false);
+    assert.match(result.billing_note, /does not attest included allowance.*billing or overage/);
     assert.equal(result.auth_method, method === 'unsupported-private-value' ? 'unknown' : method);
     assert.match(result.authentication_note, /does not validate token freshness/);
     assert.doesNotMatch(JSON.stringify(result), /private-/);
@@ -302,4 +308,55 @@ test('authentication classifier ignores successful report prose and unrelated pr
     { code: 1, stdout: JSON.stringify({ type: 'error', error: { message: 'Permission denied', status: 403 } }) },
     { code: null, stderr: phrase },
   ]) assert.equal(peerAuthenticationFailure('claude', response), null);
+});
+
+test('explicit provider quota and payment failures return static no-paid-fallback guidance', () => {
+  const cases = [
+    ['claude', { code: 0, stdout: JSON.stringify({ type: 'result', is_error: true, result: 'Weekly limit reached. private-account@example.invalid' }) }],
+    ['claude', { code: 0, stdout: [
+      { type: 'system', subtype: 'init' },
+      { type: 'assistant', error: 'rate_limit', message: { content: [{ type: 'text', text: "You've hit your limit · resets later. private-secret" }] } },
+      { type: 'result', subtype: 'error_during_execution', is_error: true, errors: [] },
+    ].map(JSON.stringify).join('\n') }],
+    ['codex', { code: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: 'You have reached your usage limit. private-secret' } }) }],
+    ['codex', { code: 0, stdout: JSON.stringify({ type: 'error', error: { type: 'insufficient_quota', message: 'private-secret' } }) }],
+    ['codex', { code: 1, stdout: JSON.stringify({ type: 'error', code: 'usage_limit_reached' }) }],
+    ['claude', { code: 1, stderr: 'Your credit balance is too low. private-secret' }],
+    ['codex', { code: 1, stderr: 'Payment required. private-secret' }],
+    ['codex', { code: 1, stderr: 'You exceeded your current quota. private-secret' }],
+    ['claude', { code: 1, stderr: 'You are out of credits. private-secret' }],
+    ...[{ status: 402 }, { status_code: 402 }, { error: { status: 402 } }, { error: { status_code: 402 } }]
+      .map(metadata => ['codex', { code: 0, stdout: JSON.stringify({ type: 'turn.failed', ...metadata }) }]),
+  ];
+  for (const [provider, response] of cases) {
+    const diagnostic = peerUsageLimitFailure(provider, response);
+    assert.equal(diagnostic?.reason, 'usage_limit', JSON.stringify(response));
+    assert.match(diagnostic.message, /Stop calls to the blocked worker/);
+    assert.match(diagnostic.message, /Do not buy or use paid credits, enable overage, switch to paid API access, change accounts or billing/);
+    assert.match(diagnostic.message, /current chat only within its available included allowance/);
+    assert.match(diagnostic.message, /otherwise checkpoint and wait/);
+    assert.match(diagnostic.message, /extend.*cannot restore provider quota/);
+    assert.match(diagnostic.message, /No automatic retry/);
+    assert.doesNotMatch(JSON.stringify(diagnostic), /private-/);
+    assert.equal(peerAuthenticationFailure(provider, response), null);
+  }
+});
+
+test('usage-limit classifier does not mistake report prose, generic rate limits, auth or timeouts for exhausted allowance', () => {
+  const phrase = 'Weekly limit reached; test insufficient_quota and payment required.';
+  for (const response of [
+    { code: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: phrase }), stderr: phrase },
+    { code: 1, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: phrase }), stderr: 'Process failed' },
+    { code: 0, stdout: JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: phrase } }) },
+    { code: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, status: 402, result: phrase }) },
+    { code: 1, stdout: phrase },
+    { code: 1, stdout: JSON.stringify({ type: 'turn.failed', error: { message: 'Too many requests', status: 429 } }) },
+    { code: 1, stdout: JSON.stringify({ type: 'assistant', error: 'rate_limit', message: { content: [{ type: 'text', text: 'Rate limit reached; retry later.' }] } }) },
+    { code: 1, stderr: 'API Error: 401 Unauthorized' },
+    { code: 1, stderr: 'OAuth token has expired' },
+    { code: 1, stderr: 'Request timed out' },
+    { code: 1, stderr: 'Reached limit of maximum context length' },
+    { code: 1, stdout: JSON.stringify({ type: 'result', subtype: 'error_max_turns', errors: ['Reached the limit of 1 turn'] }) },
+    { code: null, stderr: phrase },
+  ]) assert.equal(peerUsageLimitFailure('claude', response), null, JSON.stringify(response));
 });

@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README and setup navigation
+
+The public README now leads with setup and the first request, followed by the plan files and workflow. Both CLIs are the simplest default recommendation because automatic model selection may launch a background author; the peer-only and same-provider routes remain documented. Terminal commands and chat prompts are distinguished. Optional project, existing-plan and same-provider examples expand on demand. The existing accessible diagrams remain, and the historical PDF stays labeled v0.7.
+
+Detailed model, budget and benchmark information lives in the existing guides. Setup sections now follow installation, maintenance and troubleshooting, with navigation and their original heading anchors preserved. README length dropped from 2,786 to 1,577 whitespace-delimited words (43.4%). This is a reading-length comparison, not a skill-token or performance measurement. This documentation-only change does not modify packaged skill files, runtime behavior or version 0.12.0. All 157 local documentation targets pass validation; native runtime coverage remains available in CI.
+
 ### Version 0.12.0: evidence and outcome review improvements
 
 A source audit identified omitted-evidence blind spots, unreviewed final corrections, repetitive coordination, manual upgrades and missing comparative outcome measurements. This release addresses the workflow and measurement infrastructure without claiming superior model judgment.

@@ -5,232 +5,228 @@
 
 # C2C — Codex and Claude Code planning skill
 
-**C2C is an open-source skill for Codex and Claude Code to plan and review together—or use different models from one provider.** Start from either app, assess the project, compare proposals, and resolve review findings into one actionable plan. Use it for a small feature, an existing plan, or a whole-project roadmap.
+**Turn a feature idea or project brief into a plan reviewed by Codex and Claude Code.** C2C checks the project, asks important questions, compares proposals, and records critiques, security considerations, tests, and a clear starting point for implementation.
 
-Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coordinates a real exchange through the peer's CLI, including security considerations, acceptance tests, and a visible record of decisions. Codex–Claude is the default; Codex-only or Claude-only discussion is an explicit choice.
+Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. Use both providers, or explicitly choose different models within one provider.
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
 **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
-[Quick start](#install) · [Usage](#use-it) · [Workflow](#how-it-works) · [FAQ](docs/FAQ.md) · [Benchmarks](docs/BENCHMARKS.md) · [Visual PDF guide](docs/C2C-LinkedIn-Guide.pdf)
-
-## Features
-
-| Feature | What it does |
-|---|---|
-| **Project assessment first** | Records project evidence, production status, scoped readiness, goals, and the first useful action. |
-| **Planning scaled to the task** | Uses focused review for a small feature or independent proposals for a design decision and project roadmap. |
-| **Mutual plan review** | Participants challenge assumptions and proposed fixes; decisions explain adopted or adapted remedies, tradeoffs, and unresolved findings. |
-| **Choice of participants** | Pair Codex with Claude, or explicitly request different models within Codex or Claude Code. |
-| **Clear plans** | Puts decisions, MVP and milestones first, with a checked execution entry point before technical appendices. |
-| **Discussion in Markdown** | Updates `DISCUSSION.md` with attributed proposals, challenges, and responses; keeps chat focused on decisions and blockers. |
-| **Security and testing in every plan** | Requires a scoped security review and proposed acceptance checks, with gaps and unknowns preserved. |
-| **Current model research** | Checks official guidance for both providers on each new task, then selects suitable workers within your limits. Your chat model stays unchanged. |
-| **Saved context and progress** | Keeps Markdown plans and handoffs, structured evidence, bounded attempts, and recovery checkpoints. |
-| **Proportional time and recovery** | Gives large plans more time, shows safe activity while waiting, and extends an existing run within audited ceilings when authorized. |
-| **Planning through usage limits** | Lets the available chat complete a provisional plan when a participant hits a reported usage limit, preserving real contributions and identifying missing review. |
-| **Less repeated context** | Removes repeated source paths and redundant prompt metadata; reuses reports and compact progress while retaining distinct evidence and review stages. |
-| **Missing-evidence requests** | Lets reviewers request specific facts; the coordinator supplies scoped, scanned files or records why evidence is unavailable. |
-| **Final-revision checks** | Reviews consequential changes once within the existing allowance, or clearly marks the delivered revision provisional. |
-| **Managed updates** | Updates clean installations with retained backups, rollback and interrupted-update recovery; protects local edits. |
-
-See the [FAQ](docs/FAQ.md) for usage limits. The [v0.7 visual guide](docs/C2C-LinkedIn-Guide.pdf) covers cross-provider setup and historical measurements; use this README for the newer pairing options and plan format.
+[Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Help](#need-help)
 
 ## Install
 
 ### 1. Prepare your tools
 
-Install [Node.js 18 or newer](https://nodejs.org/en/download) and the **peer's command-line tool (CLI)**. For the default Codex–Claude pairing, use its official setup guide, then sign in if needed:
+Install [Node.js 18 or newer](https://nodejs.org/en/download). For the easiest Codex–Claude setup, install **both command-line tools (CLIs)** and sign in to each:
 
-| Your starting app | Required CLI | Sign-in command |
+| Tool | Official installation guide | Sign in if needed |
 |---|---|---|
-| Codex | [Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login` |
-| Claude Code | [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) | `codex login` |
+| Codex CLI | [Install Codex](https://learn.chatgpt.com/docs/codex/cli) | `codex login` |
+| Claude Code CLI | [Install Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login` |
 
-Install both CLIs for cross-provider planning with a background author, or to use the skill in both directions. The table covers a chat that supplies its own planning draft. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. **You do not need another app or terminal open.** C2C launches workers without windows and reuses saved CLI authentication. Keep working in your starting chat. The installer does not install these prerequisites or sign you in.
+**You do not need the other app or a second terminal open.** C2C starts background workers using saved CLI authentication. The skill installer does not install these tools or sign you in.
 
-### 2. Download and install
+<details>
+<summary>Can I use only one CLI?</summary>
 
-With Git installed, run these commands in **PowerShell on Windows** or **Terminal on macOS/Linux**:
+Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. For a Codex–Claude exchange, only the peer's CLI is needed when the current chat supplies the author's work. Automatic model selection may need a background author, which requires both CLIs. [Choose the participants](docs/SETUP.md#choose-the-participants).
+
+</details>
+
+### 2. Install and check
+
+Run in **PowerShell on Windows** or **Terminal on macOS/Linux**, with Git installed:
 
 ```sh
 git clone https://github.com/ZiadHassanein/C2C.git
 cd C2C
 node scripts/install.mjs
-```
-
-Alternatively, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, open a terminal in the folder containing `scripts`, and run `node scripts/install.mjs`.
-
-The installer adds the skill to both apps for your current user. No `npm install` is needed. The same Node commands work on Linux and macOS, including Intel and Apple Silicon Macs. [Platform checks and requirements →](docs/SETUP.md#linux-and-macos) · [Install for only one app →](docs/SETUP.md#install-for-one-app-only)
-
-Already installed? From your updated clone, run `node scripts/install.mjs --update`. It prints a rollback command and preserves a backup. [Update and recovery →](docs/SETUP.md#update-the-skill)
-
-### 3. Check the connection
-
-In the same terminal, run:
-
-```sh
 node scripts/council.mjs doctor
 ```
 
-Look for the readiness value matching your starting app:
+This installs C2C for your current user in both apps. No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, and run the two `node` commands from the folder containing `scripts`.
 
-| Starting from Codex | Starting from Claude Code |
-|---|---|
-| `"codex_chat_ready": true` | `"claude_chat_ready": true` |
+For the default setup with both CLIs, look for:
 
-The peer's route must be ready. A background author also needs its own provider's CLI ready; cross-provider runs with both workers need both CLIs. See [setup checks](docs/SETUP.md#check-your-setup). Older CLIs may lack required controls; follow the reported guidance. This checks visible saved authentication without a model request; credentials may still expire or be rejected. [Troubleshoot a failed check →](docs/SETUP.md#troubleshooting)
+```json
+{
+  "codex_chat_ready": true,
+  "claude_chat_ready": true
+}
+```
 
-### 4. Start a project chat
-
-Open your project in Codex or Claude Code and start a **new chat** to discover the skill. Paste a request below into that chat.
+`doctor` checks CLI compatibility and locally visible authentication without making a model request. It cannot prove remaining quota or that the provider will accept your login. [Failed check?](docs/SETUP.md#troubleshooting) · [Install for one app](docs/SETUP.md#install-for-one-app-only)
 
 ## Use it
+
+**3. Open your project in Codex or Claude Code and start a new chat.** Paste one of these prompts into that chat—not the terminal:
 
 ### From Codex
 
 ```text
 Use $C2C to plan a search filter for this app.
-Keep it focused, with security considerations and acceptance tests.
+Check the project first, include security and acceptance tests,
+and show me the plan before coding.
 ```
 
 ### From Claude Code
 
 ```text
 /C2C Plan a search filter for this app with Codex.
-Keep it focused, with security considerations and acceptance tests.
+Check the project first, include security and acceptance tests,
+and show me the plan before coding.
 ```
 
-Replace the example with your task. Include relevant files, constraints, and success criteria. Your current chat coordinates the exchange and saves the results.
+Replace the feature with your task. C2C assesses the project, clarifies consequential unknowns, selects suitable workers within your limits, and runs the exchange. You do not fill in assessment files yourself.
+
+<details>
+<summary>Example: plan a whole project</summary>
+
+```text
+Use $C2C to plan an ecommerce website for selling cars.
+Customers need browse/filter, photos, car details, and seller contact.
+I need an admin dashboard to manage inventory.
+Start with a sensible MVP, include security and testing,
+and show me the milestones and first implementation step before coding.
+```
+
+In Claude Code, replace `Use $C2C` with `/C2C`.
+
+</details>
+
+<details>
+<summary>Example: review an existing plan</summary>
+
+```text
+Use $C2C to review docs/plan.md against this project.
+Challenge assumptions and proposed fixes with evidence.
+Show the recommended changes, unresolved risks, and where to start.
+```
+
+Replace the path with your plan. In Claude Code, start with `/C2C`.
+
+</details>
 
 ### With Codex only or Claude only
+
+<details>
+<summary>Use different models from one provider</summary>
 
 ```text
 Use $C2C with Codex only to plan this feature.
 Choose a planning model and a different coding-focused reviewer within my limits.
-Challenge assumptions, show disagreements, and put decisions before technical details.
 ```
 
 ```text
 /C2C Use Claude only to review this project plan.
-Research current models and choose a planning author and a distinct coding critic.
-Challenge the approach with evidence and give me a clear revised plan.
+Choose a planning author and a different coding-focused critic within my limits.
 ```
 
-Same-provider discussion uses a planning author and a different coding-focused critic. C2C researches both providers for each new task and selects suitable available workers within your limits. If your chat exactly matches the selected planner, it can supply the author's work; otherwise a background author runs without changing your chat. Different models can share blind spots, and reported identity may remain incomplete. [Pairing details →](docs/SETUP.md#choose-the-participants)
+C2C researches current official model guidance for both providers on each new task. It honors exact model choices and does not change your chat model or global settings. Different model IDs do not guarantee independent judgment. [Model selection](references/model-selection.md).
 
-The skill assesses your project first. You do not need to fill in a form or write the assessment files yourself.
+</details>
 
-| Planning need | What to ask for |
+For recommendations without worker calls, ask: **“Assess the task and recommend models; advice only.”**
+
+## What you receive
+
+**Open `final-plan.md` first.** For a prepared run, the chat links to its folder and these three main files:
+
+| File | What to look for |
 |---|---|
-| **Small feature** | Concise implementation steps, edge cases, and acceptance checks. |
-| **Design decision** | Independent proposals, a comparison of approaches, and mutual review. |
-| **Whole project** | MVP scope, architecture, milestone dependencies, and a detailed first milestone. |
-| **Existing plan** | Review of a named plan file, with proposed changes and reasons. |
+| **`final-plan.md`** | Recommendation, scope, technical decisions, implementation steps, security, proposed acceptance checks, and **Start here**. |
+| **`DISCUSSION.md`** | Actual proposals, critiques, coordinator decisions, and unresolved questions. |
+| **`RESULT.md`** | After completion: the review outcome and whether the delivered revision was reviewed. |
 
-**You control model selection.** C2C chooses workers within your limits, records its reasons, and honors exact model choices. Your chat and global settings stay unchanged. For recommendations without worker calls, add: “Assess the task and recommend models; advice only.” [Selection policy →](references/model-selection.md)
+If a usage limit blocks preparation, the chat saves a standalone provisional plan instead.
 
-**Time follows the task.** Bounded work starts with up to 5 minutes per call, 15 cumulative worker minutes, and four attempts. Large/deep plans use up to 10 minutes per call, 40 cumulative minutes, and five attempts. Independent planning with a background author defaults to six attempts for its five calls. Explicit caps take precedence. A timeout preserves completed work for recovery in the same run. These are ceilings, not duration estimates or spending caps. [Progress and recovery →](docs/SETUP.md#when-a-peer-call-takes-longer)
+A typical plan is organized like this; small features keep the same essentials concise:
 
-**Planning can continue through a usage limit.** If a participant is blocked by a reported provider, account, or model usage limit, the available chat completes a provisional plan within your remaining limits. It preserves actual contributions, states reasonable reversible assumptions and their checks, and keeps security, testing, and missing review visible. It does not try alternative workers, accounts, or billing sources. Ask to “wait for both participants” or “require both reviews” to override this default. [Usage-limit fallback →](docs/SETUP.md#when-a-participant-hits-a-usage-limit)
+```text
+Review status and recommendation
+Scope: MVP and deferred work
+Key decisions and tradeoffs
+Steps or milestones, dependencies and acceptance checks
+Security, testing and unresolved risks
+Start here: first task, location, prerequisites and success check
+```
 
-**Less repetition by default.** The v0.10.0 offline comparison measured **2.00–3.54% smaller worker inputs** across four matching routes with ordinary inputs. Controlled repeated-file cases saved **12.21–16.04%**; that conditional range is not a normal-project expectation or additive saving. All task evidence and required review stages were preserved. These are input measurements, not proof of equal live-model quality, faster responses or total-session savings. [Reproducible results and limits →](docs/benchmarks/v0.10.0.md)
-
-## Before planning
-
-The coordinator inspects relevant project evidence and establishes a useful path before either agent proposes a solution.
-
-| Question | What gets recorded |
-|---|---|
-| **What exists today?** | Current behavior, affected components, architecture constraints, and relevant checks. |
-| **Is it in production?** | Production, non-production, or unknown, with evidence. Non-software work is marked not applicable. |
-| **What is known about readiness?** | Checks for a stated scope, gaps, and unknowns—separate from whether the project is live. |
-| **Where are we going?** | Goal, scope, success criteria, dependencies, and the first concrete action. |
-
-A deployment file or passing tests alone cannot establish production use or readiness. Missing evidence stays visible. Essential goal questions are clarified first; technical unknowns can lead to a bounded discovery plan. Small features get a focused assessment, while larger projects get broader context and milestone gates.
-
-The route can be a new build, an extension, hardening, discovery, or non-software planning. Changes to live systems carry the relevant compatibility, data, rollout, and recovery requirements into the plan. The skill records what the evidence supports; it does not certify a project as production-ready.
+Project evidence, model choices and resumable progress remain in `PROJECT_CONTEXT.md`, `TASK_ASSESSMENT.md` and `HANDOFF.md`. Unknown paths become bounded discovery tasks. Planning completion does not authorize coding or establish production readiness. [Plan layout](references/plan-presentation.md).
 
 ## How it works
 
 <picture>
   <source media="(max-width: 640px)" srcset="docs/assets/workflow-mobile.svg">
-  <img src="docs/assets/workflow.svg" alt="Independent plan mode: assess project state and clarify direction, separate Codex and Claude proposals, mutual critique, coordinator synthesis with security and test checks, peer verification, then a final plan with decisions and open questions." width="960">
+  <img src="docs/assets/workflow.svg" alt="Independent planning: assess the project, create separate proposals, critique each other's plan, synthesize with security and test checks, verify, and deliver decisions with unresolved questions." width="960">
 </picture>
 
-**Independent planning** follows the six stages above. **Focused review** starts with one candidate plan, followed by critiques, synthesis, and verification. Both include a security review. The illustration shows the host chat authoring its side; a selected background author supplies that work when needed.
+**Independent planning** compares separate proposals. **Focused review** starts from one candidate plan. Both include critique, synthesis, security review, and verification. The diagram shows the chat authoring its side; a selected background author can supply that work instead.
 
-| Author of the plan | Focused review | Independent planning |
-|---|---|---|
-| Current chat matches the selected planner | 2 successful worker calls | 3 successful worker calls |
-| Selected background author | 3 successful worker calls | 5 successful worker calls, including the author's critique |
+### Before planning
 
-The same stages apply to explicitly selected same-provider pairs. The final decision record explains which findings were accepted, rejected, or left unresolved. Accepting a concern does not automatically adopt its suggested fix: the coordinator checks consequential remedies against failure cases and simpler alternatives. Verification scrutinizes accepted fixes as well as rejections, including the verifier's own advice, and records actual replies to material counterarguments. Edits made after verification remain clearly marked. Agreement is not required, and no disagreement quota is imposed.
+C2C checks what exists, whether the project is in production, what readiness evidence is available, and whether the goal and first useful action are clear. Missing evidence stays unknown. Small features get a focused assessment; project roadmaps get MVP boundaries and dependent milestones. [Assessment details](references/project-assessment.md).
 
-When consequential revisions follow verification, C2C can use **one additional revision check within the same limits**. If it cannot fit—or further changes follow that check—the result explicitly records an unreviewed provisional revision. Unchanged evidence and newly appended finding dispositions alone do not trigger another call. [Review boundary →](references/protocol.md#final-revision-check)
+### Follow the discussion
 
-Reviewers can request missing repository facts without browsing the project themselves. The coordinator selects a scoped file, records its provenance, or explains why it was withheld/unavailable. Original evidence stays frozen; requests and outcomes appear in the discussion. [Evidence requests →](references/protocol.md#bounded-evidence-requests)
+Open `DISCUSSION.md` to follow saved proposals, challenges, and responses. Chat stays focused on questions, blockers and the final brief. To receive chat summaries too, ask: “Show me the main disagreements and plan changes as you go.”
 
-To evaluate actual plan quality, use the [outcome evaluation harness](evals/README.md): frozen small-feature and production tasks, blind scoring, and matched workflow comparisons. It measures useful findings and harmful remedies separately. Automated controller tests and synthetic input savings do not establish superior plans or lower total cost.
+**Illustrative car-site discussion—not a recorded exchange:**
 
-## Follow the discussion
+| Contribution | Decision |
+|---|---|
+| One proposal includes customer accounts and saved cars. | Candidate MVP scope. |
+| The reviewer asks whether browsing and seller contact need accounts. | Challenges the additional launch work. |
+| The coordinator keeps inventory administration authenticated and defers customer accounts. | Records the smaller scope and its reason. |
 
-Open the linked **`DISCUSSION.md`** to follow what each agent proposed, what the other challenged, and how the coordinator responded. It updates at saved stages and after local decisions are refreshed. The discussion stays in the file by default; chat carries important questions, blockers, necessary progress, and a short final decision brief with links.
+Actual participants can agree or disagree. C2C evaluates objections and their proposed remedies; it does not require agreement or invent arguments. Failed and missing reviews stay visible. The file contains report summaries, findings and recorded decisions, not private reasoning. [Discussion controls](docs/SETUP.md#follow-the-discussion).
 
-```text
-Use $C2C to plan a website for selling cars.
-Keep the discussion in Markdown and chat updates minimal.
-Include security and testing, and show me the plan before coding.
+## Features
+
+| Capability | What it changes for your plan |
+|---|---|
+| **Current model research** | Selects suitable planning/review workers within your limits, with recorded reasons. |
+| **Missing-evidence requests** | Lets reviewers ask for facts; scoped snapshots or explicit unavailable/rejected answers are recorded. |
+| **Final-revision checks** | Checks consequential corrections once within the existing allowance, or marks the revision unreviewed. |
+| **Usage-limit fallback** | Lets the available chat finish a provisional plan while identifying missing review. No automatic worker or billing switch. |
+| **Saved progress** | Preserves completed stages and attempts so an interrupted exchange can resume within its allowance. |
+| **Managed updates** | Protects local edits and retains backups for rollback and interrupted-update recovery. |
+
+Worker calls use your provider account and usage limits. Only selected context is sent; exclude secrets and unrelated private material. Attempt/time ceilings are **not spending caps**. A completed exchange may retain unresolved issues or an explicitly unreviewed final revision; missing required stages leave it incomplete. [Usage, limits and privacy](docs/SETUP.md#usage-and-privacy).
+
+## Update
+
+From your existing Git clone:
+
+```sh
+git pull --ff-only
+node scripts/install.mjs --update
 ```
 
-In Claude Code, start the request with `/C2C`. Minimal chat is the default. If you prefer live chat summaries too, ask, “Show me the main disagreements and plan changes as you go.”
+Start a new chat afterward. The updater retains backups and prints a rollback command; changed installations are protected. [ZIP updates, one-app updates and recovery](docs/SETUP.md#update-the-skill).
 
-**Illustrative car-site example — not a recorded exchange:**
+## Need help?
 
-| Contribution | Point | Outcome |
-|---|---|---|
-| Codex proposes | Include customer accounts and saved cars in the MVP. | Candidate scope for review. |
-| Claude challenges | Browsing and seller contact can work without customer accounts; protect inventory management with authenticated admin access. | Recommends a smaller launch scope. |
-| Codex decides | Defer customer accounts; keep browse, filter, contact, and secured inventory management. | Revises the plan and records the reason. |
-
-Actual exchanges can agree, disagree, or end with unresolved questions. `DISCUSSION.md` preserves submitted points, decisions, and evidence links. A pending or failed stage stays labeled; private reasoning and token streams are not displayed. Avoiding duplicate chat recaps targets unnecessary narration, with no measured token-saving percentage for this change. Review stages, evidence, security, and model choices stay intact. [Discussion controls →](docs/SETUP.md#follow-the-discussion)
-
-## What you receive
-
-For a prepared council, the chat links to the run folder. These are the main files to read:
-
-| File | Purpose |
+| Problem | Next step |
 |---|---|
-| **`PROJECT_CONTEXT.md`** | Initial project evidence, deployment status, readiness gaps, and planning direction. |
-| **`final-plan.md`** | A decision brief, MVP/deferred scope, milestones or steps, security/testing checks, a Start here block, and technical appendices when needed. |
-| **`RESULT.md`** | After completion: review outcome, remaining issues, and changes since verification. |
-| **`DISCUSSION.md`** | Generated account of proposals, challenges, decisions, and open questions as the exchange progresses. |
-| **`TASK_ASSESSMENT.md`** | Task size, risk, dated model research, selected roles, and allowance provenance. |
-| **`HANDOFF.md`** | Generated progress, evidence links, and the next action. |
-
-The run also retains detailed decisions and the security review. **Start here** identifies the first work item, project entry point, prerequisites, action and acceptance check. The coordinator checks its consistency before verification and after corrections; unknowns become discovery tasks. An optional `IMPLEMENTATION_BRIEF.md` reuses this entry point for one selected milestone. Planning completion alone does not authorize coding.
-
-The plan starts with its real review status, recommendation, and priority decisions. Confirmed requirements stay separate from proposed choices. Larger plans use milestone dependencies and exit gates; technical depth follows the brief in the same document. A provisional plan identifies missing review: missing required stages leave the council incomplete; a later unreviewed revision can complete with an explicit provisional outcome. If a usage block prevents preparation, the chat saves a standalone plan without claiming a run or discussion file exists. [Plan layout →](references/plan-presentation.md)
-
-> **Review completion describes the planning exchange.** The result distinguishes proposed checks from executed results and preserves unresolved issues. Security review records risks and unknowns. Implementation and deployment require their own authorization and verification.
+| C2C does not appear | Start a new chat after installation; check [setup and discovery](docs/SETUP.md#troubleshooting). |
+| CLI missing, incompatible or signed out | Follow the reported `doctor` guidance and [setup checks](docs/SETUP.md#check-your-setup). |
+| A call times out | Ask C2C to inspect the saved run and [resume within its allowance](docs/SETUP.md#when-a-peer-call-takes-longer). |
+| A provider hits its usage limit | Use the [provisional-plan fallback](docs/SETUP.md#when-a-participant-hits-a-usage-limit), or explicitly ask to wait for both participants. |
 
 ## Documentation
 
-| Guide | Start here when you need to… |
+| Guide | Purpose |
 |---|---|
-| [Setup and troubleshooting](docs/SETUP.md) | Install, update, uninstall, or resolve a failed check. |
-| [Frequently asked questions](docs/FAQ.md) | Understand collaboration, privacy, models, costs, and planning limits. |
-| [Visual setup and usage guide (v0.7 PDF)](docs/C2C-LinkedIn-Guide.pdf) | Follow cross-provider setup, invocation examples, and historical measured results. |
-| [Token benchmark and validation](docs/BENCHMARKS.md) | Check what was measured, retained, and not established. |
-| [Release notes](CHANGELOG.md) | See what changed across recent C2C versions. |
-| [Agent instructions](SKILL.md) | Understand how either AI coordinates a discussion. |
-| [Project assessment](references/project-assessment.md) | Understand deployment evidence, readiness, and the direction check. |
-| [Plan presentation](references/plan-presentation.md) | See how decisions, scope, milestones, checks, and technical detail are organized. |
-| [Technical protocol](references/protocol.md) | Inspect commands, schemas, and saved evidence. |
-| [Development and validation](PROJECT_NOTES.md) | Review design decisions and dated test results. |
+| [Setup and troubleshooting](docs/SETUP.md) | Installation options, platform requirements, updates and recovery. |
+| [FAQ](docs/FAQ.md) | Models, costs, security, discussion and planning behavior. |
+| [Benchmarks and evaluation](docs/BENCHMARKS.md) | Measured input reductions, limitations and real-outcome evaluation methods. |
+| [Visual guide — historical v0.7 PDF](docs/C2C-LinkedIn-Guide.pdf) | Illustrated cross-provider setup; use this README for current features. |
+| [Release notes](CHANGELOG.md) | Changes by version. |
+| [Agent instructions](SKILL.md) · [Protocol](references/protocol.md) · [Project notes](PROJECT_NOTES.md) | Coordination rules, commands, schemas and development evidence. |
 
-Peer calls use your provider account and its usage limits. Only selected context is sent to the peer's provider; exclude secrets and unrelated private data. Runtime limits are not spending caps. [Usage and privacy details →](docs/SETUP.md#usage-and-privacy)
+Runtime tests and synthetic input benchmarks do not prove better plans or lower total cost. See the [outcome evaluation harness](evals/README.md) for how real plans can be compared.
 
 ---
 

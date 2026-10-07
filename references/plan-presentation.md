@@ -6,11 +6,13 @@ Use this when presenting a draft, revised plan, or completed council. The reader
 
 Open with:
 
-- **Status:** draft only, review in progress, or review completed; name the actual participating roles and material verification limits once. If the peer failed, state which stages are missing. A coordinator draft is not a jointly approved plan.
+- **Status:** for prepared runs, show current review progress/outcome from generated `DISCUSSION.md` and, after `finish`, `RESULT.md`; preserve actual roles and verification limits. In `final-plan.md`, use a stable review-status link to the generated discussion from its first verification onward. Keep task scope, implementation authority and proposed/executed test status in the plan. A coordinator draft is not a jointly approved plan.
 - **Goal and recommendation:** the outcome and proposed approach in a short paragraph, with the decisive reason. Mark an approach as provisional when a blocker controls it.
 - **Decisions needed:** numbered in priority order. For each material choice, state the decision, useful options or recommendation, and what it blocks. Keep non-blocking technical unknowns with their discovery action. Never turn a recommendation into a confirmed user requirement.
 
-If nothing blocks the next action, say so briefly. Do not repeat the same status caveat before every section. Do not call an incomplete exchange a final or agreed plan even if its local working filename is `final-plan.md`.
+Without a prepared run, state draft/provisional status directly; do not link nonexistent generated records. If nothing blocks the next action, say so briefly. Do not repeat the same status caveat before every section. Do not call an incomplete exchange a final or agreed plan even if its local working filename is `final-plan.md`.
+
+Finalize presentation before `ask --stage verify`. A successful verification does not require editing the plan to say “review completed”, adding a completion time or updating a reviewer count. Let `finish` generate the outcome, link the unchanged plan and discussion, and state accurate status in the short final reply. Do not hand-edit generated files. Any actual edit to reviewed plan/security content still follows the [final revision rules](protocol.md#final-revision-check); even a header edit is not exempt from integrity checks.
 
 For a [usage-limit fallback](protocol.md#planning-when-usage-limits-block-the-exchange), use **Provisional plan — completed by the available chat; council incomplete**. Name actual contributions and missing stages, then present the useful recommendation. Record reversible defaults with their reasons, consequences if wrong and validation gates in the plan; self-checks are not independent review. Keep security and testing sections. Link the discussion only if it exists; a preflight block may have no run at all.
 

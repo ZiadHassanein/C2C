@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 1.0.0: stable plan delivery
+
+The user requested the 1.0 release and a correction for unnecessary repeat verification. Delivery guidance had encouraged updating the reviewed plan's status paragraph when verification succeeded; changing that text correctly triggered another review. Plans now use a stable link to generated review status before verification, while DISCUSSION/RESULT and the final response carry progress and completion. Presentation is finalized before the first verification. No new artifact, state format, runtime exemption or worker call is introduced.
+
+Required review stages, full-content hashes, security checks and the bounded final revision check remain intact. Actual plan/security edits, including headings, still need review or an explicitly provisional outcome. This prevents a coordinator-induced repeat call; it is not a measured savings percentage, speed guarantee or quality claim. No-paid-recovery, unavailable-tool fallback and truthful requested/reported model identity rules remain unchanged. Version 1.0 identifies this release; it does not certify generated plans, provider billing or production readiness.
+
+The full Windows / Node 24 release suite passed 264 tests with six expected platform skips (270 total); both focused regression tests passed. They cover stable completion across host/background/same-provider routes and preserve the requirement to review an actual status-header edit. An independent offline instruction walkthrough finished a verified synthetic plan without editing its reviewed content or adding a worker call. Independent source review found no remaining actionable issue. All 159 local documentation targets and official metadata checks passed apart from the intentional user-required uppercase-name exception. These checks do not establish live model compliance or comparative savings. Private live project and measurement records remain outside this repository; native results are recorded in [CI workflow runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml).
+
 ### Version 0.12.2: optional provider setup
 
 The user requested using tools already installed and skipping unavailable ones without forcing setup. The skill now checks availability before worker selection, ignores missing CLIs not needed by the selected route, and completes a provisional current-chat plan if a required tool is missing, incompatible or not ready. Node absence also permits a standalone plan from the active chat. Installation, upgrade, login, permission/configuration changes and automatic same-provider rerouting are not prerequisites. An explicit demand for both participants or waiting takes precedence. Current-chat limits and included-only billing rules remain in force.

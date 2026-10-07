@@ -163,6 +163,92 @@ test('changed adjudications require review while appended verifier dispositions 
   assert.equal(result.delivered_plan_reviewed,true);
 });
 
+test('generated completion preserves reviewed plan bytes and required calls across worker routes', async () => {
+  const routes = [
+    { name: 'host', options: { mode: 'review' }, stages: ['review', 'verify'] },
+    { name: 'background', options: { ...authorModels('codex', 'cross') }, stages: ['author-draft', 'draft', 'author-review', 'review', 'verify'] },
+    { name: 'same-provider', options: { coordinator: 'claude', pairing: 'same', ...sameModels('claude') }, stages: ['draft', 'review', 'verify'] },
+  ];
+  const finalPlan = '# Export plan\n\n> Planning scope: bounded exporter changes. Current workflow status: [discussion](DISCUSSION.md).\n\n'
+    + 'Implement field escaping and deterministic ordering without database access.\n\n'
+    + '## Security and tests\n\nTreat fields as untrusted input. Proposed checks cover quoted delimiters, embedded newlines, and stable ordering; none have executed.\n\n'
+    + '## Start here\n\nInspect the exporter interface, add a failing escaping case, then implement the smallest correction.\n';
+  for (const route of routes) {
+    const f = await fixture(`stable-completion-${route.name}`, route.options);
+    const initial = status({ run: f.out });
+    assert.equal((await read(path.join(f.out, 'run.json'))).version, 6);
+    assert.deepEqual(initial.budget.pending_stages, route.stages);
+    assert.equal(initial.budget.successful_calls_remaining, route.stages.length);
+    const calls = [];
+    const worker = async request => {
+      const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+      calls.push(packet.stage);
+      if (packet.stage === 'verify') assert.equal(packet.final_plan, finalPlan);
+      return invocation()(request);
+    };
+    if (!route.options['author-model']) await hostDraft(f);
+    for (const stage of route.stages.filter(stage => stage !== 'verify')) {
+      if (stage === 'review' && !route.options['author-model']) await hostReview(f);
+      await ask({ run: f.out, stage }, worker);
+    }
+    await write(path.join(f.out, 'final-plan.md'), finalPlan);
+    await write(path.join(f.out, 'security-review.json'), report([], 'Synthetic input-handling review; implementation tests remain proposed.'));
+    await write(path.join(f.out, 'decisions.json'), []);
+    await ask({ run: f.out, stage: 'verify' }, worker);
+    const reviewedBytes = await fs.readFile(path.join(f.out, 'final-plan.md'));
+    const verifiedState = await read(path.join(f.out, 'run.json'));
+    assert.deepEqual(discussion({ run: f.out }).warnings, []);
+    const result = finish({ run: f.out });
+    assert.deepEqual(discussion({ run: f.out }).warnings, []);
+    const completedState = await read(path.join(f.out, 'run.json'));
+    assert.deepEqual(await fs.readFile(path.join(f.out, 'final-plan.md')), reviewedBytes);
+    assert.equal(reviewedBytes.toString('utf8'), finalPlan);
+    assert.deepEqual(calls, route.stages);
+    assert.deepEqual(completedState.attempts, verifiedState.attempts);
+    assert.deepEqual(completedState.stages, verifiedState.stages);
+    assert.equal(completedState.status, 'complete');
+    assert.equal(result.attempts_used, route.stages.length);
+    assert.equal(result.successful_peer_calls, route.stages.filter(stage => !stage.startsWith('author-')).length);
+    if (route.options['author-model']) assert.equal(result.successful_worker_calls, route.stages.length);
+    assert.deepEqual(result.budget.pending_stages, []);
+    assert.equal(result.delivered_plan_reviewed, true);
+    assert.equal(result.verification_stage, 'verify');
+    assert.equal(result.changedSinceVerification, false);
+    assert.deepEqual(result.changed_artifacts, []);
+    assert.deepEqual(result.final_hashes, result.reviewed_hashes);
+    assert.equal(result.outcome, 'complete_with_recorded_decisions');
+    assert.ok((result.worker_model_reports ?? result.peer_model_reports).every(item => item.identity_status === 'unreported' && item.reported.length === 0));
+    const resultText = await fs.readFile(path.join(f.out, 'RESULT.md'), 'utf8');
+    const discussionText = await fs.readFile(path.join(f.out, 'DISCUSSION.md'), 'utf8');
+    assert.ok(resultText.includes(finalPlan));
+    assert.ok(resultText.includes(result.outcome));
+    assert.match(resultText, /not reported by the CLI/);
+    assert.match(discussionText, /Run: \*\*complete\*\*/);
+    assert.match(discussionText, /\[Final result\]\(RESULT\.md\)/);
+    if (route.options['author-model'] || route.options.pairing === 'same') assert.match(discussionText, /no recorded model metadata/);
+    await assert.rejects(() => fs.access(path.join(f.out, 'peer-verify-final.json')));
+  }
+});
+
+test('a status-only plan header edit still requires bounded final verification', async () => {
+  const f = await readyForVerify('status-header-revision', { mode: 'review' });
+  const planFile = path.join(f.out, 'final-plan.md');
+  const body = '\n\nImplement escaping and deterministic ordering.\n';
+  await write(planFile, '# Plan — awaiting verification' + body);
+  await ask({ run: f.out, stage: 'verify' }, invocation());
+  const reviewedHash = (await read(path.join(f.out, 'run.json'))).stages.verify.reviewed_hashes['final-plan.md'];
+  await write(planFile, '# Plan — verification complete' + body);
+  discussion({ run: f.out });
+  assert.throws(() => finish({ run: f.out }), /bounded verify-final/);
+  assert.equal(status({ run: f.out }).attempts_used, 2);
+  await ask({ run: f.out, stage: 'verify-final' }, invocation());
+  const result = finish({ run: f.out });
+  assert.equal(result.verification_stage, 'verify-final');
+  assert.equal(result.delivered_plan_reviewed, true);
+  assert.notEqual(result.reviewed_hashes['final-plan.md'], reviewedHash);
+  assert.equal(result.attempts_used, 3);
+});
+
 test('supplementary evidence is sealed, independently disclosed and accounted without extra calls', async () => {
   const f = await fixture('request-evidence');
   await hostDraft(f);

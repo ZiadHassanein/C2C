@@ -199,14 +199,16 @@ Independent drafts receive no supplemental material. Critiques receive supplied 
 
 Run `decisions --run RUN` after reports to append missing findings as **unresolved**. Existing decisions are preserved. The generated rationale is a pending marker; the coordinator must still adjudicate the concern and remedy, keeping real unresolved risks visible. The command updates the discussion and makes no worker call.
 
-After `verify`, a format 6 run requires a review boundary for changed plan/security text, changes to earlier adjudications, or newly supplied evidence. Appending dispositions for new verifier findings and merely reformatting/reordering existing decisions do not require another call.
+Before `verify`, use a stable plan header linking to `DISCUSSION.md`, as described in [plan presentation](plan-presentation.md#put-the-decision-brief-first). Keep changing review status in the generated discussion/result and final reply. When verification needs no plan correction, proceed to `finish` without rewriting the plan merely to announce success; generated status updates make no worker calls.
+
+After `verify`, a format 6 run requires a review boundary for changed plan/security text, changes to earlier adjudications, or newly supplied evidence. Appending dispositions for new verifier findings and merely reformatting/reordering existing decisions do not require another call. All plan content, including headings and status text, remains covered by verification; there is no cosmetic-edit exemption.
 
 ```text
 node RUNNER ask --run RUN --stage verify-final
 node RUNNER finish --run RUN
 ```
 
-This is one optional successful revision check, using the same peer and original shared budget. It includes the current plan, prior verification, decisions and evidence; findings use `P-F1` etc. It cannot run before verification, repeat after success, or launch when nothing material changed. Reviewers test consequential remedies and answer material counterarguments, preserving legitimate disagreement. It is not a consensus loop. Original reports and failed attempts remain intact.
+This is one optional successful revision check, using the same peer and original shared budget. It includes the current plan, prior verification, decisions and evidence; findings use `P-F1` etc. It cannot run before verification, repeat after success, or launch when plan/security text, prior decisions and supplied evidence are unchanged. Reviewers test consequential remedies and answer material counterarguments, preserving legitimate disagreement. It is not a consensus loop. Original reports and failed attempts remain intact.
 
 If there is insufficient authorized allowance, the provider is blocked, or further changes follow this last check, preserve a provisional revision:
 

@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.0.0 — Stable plan delivery
+
+- Keeps changing review progress and completion status in generated discussion/result records. The verified plan stays unchanged when announcing success, avoiding a repeat review caused only by rewriting its status paragraph.
+- Preserves strict revision checks: changes to reviewed plan/security content, prior decisions or supplied evidence still need the bounded final review or an explicitly provisional result. No header exemptions or weaker content checks.
+- Retains cross-provider and explicitly chosen same-provider workflows, project assessment, scoped security/tests, execution entry points, optional-tool fallback and no paid limit recovery. Version 1.0 does not certify generated plans, runtime model identity or account billing.
+
 ## 0.12.2 — Plan with the tools already available
 
 - Checks required tool availability before worker selection. Missing or unusable tools lead to a labeled provisional plan in the current chat, with security, proposed tests, self-check and an execution entry point. No installation, upgrade, login or configuration change is required to keep planning.

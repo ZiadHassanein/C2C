@@ -13,7 +13,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. Use both provider
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
-**Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+[**Version 1.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
 [Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Help](#need-help)
 
@@ -128,7 +128,7 @@ Choose a planning model and a different coding-focused reviewer within my limits
 Choose a planning author and a different coding-focused critic within my limits.
 ```
 
-C2C researches current official model guidance for both providers on each new task. It honors exact model choices and does not change your chat model or global settings. Different model IDs do not guarantee independent judgment. [Model selection](references/model-selection.md).
+C2C researches current official model guidance for the requested providers on each new task using workers. It honors exact model choices and does not change your chat model or global settings. Different model IDs do not guarantee independent judgment. [Model selection](references/model-selection.md).
 
 </details>
 
@@ -140,8 +140,8 @@ For recommendations without worker calls, ask: **“Assess the task and recommen
 
 | File | What to look for |
 |---|---|
-| **`final-plan.md`** | Recommendation, scope, technical decisions, implementation steps, security, proposed acceptance checks, and **Start here**. |
-| **`DISCUSSION.md`** | Actual proposals, critiques, coordinator decisions, and unresolved questions. |
+| **`final-plan.md`** | Recommendation, scope, technical decisions, implementation steps, security, proposed acceptance checks, and **Start here**. Its reviewed content stays unchanged when announcing completion. |
+| **`DISCUSSION.md`** | Current review status, actual proposals, critiques, coordinator decisions, and unresolved questions. |
 | **`RESULT.md`** | After completion: the review outcome and whether the delivered revision was reviewed. |
 
 If a usage limit blocks preparation, the chat saves a standalone provisional plan instead.

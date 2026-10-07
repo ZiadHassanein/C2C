@@ -64,7 +64,7 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 - Adds an optional background planning author. Same-provider discussion pairs a planner with a distinct coding-focused critic; cross-provider discussion uses a planning model from each provider. Requested, declared and reported identities stay distinct.
 - Background-author focused review takes three successful worker calls; independent planning takes five. Matching host-author routes retain two/three. All attempts share the existing bounded history; additional worker calls are not described as token savings.
 - Retains independent critique, complete selected evidence, security review, testing requirements and visible unresolved findings. Validation evidence is recorded in [project notes](PROJECT_NOTES.md).
-- Removes repeated canonical context paths and redundant outbound bookkeeping while preserving distinct sources and task data. Matching ordinary-input fixtures measured **2.00–3.54%** smaller worker inputs; deliberate duplicate-path fixtures measured **12.21–16.04%**. These ranges are separate and conditional, not total-session or quality guarantees. Includes a [reproducible offline benchmark](benchmarks/README.md) and [recorded evidence](docs/benchmarks/v0.10.0.md).
+- Removes repeated canonical context paths and redundant outbound bookkeeping while preserving distinct sources and task data. Includes a [reproducible offline benchmark](benchmarks/README.md) for checking input preservation; synthetic inputs do not establish total-session savings or planning quality.
 - All **192 automated tests** and **120 local documentation targets** passed. The offline comparison completed 24 workflows and captured 78 prompts with no provider calls. Independent runtime reviews and three instruction scenarios checked routing, identity, limits, privacy and evidence preservation.
 
 ## 0.9.0 — Proportional time and recovery without restarting
@@ -94,14 +94,14 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 - New runs record pairing in version 4 state. Existing version 1–3 runs retain their original contracts. Security review, independent stage boundaries, and two-/three-call workflows remain in place.
 - All **149 automated tests** passed locally, including both same-provider routes and reported-model mismatch cases. Three offline instruction scenarios checked routing and plan presentation. No live provider calls were made for this update.
 
-The [v0.7 PDF guide](docs/C2C-LinkedIn-Guide.pdf) and [token benchmark](docs/BENCHMARKS.md) document that release; their measurements are not new v0.8.0 measurements. See the [current setup](docs/SETUP.md#choose-the-participants) and [plan presentation guide](references/plan-presentation.md).
+The [v0.7 PDF guide](docs/C2C-LinkedIn-Guide.pdf) illustrates cross-provider setup. See the [current setup](docs/SETUP.md#choose-the-participants) and [plan presentation guide](references/plan-presentation.md) for later features.
 
 ## 0.7.0 — Less repeated planning context
 
 - Shorter entry instructions and focused review prose reduce repetition while retaining the selected evidence, full findings, security review, and verification stages.
 - Peer packets omit local bookkeeping such as byte counts and hashes; sealed local records retain it.
 - Agents can reuse reports already returned by the runner and request compact JSON output without dropping fields.
-- Two offline fixtures measured **8.19% fewer peer-input tokens** for a small feature and **10.93% fewer** for a production roadmap. The entry skill measured **12.18% fewer tokens**, separately. These are input-text proxies, not total billing savings or proof of equal model quality. [Method, numbers, and limits](docs/BENCHMARKS.md).
+- Offline fixtures checked preserved evidence and review stages. Input-text measurements do not establish total billing savings or equal model quality. [Evaluation methods and limits](docs/BENCHMARKS.md).
 - All **135 automated tests** passed locally; the [release commit's CI](https://github.com/ZiadHassanein/C2C/actions/runs/37445356743) passed on Windows and Ubuntu with Node 18, 22, and 24. No live provider calls were made for this update.
 
 Model settings and review depth stay unchanged: focused review uses two successful peer calls; independent planning uses three. Failed attempts also consume the run's attempt allowance.

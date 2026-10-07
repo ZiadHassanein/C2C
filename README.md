@@ -221,12 +221,12 @@ Start a new chat afterward. The updater retains backups and prints a rollback co
 |---|---|
 | [Setup and troubleshooting](docs/SETUP.md) | Installation options, platform requirements, updates and recovery. |
 | [FAQ](docs/FAQ.md) | Models, costs, security, discussion and planning behavior. |
-| [Benchmarks and evaluation](docs/BENCHMARKS.md) | Measured input reductions, limitations and real-outcome evaluation methods. |
+| [Evaluation methods](docs/BENCHMARKS.md) | How to measure inputs, planning quality and resource use. |
 | [Visual guide — historical v0.7 PDF](docs/C2C-LinkedIn-Guide.pdf) | Illustrated cross-provider setup; use this README for current features. |
 | [Release notes](CHANGELOG.md) | Changes by version. |
 | [Agent instructions](SKILL.md) · [Protocol](references/protocol.md) · [Project notes](PROJECT_NOTES.md) | Coordination rules, commands, schemas and development evidence. |
 
-Runtime tests and synthetic input benchmarks do not prove better plans or lower total cost. See the [outcome evaluation harness](evals/README.md) for how real plans can be compared.
+Runtime tests and synthetic input benchmarks do not prove better plans, lower total cost or faster responses. See the [evaluation methods](docs/BENCHMARKS.md) for how these can be assessed separately.
 
 ---
 

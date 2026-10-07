@@ -1,6 +1,6 @@
 # C2C FAQ: Codex and Claude Code planning and review
 
-C2C is an open-source skill for collaborative planning between Codex and Claude Code, or explicitly chosen different models within one provider. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers cross-provider setup and historical benchmark evidence.
+C2C is an open-source skill for collaborative planning between Codex and Claude Code, or explicitly chosen different models within one provider. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers cross-provider setup and usage.
 
 ## How do I make Codex and Claude Code work together?
 
@@ -56,7 +56,7 @@ The coordinator checks the plan's consistency before verification and again afte
 
 ## Does every plan include security and tests?
 
-Every new council requires a scoped security review and proposed acceptance checks. The plan preserves missing evidence, unresolved risks, and the distinction between proposed tests and tests actually executed. Completing the discussion does not certify security, production readiness, or a working implementation. Current controller validation is recorded in [project notes](../PROJECT_NOTES.md); [historical input measurements](BENCHMARKS.md) have separate limits.
+Every new council requires a scoped security review and proposed acceptance checks. The plan preserves missing evidence, unresolved risks, and the distinction between proposed tests and tests actually executed. Completing the discussion does not certify security, production readiness, or a working implementation. Current controller validation is recorded in [project notes](../PROJECT_NOTES.md); [evaluation methods](BENCHMARKS.md) distinguish software checks from planning outcomes.
 
 ## Does it choose or change my model automatically?
 
@@ -80,7 +80,7 @@ It can request a specific missing fact or file. The coordinator supplies a scope
 
 ## Is better planning quality proven?
 
-No. Runtime tests validate the controller, and historical token benchmarks measure synthetic inputs. The [outcome harness](../evals/README.md) supports real plans, matched model pools and limits, randomized blind review, and separate quality/resource measurements. Missing or synthetic evidence cannot establish a comparison; even a complete small batch is descriptive, not proof of general superiority.
+No. Runtime tests validate the controller, and offline benchmarks measure synthetic inputs. The [outcome harness](../evals/README.md) supports real plans, matched model pools and limits, randomized blind review, and separate quality/resource measurements. Missing or synthetic evidence cannot establish a comparison; even a complete small batch is descriptive, not proof of general superiority.
 
 ## Why did a signed-in Claude or Codex time out?
 
@@ -96,9 +96,9 @@ C2C stops calls to the blocked route and does not try alternative workers, provi
 
 If the active chat itself becomes unavailable, C2C cannot guarantee automatic takeover. You can ask an available chat to continue provisional planning from the saved plan, notes, and handoff; it preserves the original council's participant settings and unfinished stages. See [usage-limit fallback and resumption](SETUP.md#when-a-participant-hits-a-usage-limit).
 
-## How many tokens does the efficiency update save?
+## How does C2C manage token use?
 
-Version 0.10.0 measured **2.00–3.54% smaller worker inputs** across four matching routes with ordinary inputs. Controlled repeated-path cases saved **12.21–16.04%**, which is not the expected saving for a normal project. The 24-workflow offline comparison preserved exact task evidence, required calls and final hashes. It does not measure generated output, reasoning tokens, billing, cache hits, live speed or equal model judgment. Extra background-author calls can increase total usage; percentages are not additive. See the [reproducible results](benchmarks/v0.10.0.md) and [historical measurements](BENCHMARKS.md).
+C2C reuses saved reports and task research, removes repeated context paths, offers compact runner output, and keeps the discussion in Markdown. These controls avoid specific forms of repetition. They do not guarantee lower total usage: additional workers and review stages also consume tokens. Actual usage depends on the task, selected models, provider behavior, retries and outputs. C2C makes no quantified token-saving, cost or speed claim. See [measurement methods and limits](BENCHMARKS.md).
 
 ## Can I resume later, and will C2C start coding?
 

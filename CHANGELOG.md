@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.11.0 — Keep planning when usage limits block a participant
+
+- Defaults to completing a provisional plan with the available chat when a confirmed or user-reported usage limit blocks a worker, or further calls cannot fit authorized ceilings. Explicit requests to wait or require both participants take precedence.
+- Records evidence-based reversible assumptions, reasons, validation gates and a real self-check while retaining security and testing. Missing peer review stays explicit; planning delivery does not mark an incomplete council successful.
+- Preserves actual reports, decisions, identities and attempt history. Uses existing plan/notes files and stops blocked calls without replacement-model probes, account or billing changes, or automatic retries after delivery. A blocked host needs resumption from saved artifacts; automatic cross-app takeover is not promised.
+- Changes skill guidance only; worker prompts, schemas, CLI behavior and stage validation are unchanged. No new token-saving or model-quality measurement is claimed.
+
 ## 0.10.3 — Stable references in the discussion
 
 - Preserves worker finding IDs, including gaps and report order, so replies, decision records and later review packets keep their references. Previously, silent renumbering could leave a reply pointing at a missing or different finding.

@@ -39,6 +39,7 @@ Sign in through the native CLI once when needed. If the saved CLI login expires 
 | `doctor` cannot find `claude` or `codex` | Install the required CLI using the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) setup guide. Reopen the terminal and check again. |
 | `doctor` reports signed out | If the same CLI works in your normal terminal, check the environment/access row below first. Otherwise run `claude auth login` or `codex login` for the required peer, then rerun `doctor`. |
 | `doctor` is ready, but a call reports expired/rejected authentication | Authentication was visible; the provider rejected it during the call. Repair the selected credential source or renew native CLI login, then resume within the remaining allowance. C2C does not retry automatically or switch accounts/billing. |
+| A provider, account, or model reports a usage limit | The available chat continues a provisional plan within your remaining limits, preserving actual work and identifying missing review. See [usage-limit fallback](#when-a-participant-hits-a-usage-limit). |
 | Codex is missing the required `view_image` control | Upgrade Codex or select a compatible binary using `COUNCIL_CODEX_BIN`. Version 0.146.0 lacks this control; 0.160.1 passed local checks. C2C blocks before spending an attempt. |
 | A required CLI flag is missing | Update that CLI using its official setup guide, then rerun `doctor`. |
 | The installer finds a legacy skill | Follow [Update the skill](#update-the-skill) to move the old `codex-claude-council` installation outside all skill directories, then rerun installation. |
@@ -74,6 +75,18 @@ node scripts/council.mjs progress --run "/absolute/path/to/run" --compact
 Use `status` instead of `progress` for full budget and stage details before recovery or resumption.
 
 The [technical recovery command](../references/protocol.md#budgets-and-bounded-recovery) takes absolute totals, with hard ceilings of 15 minutes per call, 60 cumulative peer minutes, and six attempts. It never launches a peer itself or changes a running deadline. Exhausted ceilings leave an honest partial plan; successful stages are never replayed and a fresh run is not a way to bypass the cap.
+
+## When a participant hits a usage limit
+
+When a provider, account, or model usage block is reported, C2C defaults to completing a **provisional plan with the available chat**, within your remaining limits. It keeps actual contributions, security analysis, acceptance checks, and unresolved risks. The chat can choose reasonable reversible assumptions, label them, and specify how to validate them; material decisions and missing authority remain gates. The plan names completed and missing review stages. This preserves planning discipline while independent review remains incomplete.
+
+To require the full exchange, say “wait for both participants” or “require both reviews.” C2C honors that choice and preserves the partial work. It does not automatically wait and retry, select another worker/provider, change accounts, enable credits, or switch billing sources. Models from one provider may share the exhausted allowance. Your explicit time, attempt, spending, or whole-task caps still apply.
+
+Usage limits, timeouts, and rejected authentication are separate causes. C2C records the observed failure without guessing, and a larger runner allowance cannot remove a provider usage block. [Timeout recovery](#when-a-peer-call-takes-longer) and [login repair](#do-i-need-another-terminal-open) retain their existing rules.
+
+For a prepared run, the provisional plan remains in `final-plan.md`; `NOTES.md` records the fallback and resume point. Reports, attempts, participant settings, and successful stages remain intact. Generated progress and discussion keep their real stage status, and the run remains incomplete. If the block occurs before preparation, the chat saves a standalone plan and notes, linking only files that exist.
+
+If the current chat also becomes unavailable, automatic takeover cannot be guaranteed. Open an available chat and ask it to continue provisional planning from the saved artifacts. It must preserve the original council's sealed participants and unfinished stages. To resume the council after access returns, ask C2C to inspect the saved handoff, notes, assessment, and status, then continue only pending stages within the remaining authority and allowance. Successful stages are never replayed, and a new run cannot erase used attempts.
 
 ## Install for one app only
 

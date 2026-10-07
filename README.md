@@ -29,6 +29,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 | **Current model research** | Checks official guidance for both providers on each new task, then selects suitable workers within your limits. Your chat model stays unchanged. |
 | **Saved context and progress** | Keeps Markdown plans and handoffs, structured evidence, bounded attempts, and recovery checkpoints. |
 | **Proportional time and recovery** | Gives large plans more time, shows safe activity while waiting, and extends an existing run within audited ceilings when authorized. |
+| **Planning through usage limits** | Lets the available chat complete a provisional plan when a participant hits a reported usage limit, preserving real contributions and identifying missing review. |
 | **Less repeated context** | Removes repeated source paths and redundant prompt metadata; reuses reports and compact progress while retaining distinct evidence and review stages. |
 
 See the [FAQ](docs/FAQ.md) for usage limits. The [v0.7 visual guide](docs/C2C-LinkedIn-Guide.pdf) covers cross-provider setup and historical measurements; use this README for the newer pairing options and plan format.
@@ -127,6 +128,8 @@ The skill assesses your project first. You do not need to fill in a form or writ
 
 **Time follows the task.** Bounded work starts with up to 5 minutes per call, 15 cumulative worker minutes, and four attempts. Large/deep plans use up to 10 minutes per call, 40 cumulative minutes, and five attempts. Independent planning with a background author defaults to six attempts for its five calls. Explicit caps take precedence. A timeout preserves completed work for recovery in the same run. These are ceilings, not duration estimates or spending caps. [Progress and recovery →](docs/SETUP.md#when-a-peer-call-takes-longer)
 
+**Planning can continue through a usage limit.** If a participant is blocked by a reported provider, account, or model usage limit, the available chat completes a provisional plan within your remaining limits. It preserves actual contributions, states reasonable reversible assumptions and their checks, and keeps security, testing, and missing review visible. It does not try alternative workers, accounts, or billing sources. Ask to “wait for both participants” or “require both reviews” to override this default. [Usage-limit fallback →](docs/SETUP.md#when-a-participant-hits-a-usage-limit)
+
 **Less repetition by default.** The v0.10.0 offline comparison measured **2.00–3.54% smaller worker inputs** across four matching routes with ordinary inputs. Controlled repeated-file cases saved **12.21–16.04%**; that conditional range is not a normal-project expectation or additive saving. All task evidence and required review stages were preserved. These are input measurements, not proof of equal live-model quality, faster responses or total-session savings. [Reproducible results and limits →](docs/benchmarks/v0.10.0.md)
 
 ## Before planning
@@ -184,7 +187,7 @@ Actual exchanges can agree, disagree, or end with unresolved questions. `DISCUSS
 
 ## What you receive
 
-The chat links to the run folder. These are the main files to read:
+For a prepared council, the chat links to the run folder. These are the main files to read:
 
 | File | Purpose |
 |---|---|
@@ -197,7 +200,7 @@ The chat links to the run folder. These are the main files to read:
 
 The run also retains detailed decisions and the security review. An optional `IMPLEMENTATION_BRIEF.md` hands off one selected milestone.
 
-The plan starts with its real review status, recommendation, and priority decisions. Confirmed requirements stay separate from proposed choices. Larger plans use milestone dependencies and exit gates; technical depth follows the brief in the same document. If a peer call fails, the available work stays labeled as a draft. [Plan layout →](references/plan-presentation.md)
+The plan starts with its real review status, recommendation, and priority decisions. Confirmed requirements stay separate from proposed choices. Larger plans use milestone dependencies and exit gates; technical depth follows the brief in the same document. A provisional plan identifies missing review; its council remains incomplete. If a usage block prevents preparation, the chat saves a standalone plan without claiming a run or discussion file exists. [Plan layout →](references/plan-presentation.md)
 
 > **Review completion describes the planning exchange.** The result distinguishes proposed checks from executed results and preserves unresolved issues. Security review records risks and unknowns. Implementation and deployment require their own authorization and verification.
 

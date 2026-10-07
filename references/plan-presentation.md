@@ -12,6 +12,8 @@ Open with:
 
 If nothing blocks the next action, say so briefly. Do not repeat the same status caveat before every section. Do not call an incomplete exchange a final or agreed plan even if its local working filename is `final-plan.md`.
 
+For a [usage-limit fallback](protocol.md#planning-when-usage-limits-block-the-exchange), use **Provisional plan — completed by the available chat; council incomplete**. Name actual contributions and missing stages, then present the useful recommendation. Record reversible defaults with their reasons, consequences if wrong and validation gates in the plan; self-checks are not independent review. Keep security and testing sections. Link the discussion only if it exists; a preflight block may have no run at all.
+
 ## Show scope and sequence
 
 Distinguish **confirmed requirements**, **proposed choices**, and **unknowns** where confusion would change implementation. Then state the MVP/first delivery and deferred work; do not bury scope exclusions among database or API details.

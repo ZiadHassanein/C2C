@@ -72,6 +72,14 @@ Authentication and response completion are separate. The peer may be generating 
 
 C2C can increase a coordinator-selected allowance on the same run when your existing request covers bounded recovery, preserving successful stages and every used attempt. It does not ask for repeated approval just to adjust its own default; explicit user caps still require existing permission or your decision before an increase. Hard ceilings are 15 minutes per call, 60 cumulative peer minutes, and six attempts. No stage is skipped, no successful call is repeated, and no model or reasoning setting is lowered automatically. See [resuming a timed-out call](SETUP.md#when-a-peer-call-takes-longer).
 
+## What happens when one AI hits its usage limit?
+
+When a participant has a reported provider, account, or model usage block, the available chat completes a **provisional plan** by default, within your remaining limits. It uses actual reports already received, chooses reasonable reversible assumptions with validation checks, and retains security, testing, unresolved risks, and decisions that need you. Missing independent review stays explicit; a host self-check cannot replace it. Ask to “wait for both participants” or “require both reviews” if that is your preference.
+
+C2C stops calls to the blocked route and does not try alternative workers, providers, accounts, or billing sources. Different models may share an allowance. Timeouts and rejected logins keep their own recovery paths; they are not assumed to be quota failures. Saved reports, failed attempts, and participant settings remain intact, and the council stays incomplete until its required real stages succeed. A block before preparation produces a standalone plan, without an invented run or discussion record.
+
+If the active chat itself becomes unavailable, C2C cannot guarantee automatic takeover. You can ask an available chat to continue provisional planning from the saved plan, notes, and handoff; it preserves the original council's participant settings and unfinished stages. See [usage-limit fallback and resumption](SETUP.md#when-a-participant-hits-a-usage-limit).
+
 ## How many tokens does the efficiency update save?
 
 Version 0.10.0 measured **2.00–3.54% smaller worker inputs** across four matching routes with ordinary inputs. Controlled repeated-path cases saved **12.21–16.04%**, which is not the expected saving for a normal project. The 24-workflow offline comparison preserved exact task evidence, required calls and final hashes. It does not measure generated output, reasoning tokens, billing, cache hits, live speed or equal model judgment. Extra background-author calls can increase total usage; percentages are not additive. See the [reproducible results](benchmarks/v0.10.0.md) and [historical measurements](BENCHMARKS.md).

@@ -70,7 +70,7 @@ C2C can increase a coordinator-selected allowance on the same run when your exis
 
 ## How many tokens does the efficiency update save?
 
-Two offline v0.7.0 fixtures measured peer-input reductions of **8.19%** for a small feature and **10.93%** for a project roadmap. Entry instructions were **12.18%** smaller. The measurements used fixed reports and no provider calls; they do not measure generated output, reasoning tokens, billing, cache hits, or equivalent model quality. The percentages describe separate measurements and must not be added. See the [complete benchmark method](BENCHMARKS.md).
+Version 0.10.0 measured **2.00–3.54% smaller worker inputs** across four matching routes with ordinary inputs. Controlled repeated-path cases saved **12.21–16.04%**, which is not the expected saving for a normal project. The 24-workflow offline comparison preserved exact task evidence, required calls and final hashes. It does not measure generated output, reasoning tokens, billing, cache hits, live speed or equal model judgment. Extra background-author calls can increase total usage; percentages are not additive. See the [reproducible results](benchmarks/v0.10.0.md) and [historical measurements](BENCHMARKS.md).
 
 ## Can I resume later, and will C2C start coding?
 

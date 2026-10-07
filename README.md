@@ -29,7 +29,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 | **Current model research** | Checks official guidance for both providers on each new task, then selects suitable workers within your limits. Your chat model stays unchanged. |
 | **Saved context and progress** | Keeps Markdown plans and handoffs, structured evidence, bounded attempts, and recovery checkpoints. |
 | **Proportional time and recovery** | Gives large plans more time, shows safe activity while waiting, and extends an existing run within audited ceilings when authorized. |
-| **Less repeated context** | Reuses reports and reduces prompt and output formatting overhead while retaining review stages and selected evidence. |
+| **Less repeated context** | Removes repeated source paths and redundant prompt metadata; reuses reports and compact progress while retaining distinct evidence and review stages. |
 
 See the [FAQ](docs/FAQ.md) for usage limits. The [v0.7 visual guide](docs/C2C-LinkedIn-Guide.pdf) covers cross-provider setup and historical measurements; use this README for the newer pairing options and plan format.
 
@@ -127,7 +127,7 @@ The skill assesses your project first. You do not need to fill in a form or writ
 
 **Time follows the task.** Bounded work starts with up to 5 minutes per call, 15 cumulative worker minutes, and four attempts. Large/deep plans use up to 10 minutes per call, 40 cumulative minutes, and five attempts. Independent planning with a background author defaults to six attempts for its five calls. Explicit caps take precedence. A timeout preserves completed work for recovery in the same run. These are ceilings, not duration estimates or spending caps. [Progress and recovery →](docs/SETUP.md#when-a-peer-call-takes-longer)
 
-**Less repetition by default.** In two offline v0.7.0 fixtures, peer-input tokens fell **8.19%** for a small feature and **10.93%** for a project roadmap; entry instructions were **12.18%** smaller. These are separate input-text measurements, not total-session savings or proof of equal planning quality. Review stages and selected evidence were retained. [Benchmark method and limits →](docs/BENCHMARKS.md)
+**Less repetition by default.** The v0.10.0 offline comparison measured **2.00–3.54% smaller worker inputs** across four matching routes with ordinary inputs. Controlled repeated-file cases saved **12.21–16.04%**; that conditional range is not a normal-project expectation or additive saving. All task evidence and required review stages were preserved. These are input measurements, not proof of equal live-model quality, faster responses or total-session savings. [Reproducible results and limits →](docs/benchmarks/v0.10.0.md)
 
 ## Before planning
 

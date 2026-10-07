@@ -9,6 +9,8 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 - Adds an optional background planning author. Same-provider discussion pairs a planner with a distinct coding-focused critic; cross-provider discussion uses a planning model from each provider. Requested, declared and reported identities stay distinct.
 - Background-author focused review takes three successful worker calls; independent planning takes five. Matching host-author routes retain two/three. All attempts share the existing bounded history; additional worker calls are not described as token savings.
 - Retains independent critique, complete selected evidence, security review, testing requirements and visible unresolved findings. Validation evidence is recorded in [project notes](PROJECT_NOTES.md).
+- Removes repeated canonical context paths and redundant outbound bookkeeping while preserving distinct sources and task data. Matching ordinary-input fixtures measured **2.00–3.54%** smaller worker inputs; deliberate duplicate-path fixtures measured **12.21–16.04%**. These ranges are separate and conditional, not total-session or quality guarantees. Includes a [reproducible offline benchmark](benchmarks/README.md) and [recorded evidence](docs/benchmarks/v0.10.0.md).
+- All **192 automated tests** and **120 local documentation targets** passed. The offline comparison completed 24 workflows and captured 78 prompts with no provider calls. Independent runtime reviews and three instruction scenarios checked routing, identity, limits, privacy and evidence preservation.
 
 ## 0.9.0 — Proportional time and recovery without restarting
 

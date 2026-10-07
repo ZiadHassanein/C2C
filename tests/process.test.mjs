@@ -132,10 +132,10 @@ test('a timed out parent with an inheriting descendant settles with honest termi
   let descendantPid;
   try {
     const error = await rejection(node(source, { timeoutMs }));
-    assert.equal(error.reason, 'timeout');
     const pidLine = error.stdout.split(/\r?\n/).find(line => line.startsWith('{'));
     assert.ok(pidLine, 'Parent fixture did not emit descendant PID metadata before timeout');
     descendantPid = JSON.parse(pidLine).descendantPid;
+    assert.equal(error.reason, 'timeout');
     assert.match(error.stdout, /descendant-live/);
     assert.ok(Date.now() - began < timeoutMs + 2500, 'parent/descendant timeout did not settle promptly');
     assert.equal(error.termination.directExitObserved, true);

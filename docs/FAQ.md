@@ -16,7 +16,7 @@ No. Only your coordinating chat needs to stay open. C2C starts the peer CLI non-
 
 ## Does C2C really ask the other AI?
 
-Yes. C2C launches the selected workers and saves actual reports. In plan mode, independent proposals precede mutual critique and verification of the synthesis. Focused review starts from one candidate. When the current chat is the selected author, these use three and two successful calls respectively; a background author makes the totals five and three. [Workflow and counts](../README.md#how-it-works). Assessment-only requests make no worker calls.
+Yes. C2C launches the selected workers and saves actual reports. In plan mode, independent proposals precede mutual critique and verification of the synthesis. Focused review starts from one candidate. When the current chat is the selected author, required stages use three and two successful calls respectively; a background author raises these to five and three. The optional final-revision check adds at most one successful call within the same allowance. [Workflow and counts](../README.md#how-it-works). Assessment-only requests make no worker calls.
 
 ## Can Codex discuss a plan with another Codex model, or Claude with another Claude model?
 

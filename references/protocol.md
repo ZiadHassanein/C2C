@@ -303,7 +303,11 @@ Each draft, review, security review, and verification report uses this complete 
 
 ## Token efficiency
 
-Peer packets retain exact selected evidence, assessment and applicable full reports; only source byte counts/hashes stay local in the sealed snapshot. Common instructions and context precede stage-specific data, permitting but not guaranteeing cache reuse. Models, review stages and requirements are unchanged. Avoid duplicate prose/reads, never material evidence. Per-attempt provider usage is retained when returned; offline token counts establish neither billed savings nor equal planning quality.
+Worker packets retain exact selected evidence, assessment, applicable full reports and actual participant roles/model IDs. Preparation validates every context argument, then keeps the first occurrence of each canonical context path. Distinct files remain separate even when their text matches; brief and assessment roles are not deduplicated against context. Repeated paths no longer consume the aggregate context allowance more than once. Existing file-count, per-file and prompt bounds remain.
+
+Run UUIDs, source byte counts/hashes and derived identity labels stay in local records. The prompt keeps the model-identity caveat without repeating it in packet metadata. Common instructions and context precede stage-specific data, permitting but not guaranteeing cache reuse. Reuse returned reports, the task's model research and compact progress views. Avoid duplicate prose/reads, never material evidence or findings. Read reference sections only when relevant.
+
+The efficiency change does not reduce models, effort, security or review stages. Selected background authors add genuine calls when the host does not match; do not confuse routing changes with smaller matched inputs. Per-attempt provider usage is retained when returned. [Published comparisons](https://github.com/ZiadHassanein/codex-claude-council/blob/main/docs/benchmarks/v0.10.0.md) and the [offline harness](https://github.com/ZiadHassanein/codex-claude-council/blob/main/benchmarks/README.md) test exact task content and workflow invariants; token proxies establish neither billed savings, live speed nor equal model judgment.
 
 ## Decision record
 

@@ -1200,6 +1200,71 @@ test('linked skill entrypoint executes commands and reports invalid input', asyn
   assert.equal(JSON.parse(version.stdout).version,(await read(path.join(packageRoot,'package.json'))).version);
 });
 
+test('repeated context paths and aliases preserve first order and separate brief roles', async () => {
+  const f=await inputFixture('context-dedup-order');
+  const other=path.join(f.project,'second.txt');
+  await write(other,'A separate source with a distinct observation.');
+  await fs.mkdir(path.join(f.project,'alias'));
+  const alias=`${f.project}${path.sep}alias${path.sep}..${path.sep}second.txt`;
+  const prepared=prepare({...prepareOptions(f),context:[other,f.context,alias,other,f.brief]});
+  const snapshot=await read(path.join(f.out,'snapshot.json'));
+  const expected=await Promise.all([other,f.context,f.brief].map(file=>fs.realpath(file)));
+  assert.deepEqual(snapshot.inputs.filter(input=>input.kind==='context').map(input=>input.path),expected);
+  assert.deepEqual(prepared.context.filter(input=>input.kind==='context').map(input=>input.path),expected);
+  assert.equal(snapshot.inputs.filter(input=>input.path===expected[2]).length,2,'Brief and context roles must remain separate');
+  for(const input of snapshot.inputs) {
+    assert.equal(input.content,await fs.readFile(input.path,'utf8'));
+    assert.equal(input.bytes,Buffer.byteLength(input.content));
+    assert.equal(input.sha256,createHash('sha256').update(input.content).digest('hex'));
+  }
+  await write(other,'Changed source after its frozen snapshot.');
+  assert.equal(status({run:f.out}).changed_source_files.filter(file=>file===expected[0]).length,1);
+});
+
+test('distinct context files with identical text retain their labels and exact evidence', async () => {
+  const f=await inputFixture('context-equal-text');
+  const other=path.join(f.project,'independent.txt');
+  const exact='  Same evidence, separate provenance: café, 車, quote " and newline\r\n  ';
+  await write(f.context,exact); await write(other,exact);
+  prepare({...prepareOptions(f),context:[f.context,other,f.context]});
+  await hostDraft(f);
+  await ask({run:f.out,stage:'draft'},async request=>{
+    const packet=JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    const context=packet.shared_context.inputs.filter(input=>input.kind==='context');
+    assert.deepEqual(context.map(input=>input.path),['context.txt','independent.txt']);
+    assert.deepEqual(context.map(input=>input.content),[exact,exact]);
+    return invocation()(request);
+  });
+});
+
+test('context dedup uses unique evidence bytes while preserving raw count and size bounds', async () => {
+  const f=await inputFixture('context-dedup-limits');
+  await write(f.context,'x'.repeat(130000));
+  const other=path.join(f.project,'independent.txt');
+  await write(other,'x'.repeat(130000));
+  prepare({...prepareOptions(f),context:[f.context,f.context]});
+  assert.equal((await read(path.join(f.out,'snapshot.json'))).inputs.filter(input=>input.kind==='context').length,1);
+  const tooLarge=path.join(f.root,'too-large');
+  assert.throws(()=>prepare({...prepareOptions(f),context:[f.context,other],out:tooLarge}),/Selected context exceeds/);
+  const tooMany=path.join(f.root,'too-many');
+  assert.throws(()=>prepare({...prepareOptions(f),context:Array(31).fill(f.context),out:tooMany}),/at most 30/);
+  await write(f.context,'x'.repeat(240001));
+  const oversized=path.join(f.root,'oversized');
+  assert.throws(()=>prepare({...prepareOptions(f),context:[f.context,f.context],out:oversized}),/no larger than 240000/);
+  for(const directory of [tooLarge,tooMany,oversized])await assert.rejects(()=>fs.access(directory));
+});
+
+test('repeated context arguments cannot bypass credential and secret checks', async () => {
+  const f=await inputFixture('context-dedup-secrets');
+  await write(f.context,'-----BEGIN PRIVATE KEY-----\nSynthetic fixture, never a credential.');
+  assert.throws(()=>prepare({...prepareOptions(f),context:[f.context,f.context]}),/secret|credential|private key/i);
+  await assert.rejects(()=>fs.access(f.out));
+  const credential=path.join(f.project,'.env');
+  await write(credential,'Synthetic harmless text in a forbidden credential-like filename.');
+  assert.throws(()=>prepare({...prepareOptions(f),context:[credential,credential]}),/Credential-like input/);
+  await assert.rejects(()=>fs.access(f.out));
+});
+
 test('peer packet minimizes host paths and includes the assessment only once', async () => {
   const f=await fixture('minimal-packet');
   await hostDraft(f);
@@ -1240,6 +1305,9 @@ test('lean packets preserve exact evidence, reports and verification data at eve
   await write(path.join(f.out,'decisions.json'),decisions);
   await ask({run:f.out,stage:'verify'},capture);
   for(const {packet} of captured) {
+    assert.equal(Object.hasOwn(packet,'run_id'),false);
+    assert.deepEqual(Object.keys(packet.participants).sort(),['coordinator','coordinator_model','pairing','peer','peer_model']);
+    assert.deepEqual(packet.participants,original.participants);
     assert.deepEqual(packet.shared_context.project_assessment,original.project_assessment);
     assert.equal(packet.shared_context.inputs.find(input=>input.kind==='context').content,evidence);
     for(const input of packet.shared_context.inputs) {
@@ -1261,6 +1329,11 @@ test('lean packets preserve exact evidence, reports and verification data at eve
   assert.equal(commonPrefix[1],commonPrefix[2]);
   assert.deepEqual(await read(path.join(f.out,'snapshot.json')),original);
   const manifest=await read(path.join(f.out,'run.json'));
+  assert.ok(manifest.id);
+  const localParticipants=status({run:f.out}).participants;
+  assert.equal(localParticipants.coordinator_identity,'unknown');
+  assert.equal(localParticipants.peer_identity,'provider_default');
+  assert.match(localParticipants.identity_note,/not independent attestation/);
   for(const file of ['final-plan.md','decisions.json','security-review.json']) {
     assert.equal(manifest.stages.verify.reviewed_hashes[file],createHash('sha256').update(await fs.readFile(path.join(f.out,file))).digest('hex'));
   }
@@ -1589,6 +1662,12 @@ test('selected background planners and critics complete both provider routes wit
     const worker = async request => {
       const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
       packets.set(packet.stage, packet);
+      assert.equal(Object.hasOwn(packet, 'run_id'), false);
+      assert.deepEqual(Object.keys(packet.participants).sort(), ['author_model', 'author_provider', 'coordinator', 'coordinator_model', 'pairing', 'peer', 'peer_model']);
+      assert.equal(packet.participants.author_model, models['author-model']);
+      assert.equal(packet.participants.author_provider, coordinator);
+      assert.equal(packet.participants.peer_model, models['peer-model']);
+      assert.match(request.prompt, /Participant models are declared\/requested, not independently attested/);
       const author = packet.stage.startsWith('author-');
       assert.equal(request.provider, author ? coordinator : prepared.peer);
       const expectedModel = models[author ? 'author-model' : 'peer-model'];
@@ -1653,6 +1732,9 @@ test('selected background planners and critics complete both provider routes wit
     assert.equal(result.plan_changed_since_verification, false);
     assert.equal(result.security_review.required, true);
     const current = status({ run: f.out });
+    assert.equal(current.participants.author_identity, 'requested');
+    assert.equal(current.participants.peer_identity, 'requested');
+    assert.match(current.participants.identity_note, /not independent identity attestation/);
     assert.deepEqual(current.reported_author_models, [models['author-model']]);
     assert.deepEqual(current.reported_peer_models, [models['peer-model']]);
     assert.equal(current.successful_worker_calls, requestRecords.length);

@@ -116,7 +116,14 @@ export function prepare(options) {
   const assessmentInput = source(options.assessment, 'assessment');
   const assessment = validateAssessment(JSON.parse(assessmentInput.content));
   required(assessment.direction.clarity !== 'needs_user_input', 'Clarify the material goal or constraints before preparing a council; preserve the assessment and ask the focused questions');
-  const inputs = [source(options.brief, 'brief'), assessmentInput, ...contexts.map(p => source(p, 'context'))];
+  // Preserve source identity and first order; equal text from different files is
+  // separate evidence. Read/scan every argument before deduplicating its real path.
+  const seenContexts = new Set();
+  const contextInputs = contexts.map(p => source(p, 'context')).filter(input => {
+    if (seenContexts.has(input.path)) return false;
+    seenContexts.add(input.path); return true;
+  });
+  const inputs = [source(options.brief, 'brief'), assessmentInput, ...contextInputs];
   required(inputs[0].content.trim(), 'Brief cannot be empty');
   required(inputs.reduce((n, f) => n + f.bytes, 0) <= CONTEXT_LIMIT, `Selected context exceeds ${CONTEXT_LIMIT} bytes; summarize it first`);
   const snapshot = { project, inputs, project_assessment: assessment, participants };
@@ -406,7 +413,10 @@ function stagePrompt(dir, state, stage) {
   };
   // Keep shared evidence before changing stage fields for a stable prompt prefix.
   // Hashes and byte counts stay in the sealed local snapshot, not model context.
-  const packet = { shared_context: shared, run_id: state.id, mode: state.mode, participants: participantSummary(state), stage };
+  // Retain actual roles and model IDs; local run IDs and derived identity prose
+  // stay in state/results. The instruction prefix retains the identity caveat.
+  const participants = { ...validateParticipants(state), ...(state.author_model ? { author_provider: state.coordinator } : {}) };
+  const packet = { shared_context: shared, mode: state.mode, participants, stage };
   if (baseStage !== 'draft') {
     if (!author) hostReport(dir, state, 'coordinator-review.json', 'C-R');
     packet.coordinator_proposal = host;

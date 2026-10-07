@@ -1,10 +1,18 @@
-# C2C v0.7.0: token benchmark and validation
+# C2C token-efficiency measurements
+
+## Version 0.10.0
+
+The current lossless efficiency change measured **2.00–3.54% smaller worker inputs** across four matching ordinary-input routes. Deliberately repeated-context cases saved **12.21–16.04%**; these conditional results are not normal-input expectations or additive to the first range. All evidence, roles, review stages and final hashes were preserved in fixed-output comparisons.
+
+Read the [full v0.10.0 results](benchmarks/v0.10.0.md), [measurement JSON](benchmarks/v0.10.0-lossless-input.json), and [reproducible benchmark](../benchmarks/README.md). The test ran 24 offline workflows and 78 injected prompts, with no provider calls. It does not establish equal live-model quality, lower bills or faster responses. New background-author routing adds calls when needed, so compare each route against itself.
+
+## Historical version 0.7.0
 
 C2C v0.7.0 reduces repeated planning text while retaining the selected evidence and review stages. In two offline synthetic workflows, measured peer-input tokens decreased **8.19%** for a small feature and **10.93%** for a production roadmap. Entry instructions decreased **12.18%**. These figures describe different inputs; they are not additive or a measure of total-session savings.
 
 The benchmark used fixed injected reports and made **zero provider calls**. It demonstrates input preservation and runner behavior, not equivalent model planning quality, lower bills, or faster live responses.
 
-## Comparison and method
+### Comparison and method
 
 | Item | Recorded value |
 |---|---|
@@ -18,7 +26,7 @@ The benchmark used fixed injected reports and made **zero provider calls**. It d
 
 Both versions received identical briefs, selected source contents, assessments, findings, security reviews, final plans, and finding dispositions. Only random run IDs were normalized in captured prompts. Instruction-file comparisons normalized line endings to LF. Input sizes were measured independently of the fixed outputs. The [machine-readable measurements](benchmarks/v0.7.0-input-tokens.json) include both tokenizer encodings, character and byte counts, and the measured source hash.
 
-## Peer-input results
+### Peer-input results
 
 These totals count the text supplied to the peer across the complete workflow, excluding additional provider or CLI envelopes.
 
@@ -29,7 +37,7 @@ These totals count the text supplied to the peer across the complete workflow, e
 
 The alternative `cl100k_base` encoding measured 3,802 → 3,492 tokens (8.15%) and 8,936 → 7,960 tokens (10.92%), respectively. The exact count depends on the tokenizer.
 
-### By stage
+#### By stage
 
 | Scenario and stage | Before tokens | After tokens | Reduction |
 |---|---:|---:|---:|
@@ -39,7 +47,7 @@ The alternative `cl100k_base` encoding measured 3,802 → 3,492 tokens (8.15%) a
 | Production roadmap: review | 2,668 | 2,342 | 12.22% |
 | Production roadmap: verification | 4,298 | 3,972 | 7.58% |
 
-## Coordinator instructions
+### Coordinator instructions
 
 Each file is counted separately. Loading reference sections depends on the task; these numbers are not part of the peer-input totals above.
 
@@ -52,7 +60,7 @@ Each file is counted separately. Loading reference sections depends on the task;
 
 The entry instructions became shorter; the protocol grew to explain the updated interface. Reading only relevant reference sections matters more than the size reduction across all three files.
 
-## CLI formatting
+### CLI formatting
 
 The optional `--compact` flag removes JSON formatting whitespace while retaining all fields. Both actual `status` formats were parsed and asserted equal. For `ask`, the same captured return object was serialized in both formats; this did not produce a second model response.
 
@@ -65,7 +73,7 @@ The optional `--compact` flag removes JSON formatting whitespace while retaining
 
 These are formatting savings on fixed objects, not measurements of generated-output savings. They must not be added to the peer-input or instruction percentages.
 
-## What the checks preserved
+### What the checks preserved
 
 - All five corresponding stage packets retained the same substantive task data: selected source contents and labels, assessment, applicable reports, findings, security evidence, final plans, and dispositions. Outbound byte/hash metadata was removed, JSON keys were reordered, and stage instructions were relocated.
 - The independent draft excluded the coordinator draft; the independent review excluded the coordinator review.
@@ -74,13 +82,13 @@ These are formatting savings on fixed objects, not measurements of generated-out
 
 Local snapshot bookkeeping remains available even when omitted from the peer packet. No models, review rounds, or required security checks were removed by the efficiency update.
 
-## Software validation
+### Software validation
 
 Version 0.7.0 passed **135 automated tests** locally on Windows / Node 24. Its [GitHub Actions run at the release commit](https://github.com/ZiadHassanein/codex-claude-council/actions/runs/37445356743) passed all **six jobs** across Windows and Ubuntu with Node 18, 22, and 24.
 
 This suite checks C2C's runner and related behavior, including context preservation, state, compatibility, discussion rendering, and compact output. It does not establish that a user's application or generated plan passes its own acceptance tests. Earlier live CLI observations and their limits are recorded separately in [project notes](../PROJECT_NOTES.md#validation-actually-performed).
 
-## Limits and audit trail
+### Limits and audit trail
 
 The benchmark covers two synthetic scenarios. Real context sizes, tokenizer choices, CLI-added instructions, tool definitions, output schemas, and provider envelopes affect actual usage. The fixed reports cannot establish reasoning-token savings, cache hits, output length, equal planning quality, or production performance. No application was implemented or production-tested by this benchmark.
 

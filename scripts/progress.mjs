@@ -99,11 +99,12 @@ export function readPeerProgress(dir, state, nowMs = Date.now()) {
   const activityTimes = [stdout, stderr].filter(log => log.bytes > 0 && log.modified !== null && observed !== null && log.modified <= observed)
     .map(log => log.modified);
   const lastActivity = activityTimes.length ? Math.max(...activityTimes) : null;
-  const metadata = eventProgress(stdout.text, state.peer);
-  const stage = ['draft', 'review', 'verify'].includes(attempt.stage) ? attempt.stage : 'unknown';
+  const provider = ['codex', 'claude'].includes(attempt.provider) ? attempt.provider : state.peer;
+  const metadata = eventProgress(stdout.text, provider);
+  const stage = ['author-draft', 'author-review', 'draft', 'review', 'verify'].includes(attempt.stage) ? attempt.stage : 'unknown';
   const validated = attempt.status === 'succeeded' && state.stages?.[stage]?.status === 'succeeded' && state.stages[stage].attempt === attempt.number;
   return {
-    attempt: attempt.number, stage, attempt_status: ['running', 'succeeded', 'failed', 'interrupted'].includes(attempt.status) ? attempt.status : 'unknown',
+    attempt: attempt.number, stage, ...(state.author_model ? { provider, role: attempt.role === 'author' ? 'author' : 'peer' } : {}), attempt_status: ['running', 'succeeded', 'failed', 'interrupted'].includes(attempt.status) ? attempt.status : 'unknown',
     recorded_running: running, observed_at: iso(observed), elapsed_ms: duration, timeout_ms: timeout,
     deadline_at: iso(deadline), remaining_ms: running && timeout !== null && duration !== null ? Math.max(0, timeout - duration) : null,
     stdout_bytes: stdout.bytes, stderr_bytes: stderr.bytes, stdout_log_state: stdout.state, stderr_log_state: stderr.state,

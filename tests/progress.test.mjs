@@ -40,6 +40,21 @@ test('missing logs and attempts produce honest waiting diagnostics without creat
   assert.deepEqual(fs.readdirSync(f.dir), []);
 });
 
+test('background author activity uses that attempt provider and preserves role attribution', () => {
+  const f = fixture('author-provider', { stage: 'author-draft', provider: 'codex', role: 'author', status: 'succeeded' });
+  f.state.author_model = 'gpt-5.4';
+  f.state.stages['author-draft'] = { status: 'succeeded', attempt: 1 };
+  log(f, [{ type: 'thread.started', thread_id: secret }, { type: 'turn.completed', usage: { private: secret } }]);
+  const status = readPeerProgress(f.dir, f.state, began + 2000);
+  assert.equal(f.state.peer, 'claude');
+  assert.equal(status.provider, 'codex');
+  assert.equal(status.role, 'author');
+  assert.equal(status.stage, 'author-draft');
+  assert.equal(status.phase, 'response_received');
+  assert.equal(status.report_validated, true);
+  assert.doesNotMatch(JSON.stringify(status), new RegExp(secret));
+});
+
 test('reasoning events report activity while withholding every private payload and model name', () => {
   const f = fixture('working');
   const output = log(f, [

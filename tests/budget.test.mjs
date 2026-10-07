@@ -36,6 +36,24 @@ test('budget status separates definite attempt shortage from advisory runtime he
   assert.equal(budgetSummary(run).assessment, 'stages_complete');
 });
 
+test('background worker stages share the attempt allowance and explicit caps remain authoritative', () => {
+  const options = { 'author-model': 'gpt-5.4', 'budget-profile': 'project' };
+  assert.equal(prepareBudget(options).max_attempts, 6);
+  assert.equal(prepareBudget({ ...options, 'max-attempts': 5 }).max_attempts, 5);
+  assert.equal(prepareBudget({ ...options, mode: 'review' }).max_attempts, 5);
+  const run = { ...state(options), author_model: 'gpt-5.4' };
+  assert.deepEqual(budgetSummary(run).pending_stages, ['author-draft', 'draft', 'author-review', 'review', 'verify']);
+  run.attempts.push({ number: 1, stage: 'author-draft', status: 'failed' });
+  assert.equal(budgetSummary(run).attempts_sufficient, true);
+  run.attempts.push({ number: 2, stage: 'author-draft', status: 'failed' });
+  assert.equal(budgetSummary(run).attempts_sufficient, false);
+  run.stages['author-draft'] = { status: 'succeeded' };
+  assert.equal(budgetSummary(run).successful_calls_remaining, 4);
+  assert.equal(budgetSummary(run).attempts_sufficient, true);
+  run.mode = 'review';
+  assert.deepEqual(budgetSummary(run).pending_stages, ['review', 'verify']);
+});
+
 test('running reservations are conservative projections and recover exactly once', () => {
   const run = state();
   run.elapsed_ms = 1000;

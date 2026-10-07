@@ -1035,7 +1035,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -1569,6 +1569,204 @@ const sameModels = provider => provider === 'codex'
   ? { 'coordinator-model':'gpt-5.4', 'peer-model':'gpt-5.4-mini' }
   : { 'coordinator-model':'claude-opus-4-6', 'peer-model':'claude-sonnet-4-6' };
 
+const authorModels = (provider, pairing = 'same') => ({
+  'author-model': provider === 'codex' ? 'gpt-5.4' : 'claude-opus-4-6',
+  'peer-model': pairing === 'same' ? sameModels(provider)['peer-model'] : provider === 'codex' ? 'claude-opus-4-6' : 'gpt-5.4',
+});
+
+test('selected background planners and critics complete both provider routes with truthful provenance', async () => {
+  for (const coordinator of ['codex', 'claude']) for (const pairing of ['same', 'cross']) {
+    const mode = pairing === 'same' ? 'review' : 'plan';
+    const models = authorModels(coordinator, pairing);
+    const f = await fixture(`author-${coordinator}-${pairing}`, { coordinator, pairing, mode, ...models });
+    const prepared = status({ run: f.out });
+    assert.equal((await read(path.join(f.out, 'run.json'))).version, 5);
+    assert.equal(prepared.participants.coordinator_model, null, 'The unknown host model must not be replaced by the selected planner');
+    assert.equal(prepared.participants.author_model, models['author-model']);
+    assert.equal(prepared.budget.successful_calls_remaining, mode === 'plan' ? 5 : 3);
+    assert.equal(prepared.budget.max_attempts, mode === 'plan' ? 6 : 4);
+    const packets = new Map(), requestRecords = [];
+    const worker = async request => {
+      const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+      packets.set(packet.stage, packet);
+      const author = packet.stage.startsWith('author-');
+      assert.equal(request.provider, author ? coordinator : prepared.peer);
+      const expectedModel = models[author ? 'author-model' : 'peer-model'];
+      assert.equal(request.args[request.args.indexOf('--model') + 1], expectedModel);
+      assert.notEqual(await fs.realpath(request.cwd), await fs.realpath(f.project));
+      assert.match(request.prompt, /Do not execute tools, edit project files/);
+      if (request.provider === 'claude') {
+        assert.equal(request.args[request.args.indexOf('--tools') + 1], '');
+        assert.ok(request.args.includes('--strict-mcp-config'));
+      } else {
+        assert.ok(request.args.includes('read-only'));
+        assert.ok(request.args.includes('never'));
+      }
+      if (pairing === 'same' && !author) assert.match(packet.stage_instruction, /coding-focused implementation critic.*buildability.*testability/);
+      if (pairing === 'cross') assert.doesNotMatch(packet.stage_instruction, /coding-focused implementation critic/);
+      requestRecords.push({ stage: packet.stage, provider: request.provider });
+      return invocationWithModels(report(packet.stage === 'verify' ? [] : ['transport-id'], `REPORT_${packet.stage}`), [expectedModel])(request);
+    };
+    const authorResult = await ask({ run: f.out, stage: 'author-draft' }, worker);
+    assert.equal(authorResult.worker.role, 'author');
+    assert.deepEqual(authorResult.reported_worker_models, [models['author-model']]);
+    assert.equal(authorResult.worker_identity_status, 'cli_reported');
+    assert.equal(Object.hasOwn(authorResult, 'reported_peer_models'), false, 'Author metadata must not be returned as peer identity');
+    assert.equal(Object.hasOwn(authorResult, 'peer_identity_status'), false);
+    assert.equal((await read(path.join(f.out, 'coordinator-draft.json'))).findings[0].id, 'C-D1');
+    if (mode === 'plan') {
+      await ask({ run: f.out, stage: 'draft' }, worker);
+      await ask({ run: f.out, stage: 'author-review' }, worker);
+    } else await hostReview(f, ['C-R1'], 'Actual host independent check');
+    const peerResult = await ask({ run: f.out, stage: 'review' }, worker);
+    assert.equal(peerResult.worker.role, 'peer');
+    assert.deepEqual(peerResult.reported_peer_models, [models['peer-model']]);
+    assert.equal(peerResult.peer_identity_status, 'cli_reported');
+    assert.deepEqual(peerResult.reported_worker_models, peerResult.reported_peer_models);
+    assert.equal(peerResult.worker_identity_status, peerResult.peer_identity_status);
+    for (const name of mode === 'plan' ? ['author-draft', 'draft'] : ['author-draft']) {
+      const packet = packets.get(name);
+      assert.equal(packet.coordinator_proposal, undefined);
+      assert.equal(packet.peer_proposal, undefined);
+      assert.doesNotMatch(JSON.stringify(packet), /REPORT_author-draft|REPORT_draft/);
+    }
+    for (const name of mode === 'plan' ? ['author-review', 'review'] : ['review']) {
+      const packet = packets.get(name);
+      assert.equal(packet.coordinator_review, undefined);
+      assert.equal(packet.peer_review, undefined);
+      assert.equal(packet.coordinator_proposal.summary, 'REPORT_author-draft');
+      assert.equal(packet.peer_proposal?.summary, mode === 'plan' ? 'REPORT_draft' : undefined);
+      assert.doesNotMatch(JSON.stringify(packet), /REPORT_author-review|REPORT_review|Actual host independent check/);
+    }
+    const ids = ['C-D1', 'C-R1', 'P-R1', ...(mode === 'plan' ? ['P-D1'] : [])];
+    await write(path.join(f.out, 'final-plan.md'), '# Coordinator synthesis\nPreserve requirements, implement safe escaping and verify acceptance gates.');
+    await write(path.join(f.out, 'decisions.json'), ids.map(finding_id => ({ finding_id, disposition: 'accepted', rationale: 'Covered by the final acceptance gates and implementation steps.' })));
+    await assert.rejects(() => ask({ run: f.out, stage: 'verify' }, worker), /security-review/);
+    await write(path.join(f.out, 'security-review.json'), report([], 'Actual host security review; tests are proposed.'));
+    await ask({ run: f.out, stage: 'verify' }, worker);
+    const result = finish({ run: f.out });
+    assert.equal(result.successful_worker_calls, mode === 'plan' ? 5 : 3);
+    assert.equal(result.successful_peer_calls, mode === 'plan' ? 3 : 2);
+    assert.equal(result.worker_model_reports.filter(item => item.role === 'author').length, mode === 'plan' ? 2 : 1);
+    assert.ok(result.worker_model_reports.every(item => item.identity_status === 'cli_reported'));
+    assert.ok(result.peer_model_reports.every(item => item.requested === models['peer-model']));
+    assert.equal(result.plan_changed_since_verification, false);
+    assert.equal(result.security_review.required, true);
+    const current = status({ run: f.out });
+    assert.deepEqual(current.reported_author_models, [models['author-model']]);
+    assert.deepEqual(current.reported_peer_models, [models['peer-model']]);
+    assert.equal(current.successful_worker_calls, requestRecords.length);
+    const discussionText = await fs.readFile(path.join(f.out, 'DISCUSSION.md'), 'utf8');
+    assert.match(discussionText, /current chat synthesizes the plan and owns security review/);
+    assert.match(discussionText, /Successful worker calls \(author and peer\)/);
+    assert.match(discussionText, /author&#41; · Proposal/);
+    assert.match(discussionText, /coordinator&#41; · Security review/);
+    if (mode === 'review') assert.match(discussionText, /coordinator&#41; · Review of the candidate plan/);
+    else assert.match(discussionText, /author&#41; · Review of the/);
+  }
+});
+
+test('background routing rejects ambiguous models and insufficient explicit capacity before creating a run', async () => {
+  const f = await inputFixture('author-invalid');
+  const valid = { ...prepareOptions(f), ...authorModels('codex'), pairing: 'same', mode: 'review' };
+  for (const extra of [ { 'author-model': 'latest' }, { 'author-model': 'gpt-5.4-high' }, { 'peer-model': 'gpt-5.4' },
+    { 'peer-model': 'gpt-5.4-2026-03-17' }, { 'peer-model': null }, { 'max-attempts': '2' }, { mode: 'plan', 'max-attempts': '4' } ]) {
+    assert.throws(() => prepare({ ...valid, ...extra }), /model|attempts|calls/i);
+    await assert.rejects(() => fs.access(f.out));
+  }
+  prepare({ ...valid, 'coordinator-model': 'gpt-5.4-mini', 'max-attempts': '3' });
+  const current = status({ run: f.out });
+  assert.equal(current.participants.coordinator_model, 'gpt-5.4-mini', 'Host may match the critic because the separate author is the planner');
+  assert.equal(current.budget.max_attempts, 3, 'An explicit cap is never raised to add a retry');
+});
+
+test('background stages require their actual predecessors and never overwrite a handwritten draft', async () => {
+  const f = await fixture('author-order', { ...authorModels('codex', 'cross') });
+  let calls = 0;
+  const invoker = async request => { calls++; return invocation()(request); };
+  for (const stage of ['draft', 'author-review', 'review', 'verify']) await assert.rejects(() => ask({ run: f.out, stage }, invoker), /Complete/);
+  await hostDraft(f, [], 'Preserve user-authored work');
+  await assert.rejects(() => ask({ run: f.out, stage: 'author-draft' }, invoker), /will not overwrite/);
+  assert.equal(calls, 0);
+  assert.equal(status({ run: f.out }).attempts_used, 0);
+  assert.equal((await read(path.join(f.out, 'coordinator-draft.json'))).summary, 'Preserve user-authored work');
+  assert.doesNotMatch(await fs.readFile(path.join(f.out, 'DISCUSSION.md'), 'utf8'), /Preserve user-authored work/);
+});
+
+test('failed background author attempts stay charged through resume and successful stages cannot replay', async () => {
+  const f = await fixture('author-recovery', { ...authorModels('claude'), coordinator: 'claude', pairing: 'same', mode: 'review' });
+  const failure = new Error('Synthetic author timeout'); failure.reason = 'timeout'; failure.stdout = JSON.stringify({ type: 'system', subtype: 'thinking_tokens' });
+  await assert.rejects(() => ask({ run: f.out, stage: 'author-draft' }, async () => { throw failure; }), /Synthetic author timeout/);
+  const failed = await read(path.join(f.out, 'run.json'));
+  assert.equal(failed.attempts[0].provider, 'claude');
+  assert.equal(failed.attempts[0].role, 'author');
+  assert.equal(failed.attempts[0].status, 'failed');
+  assert.equal(failed.attempts[0].progress.phase, 'model_working');
+  assert.equal(status({ run: f.out }).budget.successful_calls_remaining, 3);
+  const savedLog = await fs.readFile(path.join(f.out, 'attempt-1-stdout.txt'), 'utf8');
+  await ask({ run: f.out, stage: 'author-draft' }, invocation());
+  const authored = await fs.readFile(path.join(f.out, 'coordinator-draft.json'), 'utf8');
+  let replayed = false;
+  await assert.rejects(() => ask({ run: f.out, stage: 'author-draft' }, async () => { replayed = true; }), /already succeeded/);
+  assert.equal(replayed, false);
+  await hostReview(f);
+  await ask({ run: f.out, stage: 'review' }, invocation());
+  await write(path.join(f.out, 'final-plan.md'), '# Complete the preserved work');
+  await write(path.join(f.out, 'security-review.json'), report());
+  await write(path.join(f.out, 'decisions.json'), []);
+  await ask({ run: f.out, stage: 'verify' }, invocation());
+  const result = finish({ run: f.out });
+  assert.equal(result.successful_worker_calls, 3);
+  assert.equal(result.attempts_used, 4);
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts[0].reason, 'timeout');
+  assert.equal(await fs.readFile(path.join(f.out, 'attempt-1-stdout.txt'), 'utf8'), savedLog);
+  assert.equal(await fs.readFile(path.join(f.out, 'coordinator-draft.json'), 'utf8'), authored);
+});
+
+test('background author and cross-provider critic model substitutions fail without a successful report', async () => {
+  for (const coordinator of ['codex', 'claude']) for (const stage of ['author-draft', 'review']) {
+    const models = authorModels(coordinator, 'cross');
+    const f = await fixture(`author-mismatch-${coordinator}-${stage}`, { coordinator, mode: 'review', ...models });
+    if (stage === 'review') { await ask({ run: f.out, stage: 'author-draft' }, invocation()); await hostReview(f); }
+    const provider = stage === 'author-draft' ? coordinator : coordinator === 'codex' ? 'claude' : 'codex';
+    const unexpected = provider === 'codex' ? 'gpt-5.4-mini' : 'claude-sonnet-4-6';
+    await assert.rejects(() => ask({ run: f.out, stage }, invocationWithModels(report(), [unexpected])), /reported unexpected model/);
+    const state = await read(path.join(f.out, 'run.json'));
+    assert.equal(state.stages[stage], undefined);
+    assert.equal(state.attempts.at(-1).status, 'failed');
+    assert.deepEqual(state.attempts.at(-1).reported_models, [unexpected]);
+    await assert.rejects(() => fs.access(path.join(f.out, stage === 'author-draft' ? 'coordinator-draft.json' : 'peer-review.json')));
+  }
+});
+
+test('background author route is sealed, rejects downgrades, and protects authored evidence', async () => {
+  for (const mutate of [state => { state.author_model = 'gpt-5.3-codex'; }, state => { state.version = 4; }, state => { delete state.author_model; }, state => { state.coordinator_model = 'gpt-5.4-mini'; }]) {
+    const f = await fixture('author-sealed-route', { ...authorModels('codex', 'cross') });
+    const state = await read(path.join(f.out, 'run.json')); mutate(state); await write(path.join(f.out, 'run.json'), state);
+    assert.throws(() => status({ run: f.out }), /route|author|identity|Participant/i);
+  }
+  const f = await fixture('author-sealed-report', { ...authorModels('codex', 'cross') });
+  await ask({ run: f.out, stage: 'author-draft' }, invocation());
+  await hostDraft(f, [], 'A rewritten planner proposal');
+  let called = false;
+  await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async () => { called = true; }), /Sealed artifact changed/);
+  assert.equal(called, false);
+});
+
+test('CLI preparation accepts author-model without requiring or changing the current chat identity', async () => {
+  const f = await inputFixture('author-cli');
+  const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const result = spawnSync(process.execPath, [path.join(packageRoot, 'scripts', 'council.mjs'), 'prepare', '--project', f.project,
+    '--brief', f.brief, '--assessment', f.assessment, '--coordinator', 'claude', '--mode', 'review', '--pairing', 'same',
+    '--author-model', 'claude-opus-4-6', '--peer-model', 'claude-sonnet-4-6', '--out', f.out, '--compact'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.participants.coordinator_identity, 'unknown');
+  assert.equal(output.participants.author_identity, 'requested');
+  assert.equal(output.budget.successful_calls_remaining, 3);
+  assert.match(output.next, /author-draft/);
+});
+
 function invocationWithModels(result, models) {
   return async request => {
     const response=await invocation(result)(request);
@@ -1622,6 +1820,52 @@ test('cross-provider routes retain default-model behavior for both coordinators'
   }
 });
 
+test('cross-provider exact peer IDs reject model substitution even when the host is the planner', async () => {
+  for (const coordinator of ['codex', 'claude']) {
+    const model = coordinator === 'codex' ? 'claude-opus-5-5' : 'gpt-6.1-sol';
+    const other = coordinator === 'codex' ? 'claude-sonnet-5-5' : 'gpt-6-astra';
+    for (const reported of [[model], [other], [model, other], []]) {
+      const f = await fixture(`host-planner-cross-${coordinator}`, { coordinator, mode: 'review', 'peer-model': model });
+      await hostDraft(f);
+      await hostReview(f);
+      const call = () => ask({ run: f.out, stage: 'review' }, invocationWithModels(report(), reported));
+      if (reported.includes(other)) {
+        await assert.rejects(call, /reported unexpected model/);
+        const current = status({ run: f.out });
+        assert.equal(current.successful_peer_calls, 0);
+        assert.equal(current.stages.review, undefined);
+        const state = await read(path.join(f.out, 'run.json'));
+        assert.equal(state.attempts.at(-1).status, 'failed');
+        assert.deepEqual(state.attempts.at(-1).reported_models, reported);
+        await assert.rejects(() => fs.access(path.join(f.out, 'peer-review.json')));
+      } else {
+        const result = await call();
+        assert.deepEqual(result.reported_peer_models, reported);
+        assert.equal(result.peer_identity_status, reported.length ? 'cli_reported' : 'unreported');
+        assert.equal(status({ run: f.out }).successful_peer_calls, 1);
+      }
+    }
+    const pinned = `${model}${coordinator === 'codex' ? '-20261001' : '-2026-10-01'}`;
+    const f = await fixture(`host-planner-pinned-${coordinator}`, { coordinator, mode: 'review', 'peer-model': pinned });
+    await hostDraft(f); await hostReview(f);
+    await assert.rejects(() => ask({ run: f.out, stage: 'review' }, invocationWithModels(report(), [model])), /reported unexpected model/);
+  }
+});
+
+test('legacy cross-provider aliases and custom gateway labels remain compatible without attested identity', async () => {
+  for (const coordinator of ['codex', 'claude']) for (const model of ['default', 'custom-gateway-model']) {
+    const f = await fixture(`legacy-cross-alias-${coordinator}`, { coordinator, mode: 'review', 'peer-model': model });
+    await hostDraft(f); await hostReview(f);
+    const actual = coordinator === 'codex' ? 'claude-opus-5-5' : 'gpt-6.1-sol';
+    const result = await ask({ run: f.out, stage: 'review' }, invocationWithModels(report(), [actual]));
+    assert.deepEqual(result.reported_peer_models, [actual]);
+    assert.equal(result.peer_identity_status, 'cli_reported');
+    assert.equal(result.participants.peer_model, model);
+    assert.match(result.participants.identity_note, /not independent attestation/);
+    assert.equal(status({ run: f.out }).successful_peer_calls, 1);
+  }
+});
+
 test('same-provider plan and review workflows use distinct requested models and preserve independence and security', async () => {
   for(const coordinator of ['codex','claude']) for(const mode of ['plan','review']) {
     const ids=sameModels(coordinator);
@@ -1636,6 +1880,8 @@ test('same-provider plan and review workflows use distinct requested models and 
       assert.equal(packet.participants.peer_model,ids['peer-model']);
       assert.match(request.prompt,/strongest practical alternative|Challenge unsupported assumptions/);
       assert.match(request.prompt,/Never force criticism or agreement/);
+      if (packet.stage === 'draft') assert.doesNotMatch(packet.stage_instruction, /coding-focused implementation critic/);
+      else assert.match(packet.stage_instruction, /coding-focused implementation critic.*buildability.*testability/);
       return invocationWithModels(report(),[ids['peer-model']])(request);
     };
     await hostDraft(f,[],'PRIVATE_COORDINATOR_PROPOSAL');

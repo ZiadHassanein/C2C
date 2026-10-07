@@ -5,7 +5,7 @@ description: Plan and review features or projects through a real Codex–Claude 
 
 # C2C
 
-The current chat is the **coordinator**; a separate authenticated CLI call is the **peer**. Default to Codex–Claude collaboration. Use two different models from the same provider only when explicitly requested. Produce an actionable plan and decision record from real responses; never simulate a second participant. Agreement is optional.
+The current chat is the **coordinator**. Researched worker models author and critique plans through authenticated CLI calls; the chat synthesizes the result and owns decisions. Default to Codex–Claude collaboration. Use one provider only when explicitly requested, with a planning author and a different coding-focused critic. Produce an actionable plan and decision record from real responses; never simulate another participant. Agreement is optional.
 
 Require an explicit C2C or Codex–Claude exchange request before sharing context or spending quota; do not repeat existing authorization. A useful review opportunity alone is insufficient. For assessment-only requests, give advice and relevant security risks without preparing a run or calling a peer.
 
@@ -27,29 +27,29 @@ Resolve this skill's `scripts/council.mjs`, run `node RUNNER doctor`, and check 
 
 Use `--compact` for routine CLI commands: it minifies output without dropping fields. Use the validated report returned by `ask`; read saved peer JSON only if that return is missing or truncated.
 
-**Pass `--coordinator codex` from Codex or `--coordinator claude` from Claude Code.** There is no coordinator default. For explicitly requested Codex-only or Claude-only discussion, follow [pairing and model identity](references/protocol.md#pairing-and-model-identity): use `--pairing same` and distinct full coordinator/peer model IDs. Resolve the current model from trustworthy host metadata or the user; never guess or silently fall back. Only the chosen peer CLI needs authentication.
+**Pass `--coordinator codex` from Codex or `--coordinator claude` from Claude Code.** There is no coordinator default. Research and select models below before preparation. Use `--author-model FULL_ID` for a background planner in the coordinator's provider and `--peer-model FULL_ID` for its reviewer; add `--pairing same` for one provider. Reuse the chat as author only when its trustworthy exact model ID matches the selected planner. Never relabel or switch the chat. Follow [pairing and identity](references/protocol.md#pairing-and-model-identity). Every worker provider needs a ready CLI.
 
 Choose depth from uncertainty and consequences, respecting explicit requests:
 
 | Need | Mode and deliverable |
 |---|---|
-| Bounded feature or supplied plan | `review`: compact candidate, independent critique, revised plan; two successful peer calls. |
-| Alternatives or consequential design uncertainty | `plan`: independent proposals, mutual critiques, synthesis; three successful peer calls. |
-| Whole-project plan | Usually `plan`: MVP, system boundaries, dependent milestones, acceptance gates, and a concrete first milestone. |
+| Bounded feature, supplied plan, or planner/coding-critic pair | `review`: candidate, independent critique, synthesis and verification; 3 successful worker calls with an author, 2 with a matching host author. |
+| Alternatives or consequential design uncertainty | `plan`: independent proposals, mutual critiques and verification; 5 successful worker calls with an author, 3 with a matching host author. |
+| Whole-project plan across providers | Usually `plan`: MVP, system boundaries, dependent milestones, acceptance gates, and a concrete first milestone. |
 
 Small scope can warrant independent proposals; large supplied plans can use review. Keep uncertain later milestones provisional; do not automatically start milestone councils. See [planning depth](references/protocol.md#planning-depth-and-deliverables) when needed.
 
-Choose `--budget-profile standard` for bounded work (300 seconds/call, 900 total, four attempts), or `project` for large/deep roadmaps (600 seconds/call, 2,400 total, five attempts). Explicit user limits take precedence. Briefly state the selected allowance before the first call; it is a ceiling, not an estimate or spending cap. Do not change models or reasoning to fit a timeout.
+Choose `--budget-profile standard` for bounded work (300 seconds/call, 900 total, four attempts), or `project` for large/deep roadmaps (600 seconds/call, 2,400 total, five attempts). Background-author plan mode defaults to six attempts for its five required calls. Explicit user limits take precedence; insufficient capacity is a real constraint. State the actual allowance before calling; it is a ceiling, not an estimate or spending cap. Do not change models or reasoning to fit a timeout.
 
 Prepare a concise UTF-8 brief and selected context with source revision and relevant local changes. Include necessary evidence excerpts, not entire unrelated files or facts already in the assessment. Peers cannot inspect the repository or follow local links. Exclude credentials/private irrelevancies and use relative evidence paths. Run `prepare --assessment FILE` with coordinator, mode, and a fresh absolute directory outside the skill; inputs are frozen.
 
-## Assess size and recommend models
+## Research models for each new plan
 
-Before the first call, save compact `TASK_ASSESSMENT.md`: size, complexity, risk, uncertainty, confidence, mode, model advice, and actual selections. Also record the actual allowance, who chose it, explicit user caps, and any existing recovery permission; preserve unknown provenance. File count alone is insufficient. Summarize advice in the final plan; consult the [rubric](references/protocol.md#task-size-and-model-advice) as needed.
+For every new planning task, search current official OpenAI and Anthropic model guidance and open the relevant pages. Compare task-fit planning and coding choices for both providers, then select the required roles. Do not reuse a previous task's ranking without this fresh check; reuse this task's research across stages/retries. Follow [model selection](references/model-selection.md) for sources, availability, overlapping winners, and billing boundaries. No permanent best-model list is bundled.
 
-Recommend suitable models or capability tiers for both roles. Reuse applicable dated official guidance and local availability evidence. Verify exact names/effort; otherwise give conditional or tier advice with the gap stated. Do not invent performance, price, or timing claims. Reassess only when scope, risk, or evidence changes materially.
+Requested councils automatically use researched worker choices within user constraints unless the user requests advice only, reserves selection, or pins models. Same provider uses a planner and a distinct coding-focused critic; cross provider uses a planner from each. Prefer task quality within the user's limits; do not lower model capability, effort, or review depth just to save tokens. No configuration or billing-source changes are authorized. The runner has no effort-selection flag.
 
-Advice changes no settings or limits and creates no approval pause. Apply `--peer-model` only on user choice or explicit delegation of that choice; never replace chats or edit configuration for advice. Same-provider runs require a resolved distinct pair. Codex peer defaults may differ from the chat because isolation ignores ordinary user configuration. Keep this note out of peer packets.
+Save compact `TASK_ASSESSMENT.md`: size/complexity/risk/uncertainty, dated source links, the four planning/coding recommendations, actual role/model choices and access evidence, mode, and allowance provenance/user caps. Record unknowns honestly. Keep this local record out of peer packets; summarize choices in the final plan. Consult the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed. Advice-only requests launch no worker.
 
 ## Run the selected workflow
 
@@ -59,13 +59,13 @@ Critique as an independent skeptic: test consequential assumptions, realistic co
 
 For **plan**:
 
-1. Write `coordinator-draft.json` independently, then call `ask --stage draft`.
-2. Critique `peer-draft.json` in `coordinator-review.json`, then call `ask --stage review`. Your critique is withheld from the peer's critique of your proposal.
+1. With a worker author, call `ask --stage author-draft`; otherwise write `coordinator-draft.json` independently. Then call `ask --stage draft`. Neither proposal receives the other.
+2. With a worker author, call `ask --stage author-review`; otherwise critique `peer-draft.json` in `coordinator-review.json`. Then call `ask --stage review`. The two critiques are independent.
 3. Synthesize both proposals and critiques into `final-plan.md`.
 
 For **review**:
 
-1. Write the supplied/new candidate in `coordinator-draft.json` and its self-critique in `coordinator-review.json` before peer critique.
+1. With a configured author, call `ask --stage author-draft`; provide an existing user plan as selected input for that author to retain or adapt. Only the host-author route writes `coordinator-draft.json` directly. The chat writes its independent check in `coordinator-review.json` before peer critique; do not attribute that check to a background author.
 2. Call `ask --stage review`, then synthesize `final-plan.md`. This mode has no peer draft and does not claim two independent proposals.
 
 For **both**:
@@ -108,10 +108,10 @@ Codex: `Use $C2C to plan a search filter. Check this project first, keep the rev
 
 Claude Code: `/C2C Review docs/migration.md with Codex. Identify rollout risks and give me a revised plan and decision record.`
 
-Project: `Use $C2C to plan this product. Clarify important unknowns, compare approaches, define the MVP and milestones, and recommend models without changing mine.`
+Project: `Use $C2C to plan this product. Research and choose planning models for Codex and Claude within my limits. Clarify important unknowns, compare approaches, and define the MVP and milestones.`
 
 Same provider, advice first: `Use $C2C with Codex only. Recommend a different peer model and wait for my choice before calling it.` In Claude Code, use `/C2C` and ask for Claude-only discussion.
 
-Delegated peer choice: `Use $C2C with Codex only. Choose an available peer model different from my current model. Challenge assumptions and show unresolved disagreements.` This delegates only the peer choice; resolve unknown current identity first.
+Automatic one-provider choice: `Use $C2C with Codex only. Research a planning model to draft and a different coding model to criticize it. Choose workers within my limits and show unresolved disagreements.` In Claude Code, use `/C2C` and ask for Claude only.
 
 Advice only: `Use $C2C to assess this task's size and recommend models. Give only the assessment for now.`

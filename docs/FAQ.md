@@ -8,7 +8,7 @@ Install C2C, install and authenticate the other provider's CLI, then start a new
 
 ## Do I need both command-line tools?
 
-For default cross-provider collaboration, Codex needs the Claude Code CLI and Claude Code needs the Codex CLI. Install both to use either direction. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. C2C itself requires Node.js 18 or newer and has no npm dependencies. Its installer does not install the CLIs or sign you in.
+Cross-provider planning with a selected background author needs both CLIs. When your current chat supplies the author's work, only the other provider's CLI is required. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. C2C requires Node.js 18 or newer and has no npm dependencies. Its installer does not install the CLIs or sign you in.
 
 ## Must I keep Claude or Codex open while it works as the peer?
 
@@ -16,11 +16,11 @@ No. Only your coordinating chat needs to stay open. C2C starts the peer CLI non-
 
 ## Does C2C really ask the other AI?
 
-Yes. A requested council launches the chosen peer's CLI and saves its actual reports. In plan mode, the peer proposes an approach before seeing the coordinator's draft, then reviews the coordinator's proposal and verifies the synthesis. In focused review mode, both critique one candidate plan before peer verification. [The workflow](../README.md#how-it-works) uses three or two successful peer calls respectively. An assessment-only request makes no peer calls.
+Yes. C2C launches the selected workers and saves actual reports. In plan mode, independent proposals precede mutual critique and verification of the synthesis. Focused review starts from one candidate. When the current chat is the selected author, these use three and two successful calls respectively; a background author makes the totals five and three. [Workflow and counts](../README.md#how-it-works). Assessment-only requests make no worker calls.
 
 ## Can Codex discuss a plan with another Codex model, or Claude with another Claude model?
 
-Yes, when explicitly requested. Ask `Use $C2C with Codex only` or `/C2C Use Claude only`, and request a different peer model. The current chat coordinates a separate real CLI call within the same provider. C2C requires the current chat's full model ID and a distinct supported peer ID; it asks when a necessary identity or selection is missing. Choose the peer or explicitly ask C2C to choose it. See [copyable examples](../README.md#with-codex-only-or-claude-only) and [model identity limits](SETUP.md#choose-the-participants).
+Yes. Ask `Use $C2C with Codex only` or `/C2C Use Claude only`. C2C researches current options and selects a planning author and a distinct coding-focused critic within your limits. If trustworthy metadata exactly identifies your chat as the selected planner, it can author directly; otherwise C2C launches the selected author in the background. You can specify exact models or request advice only. See [copyable examples](../README.md#with-codex-only-or-claude-only) and [model identity limits](SETUP.md#choose-the-participants).
 
 Different model IDs do not prove independent reasoning or guarantee that a provider honored a request. The runner records declared/requested identities, uses reported identity when available, and keeps unknowns visible. It does not switch the current chat or simulate a debate.
 
@@ -50,7 +50,9 @@ Every new council requires a scoped security review and proposed acceptance chec
 
 ## Does it choose or change my model automatically?
 
-It assesses task size, complexity, risk, and uncertainty, then gives model advice. Recommendations do not override your settings. A peer override requires your selection or explicit delegation to choose; same-provider discussion requires distinct resolved model IDs. The current chat stays unchanged. For advice alone, ask: “Assess the task and recommend models. Keep my settings; advice only.” Model availability and runtime identity depend on your provider and CLI configuration.
+C2C searches current official guidance for **both providers on every new planning task**, records planning/coding candidates, and selects suitable workers within your limits. Your chat and global settings stay unchanged; exact model choices and advice-only instructions override automatic selection. Same-provider planning uses a planner plus a distinct coding critic. Cross-provider planning chooses a suitable planning model from each provider. Research is reused for the same run and retries. [Selection policy](../references/model-selection.md).
+
+If the same model is strongest for planning and coding, C2C selects an adequate distinct critic and explains the tradeoff. A model appearing in a catalog does not prove account access or guarantee quality. It does not make paid selection probes or silently choose a model outside your authorized billing scope. For advice alone, ask: “Assess the task and recommend models; advice only.”
 
 ## Does C2C send my whole repository to another provider?
 
@@ -58,7 +60,7 @@ C2C sends explicitly selected, frozen context and relevant review artifacts. The
 
 ## How much does a planning exchange cost?
 
-Peer calls use your provider account and its usage limits. Focused review needs two successful peer calls; independent planning needs three. Failed launches can consume attempts. Standard allowances are four attempts, 5 minutes per call, and 15 cumulative peer minutes. Large/deep plans use five attempts, 10 minutes per call, and 40 cumulative minutes. These are ceilings, not token or spending caps, duration estimates, or a fixed price per plan. C2C states its selected allowance and honors explicit user limits.
+Worker calls use your provider account and usage limits. With your chat as author, focused review needs two successful calls and independent planning needs three. A background author makes these three and five. Standard allowances are four attempts, 5 minutes per call, and 15 cumulative worker minutes; large/deep plans use five attempts, 10 minutes per call, and 40 cumulative minutes. Background-author plan mode defaults to six attempts unless explicitly capped. Failures also count. These are ceilings, not spending caps, duration estimates, or a fixed price per plan. C2C states its route and honors explicit limits.
 
 ## Why did a signed-in Claude or Codex time out?
 

@@ -21,7 +21,7 @@ Node must be 18 or newer. `doctor` checks CLI availability, required flags and f
 - `codex_only_ready: true`: a Codex chat can call the Codex CLI for an explicitly requested same-provider run.
 - `claude_only_ready: true`: a Claude Code chat can call the Claude CLI for an explicitly requested same-provider run.
 
-A missing or signed-out CLI for the direction you are not using is okay. Readiness does not validate credentials with the provider or establish model access or identity. A successful response confirms that particular call worked.
+A missing CLI is okay only when the selected route has no worker from that provider. Cross-provider planning with a background author needs both CLIs ready; same-provider planning needs that provider's CLI. Readiness does not validate credentials with the provider or establish model access or identity. A successful response confirms that particular call worked.
 
 ## Do I need another terminal open?
 
@@ -87,7 +87,7 @@ node scripts/install.mjs --target codex
 node scripts/install.mjs --target claude
 ```
 
-This chooses where the **skill** is installed. For default cross-provider discussion, a Codex chat needs the Claude CLI and a Claude Code chat needs the Codex CLI. Same-provider discussion uses that provider's own CLI.
+This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI.
 
 Default locations (`~` means your user folder):
 
@@ -117,7 +117,7 @@ Remove only the `C2C` folder from the installed locations above, then start a ne
 
 Concise discussion updates are enabled by default. Ask “show the main disagreements and plan changes as you go” for emphasis, or “quiet mode” / “only the final plan” to limit chat updates. The AI handles the runner commands for you.
 
-Updates identify each agent's submitted points, the coordinator's decisions, and unresolved questions after completed stages. While waiting, safe activity updates show whether output has arrived and how much time remains. C2C does not invent dialogue or stream private reasoning. Focused review still needs two successful peer calls; independent planning needs three.
+Updates identify each agent's submitted points, the coordinator's decisions, and unresolved questions after completed stages. While waiting, safe activity updates show whether output has arrived and how much time remains. C2C does not invent dialogue or stream private reasoning. [Call counts](#usage-and-privacy) depend on whether the selected author runs in the current chat or in the background.
 
 Open the run's generated `DISCUSSION.md` to read the evidence-backed account. It stays local and is excluded from peer inputs. To refresh it after local report or decision edits, ask the AI to refresh the discussion. For manual inspection from the repository folder:
 
@@ -129,13 +129,13 @@ Replace the path with the run folder. Run this between stages to refresh the dis
 
 ## Choose the participants
 
-The default is Codex–Claude: your current chat coordinates and the other provider's CLI supplies the peer. To stay within one provider, explicitly ask for “Codex only” or “Claude only” and a different peer model. C2C still makes a real, separate CLI call; it does not write both sides of an imaginary conversation.
+The default is Codex–Claude, with a suitable planning model from each provider. To stay within one provider, ask for “Codex only” or “Claude only”: C2C selects a planning author and a distinct coding-focused critic. These are real reports from the selected models, not an imagined dialogue.
 
-Same-provider runs require two distinct full model IDs: the current coordinator and the requested peer. C2C uses trustworthy host metadata or your supplied current ID, then your chosen peer model. You may explicitly delegate the peer choice, for example: “Choose an available peer model that differs from my current model.” Otherwise a recommendation stays advice until you select it. Missing essential model information is clarified before a call.
+For **every new planning task**, C2C searches and opens current official model guidance for both providers, compares planning and coding suitability, and checks local access evidence. It selects workers within your limits and honors exact choices or advice-only requests. Findings and reasons go in `TASK_ASSESSMENT.md`; retries reuse that research. There is no permanent model ranking. If one model leads both roles, C2C explains why it chose a different adequate critic. See the [selection policy](../references/model-selection.md).
 
-The current chat is not switched. A different reasoning effort on the same model does not count as a different model; defaults, moving aliases, and identical IDs are rejected. Recorded IDs describe the declared coordinator and requested peer. CLI reporting and managed policy can limit runtime identity evidence; a missing reported ID is unknown, not verified. Different models may still make similar mistakes. See [technical pairing rules](../references/protocol.md#pairing-and-model-identity).
+Your current chat stays unchanged. When trustworthy metadata shows it exactly matches the selected planner, C2C can reuse it as author. Otherwise `--author-model` launches that provider's selected planner in the background; `--peer-model` selects the other participant. Unknown chat identity need not block this route. Both CLIs are required when background workers use both providers.
 
-Both pairings preserve independent drafts where the selected mode includes them, skeptical critiques, security checks, verification, and the same call limits. Participants should test consequential assumptions and realistic failure cases, then accept, reject, or leave findings unresolved with reasons. They should neither aim for agreement nor invent objections merely to disagree.
+Exact versioned IDs distinguish participants; different effort, alias, or context variants of one model do not. Local catalog entries do not prove account entitlement, and recorded selections do not prove a provider honored them. CLI-reported identity and unknowns remain visible. C2C avoids models outside the known authorized billing scope and makes no paid model-selection probes. [Technical pairing rules](../references/protocol.md#pairing-and-model-identity) preserve independent contributions, security, and verification. Reviewers challenge weak claims with evidence; sound conclusions can survive review.
 
 ## Usage and privacy
 
@@ -151,13 +151,13 @@ C2C reduces repeated instructions, report reads and review prose by default. The
 | Combined peer runtime per run | 15 minutes | 40 minutes |
 | Launch attempts, including failed calls | 4 | 5 |
 
-Both profiles use two successful peer calls for focused review or three for independent planning. The coordinator selects the profile before preparation, states the ceilings, and honors explicit user limits; manual `prepare` defaults to `standard`, and explicit limit flags override the profile. These are runtime and attempt limits, **not spending or token caps**. Actual calls can finish earlier. [Bounded recovery](#when-a-peer-call-takes-longer) preserves successful stages and charged attempts when an allowance needs increasing; starting over is not a way to reset a failed run's budget.
+With the current chat as author, focused review uses two successful calls and independent planning uses three. A background author raises these to three and five respectively; its independent-planning route defaults to six attempts unless explicitly capped. All author and peer calls share the run's allowance. The coordinator states the route and ceilings before starting; manual `prepare` defaults to `standard`, and explicit limit flags override defaults. These are runtime and attempt limits, **not spending or token caps**. [Bounded recovery](#when-a-peer-call-takes-longer) preserves successful stages and charged attempts; starting over cannot reset a failed run's budget.
 
 Your current chat selects the brief and relevant context to send to the peer's provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
 
 The peer is instructed to use supplied evidence. Calls disable applicable shell, image, browser, connector and agent features, use a neutral working directory and request read-only permissions. Some CLI tools may remain present but subject to those permissions. These settings are not a substitute for the host sandbox or managed policy. The current chat gathers evidence and performs any work you have authorized.
 
-Model recommendations are advice. The current chat's model stays unchanged. Cross-provider peers use their CLI default unless you choose a supported model or delegate that choice; same-provider runs require a distinct resolved pair. Codex peer calls ignore ordinary user configuration for isolation, so do not assume their default matches another Codex session.
+Worker selection uses current research and your constraints; it does not change the current chat or global settings. Ask for “advice only” to get recommendations without calls. Codex workers ignore ordinary user configuration for isolation, so C2C uses explicit selected IDs rather than assuming a CLI default matches another session. Some models can consume additional credits in non-interactive mode: C2C must establish that this is within your authorized scope before choosing them.
 
 Every new council plan includes a security review and relevant test checks. The [plan presentation guide](../references/plan-presentation.md) puts priority decisions, the proposed scope, and the next action before technical appendices. Unresolved findings and edits made after peer verification remain visible. Completing the discussion does not mean every issue is resolved or the implementation has been tested.
 

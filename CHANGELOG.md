@@ -2,6 +2,14 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.10.0 — Current model research and selected planning workers
+
+- Researches current official planning and coding guidance for both providers on every new task, then reuses the dated evidence during that task. Choices remain task-specific; no permanent best-model list is bundled.
+- Automatically selects eligible worker models within user limits. Exact model choices, advice-only requests and reserved selection take precedence; chat/global settings and billing sources stay unchanged.
+- Adds an optional background planning author. Same-provider discussion pairs a planner with a distinct coding-focused critic; cross-provider discussion uses a planning model from each provider. Requested, declared and reported identities stay distinct.
+- Background-author focused review takes three successful worker calls; independent planning takes five. Matching host-author routes retain two/three. All attempts share the existing bounded history; additional worker calls are not described as token savings.
+- Retains independent critique, complete selected evidence, security review, testing requirements and visible unresolved findings. Validation evidence is recorded in [project notes](PROJECT_NOTES.md).
+
 ## 0.9.0 — Proportional time and recovery without restarting
 
 - Adds `standard` and `project` budget profiles. Bounded work retains 300 seconds per call, 900 cumulative seconds, and four attempts; large/deep project plans use 600 seconds per call, 2,400 cumulative seconds, and five attempts. Explicit flags override profile defaults and user caps remain authoritative.

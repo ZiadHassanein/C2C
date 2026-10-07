@@ -8,12 +8,14 @@ Resolve `RUNNER` to the absolute path of this skill's `scripts/council.mjs`. Res
 node RUNNER version
 node RUNNER doctor
 node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --context CONTEXT --coordinator codex --mode plan --out RUN
+node RUNNER ask --run RUN --stage author-draft
 node RUNNER ask --run RUN --stage draft
+node RUNNER ask --run RUN --stage author-review
 node RUNNER ask --run RUN --stage review
 node RUNNER ask --run RUN --stage verify
 node RUNNER progress --run RUN
 node RUNNER status --run RUN
-node RUNNER extend --run RUN --timeout-seconds 600 --budget-seconds 2400 --max-attempts 5 --reason "Coordinator-selected allowance was too short; continuing the authorized project plan."
+node RUNNER extend --run RUN --timeout-seconds NEW_CALL_TOTAL --budget-seconds NEW_RUN_TOTAL --reason "Coordinator-selected time allowance was too short; continuing the authorized plan."
 node RUNNER discussion --run RUN
 node RUNNER finish --run RUN
 ```
@@ -29,7 +31,7 @@ Read the `doctor` field for the selected route, even when the command exits succ
 | Codex, `same` (Codex peer) | `codex_only_ready` |
 | Claude Code, `same` (Claude peer) | `claude_only_ready` |
 
-Other routes need not be ready. These fields check the CLI and visible saved authentication, not provider acceptance, model access, or runtime identity.
+For `--author-model`, also require the coordinator provider's `codex_only_ready` or `claude_only_ready` field. A cross-provider run with a background author therefore needs both CLIs. Unused routes need not be ready. These fields check the CLI and visible saved authentication, not provider acceptance, model access, or runtime identity. The author stages above apply only to a configured background author; `author-review` applies only to plan mode.
 
 `prepare` options:
 
@@ -47,10 +49,11 @@ Other routes need not be ready. These fields check the CLI and visible saved aut
 | `--timeout-seconds` | Explicit per-call timeout; overrides the selected profile. Maximum `900`. |
 | `--budget-seconds` | Explicit cumulative peer subprocess runtime allowance; overrides the selected profile. Maximum `3600`. |
 | `--max-attempts` | Explicit attempt allowance, including failures; overrides the selected profile. Maximum `6`. |
-| `--coordinator-model` | The current coordinator's full model ID, required for `same` pairing. A recorded declaration, not a change to the current chat or proof of runtime identity. |
-| `--peer-model` | User-selected peer model, or a choice explicitly delegated by the user. Optional for `cross`; required as a distinct full model ID for `same`. Advice alone does not authorize an override. |
+| `--coordinator-model` | The current chat's full model ID when known; required for host-authored `same` pairing. A declaration, never a change to the chat. |
+| `--author-model` | Optional background planning model in the coordinator provider. Its draft and, in plan mode, review use real CLI calls; the current chat remains coordinator. Requires a resolved peer model; same-provider workers must differ. |
+| `--peer-model` | Researched worker choice within the user's limits, or an explicitly pinned model. Required for an author worker and for `same`; legacy cross-provider manual commands may omit it. |
 
-`prepare` freezes selected inputs. It does not invoke a model, read the whole repository, or automatically follow references in documents. Supply excerpts when full files contain unrelated or private content. An incomplete brief/context may correctly result in `insufficient_context`. New runs use version 4; version 1–3 runs remain readable under their original contracts. Version 3 and newer require the project assessment; `direction.clarity: needs_user_input` is rejected before creating a run. Resolve essential user choices first. `discovery_needed` supports a bounded investigation with a clear next action and exit criterion.
+`prepare` freezes selected inputs. It does not invoke a model, read the whole repository, or follow document links. Supply excerpts when full files contain unrelated or private content. An incomplete packet may correctly result in `insufficient_context`. Author-worker runs use version 5; host-authored runs retain version 4, and older formats remain readable. Version 3+ requires project assessment; `direction.clarity: needs_user_input` is rejected before creating a run. Resolve essential user choices first. `discovery_needed` supports bounded investigation with a next action and exit criterion.
 
 The project assessment contains shared facts and user constraints, not new architectural proposals. It is frozen in `snapshot.json`, saved as sealed `project-assessment.json`, rendered as `PROJECT_CONTEXT.md`, and sent once at every stage. Absolute project/input path metadata stays in the local snapshot; outbound file labels are relative or neutral. Authored evidence text is not automatically rewritten, so use relative source references and review it for private information. The runner checks shape and evidence-reference consistency, not the truth of deployment claims or production readiness. Read [project context and direction](project-assessment.md) before preparing it. Keep separate task/model advice out of peer packets.
 
@@ -61,6 +64,8 @@ Process handling lives in `scripts/process.mjs`. Streamed output already receive
 ## Budgets and bounded recovery
 
 Use `standard` for bounded features and `project` for large or deep project planning. The profile supplies defaults; explicit flags win. Assess the actual task rather than giving every feature the largest allowance. Announce the selected per-call, cumulative runtime, and attempt ceilings before the first call. These limits bound subprocess runtime and launches, not money, tokens, or expected completion time. Slow useful activity does not extend a deadline automatically.
+
+A background author adds one required call in review mode or two in plan mode: three or five successful worker calls respectively, versus two or three for a host author. All worker attempts share the run allowance. Author plan defaults to six attempts for one retry unless `--max-attempts` explicitly sets another cap; time limits still follow the selected profile. Check feasibility before launching; do not promise that routing to more workers lowers total usage.
 
 For pending calls, use read-only `progress --run RUN --compact`. It returns only run, status, peer, and `peer_progress`: phase, elapsed/remaining call time, log bytes, and last observed activity. This avoids repeating the full project assessment and history. Use `status` for resume/recovery: its `budget` also describes pending stages, attempts remaining, whether they can cover those stages, available peer seconds, and full-timeout headroom. Remaining-runtime feasibility is advisory because future response duration is unknown.
 
@@ -77,29 +82,31 @@ Before recovery, consult the allowance provenance, user caps, and existing recov
 When the coordinator chose an insufficient allowance and existing task authorization covers bounded recovery, increase it on the **same run**. State the reason and the authorization source in the reason text or local notes. Do not ask for permission merely to replace your own conservative default. An explicit user cap on time, attempts, or spending still applies: preserve it unless the user already authorized the increase, and ask only when an actual user decision or new authority is required. Models and reasoning settings stay unchanged.
 
 ```text
-node RUNNER extend --run RUN --timeout-seconds 600 --budget-seconds 2400 --max-attempts 5 --reason "Recover the authorized project plan after a timeout; these were coordinator-selected limits."
+node RUNNER extend --run RUN --timeout-seconds NEW_CALL_TOTAL --budget-seconds NEW_RUN_TOTAL --reason "Recover the authorized plan after a timeout; these were coordinator-selected limits."
 node RUNNER status --run RUN
 node RUNNER ask --run RUN --stage FAILED_STAGE
 ```
 
-The values are **absolute totals**, not additions to the remaining allowance. Pass at least one numeric limit; limits never decrease and cannot exceed 900 seconds/call, 3,600 cumulative seconds, or six attempts. Repeating already-applied limits is idempotent. A reason is required: a nonempty single line, at most 500 characters. `extend` appends `limit_history` with its reason, before/after allowances, used attempts and elapsed time, keeps all successful stages, evidence seals and reviewed hashes, and makes no peer call. Use it between calls, not to alter a running deadline; completed runs cannot be extended. Legacy runs retain their evidence and stage contracts.
+Replace the placeholders with numeric **absolute totals**, not additions. Read the current allowance first; omit any unchanged limit. To increase attempts, also pass `--max-attempts NEW_ATTEMPT_TOTAL`. Values never decrease and cannot exceed 900 seconds/call, 3,600 cumulative seconds, or six attempts. Repeating already-applied limits is idempotent. A reason is required: a nonempty single line, at most 500 characters. `extend` appends `limit_history` with its reason, before/after allowances, used attempts and elapsed time, keeps all successful stages, evidence seals and reviewed hashes, and makes no worker call. Use it between calls, not to alter a running deadline; completed runs cannot be extended. Legacy runs retain their evidence and stage contracts.
 
 Retries require a useful reason to expect a different result, such as repaired login or more time for an active but unfinished response. Exhausting the hard ceilings leaves a preserved partial run and an accurate draft. Never edit a manifest, erase failures, replay success, or create a fresh run solely to escape a cap. A later materially different scope/evidence can justify a new run with a recorded link and reason; that is not timeout recovery.
 
 ## Pairing and model identity
 
-Use `cross` unless the user asks for Codex-only or Claude-only discussion. In `same`, the current chat still coordinates; its provider's CLI launches a separate peer call. The review stages, independent evidence boundaries, security review, and attempt limits are unchanged. There is no automatic switch of provider after a failed call.
+Use `cross` unless the user asks for Codex-only or Claude-only discussion. Research models for each new task using [model selection](model-selection.md). Cross-provider roles use the task-fit planning choice from each provider; same-provider roles use a planner and a distinct coding-focused critic. The current chat coordinates, synthesizes, handles security and records finding dispositions. Model selection never switches the chat or changes its configuration. There is no automatic switch of provider after failure.
 
-Before same-provider preparation, establish the current chat's full model ID from trustworthy host metadata or the user. Do not infer it from a product name, model recommendation, CLI default, or different reasoning effort. Resolve the full peer ID from current supported model information and user choice, or the user's explicit delegation to choose. If identity or choice is missing, recommend a suitable pair and ask only for what is necessary. A same-provider request alone does not silently authorize choosing arbitrary models. Keep the current chat unchanged.
+Reuse the chat as author only if trustworthy host metadata establishes an exact match to the selected planner. Otherwise configure a real `--author-model`; unknown chat identity does not prevent a distinct, known worker pair. Do not infer chat identity from a product name, recommendation, CLI default, or reasoning effort. With an author worker, distinctness compares the author and peer. Without one, same-provider pairing compares the declared current chat and peer. Explicit advice-only, reserved-selection and pinned-model requests override automatic worker selection.
 
-Pass both IDs; moving aliases such as `default`, `latest`, or a Claude family alias and identical IDs are rejected. The examples use placeholders, not model recommendations:
+Use full versioned worker IDs; moving aliases such as `default`, `latest`, or a Claude family alias and identical same-provider IDs are rejected. These are placeholders, not model recommendations:
 
 ```text
-node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --coordinator codex --pairing same --coordinator-model COORDINATOR_FULL_ID --peer-model DIFFERENT_PEER_FULL_ID --mode plan --out RUN
-node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --coordinator claude --pairing same --coordinator-model COORDINATOR_FULL_ID --peer-model DIFFERENT_PEER_FULL_ID --mode review --out RUN
+node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --coordinator codex --pairing same --author-model PLANNER_FULL_ID --peer-model DIFFERENT_CODING_FULL_ID --mode review --out RUN
+node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --coordinator claude --pairing cross --author-model CLAUDE_PLANNER_FULL_ID --peer-model CODEX_PLANNER_FULL_ID --mode plan --budget-profile project --out RUN
 ```
 
-Current model controls: [Codex commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) and [Claude Code model configuration](https://code.claude.com/docs/en/model-config). Provider availability and managed policies can affect which model runs. Recorded coordinator IDs are declarations and peer IDs are requests, not independent attestation. A positively reported different peer model fails the same-provider check; absent runtime identity remains unknown. Never describe an unreported identity as verified. Different models can still share blind spots.
+Current model controls: [Codex commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli) and [Claude Code model configuration](https://code.claude.com/docs/en/model-config). Provider availability and managed policies can affect which model runs. Coordinator IDs are declarations; worker IDs are requests, not independent attestation. A positively reported mismatch fails an exact model request, including a cross-provider peer paired with a matching host author. Missing runtime identity remains unknown; legacy unpinned/alias routes are not attested. Different models can still share blind spots.
+
+For an author worker, `author-draft` creates `coordinator-draft.json` without seeing the peer proposal. In plan mode, `draft` independently creates the peer proposal; `author-review` critiques it into `coordinator-review.json`, then `review` critiques the author's proposal without seeing that critique. In review mode, the chat writes its own independent check to `coordinator-review.json`; do not attribute that check to the author worker. The chat synthesizes `final-plan.md`, security review and decisions before peer verification. Successful worker artifacts and participant settings are sealed; do not replace them with chat-authored text.
 
 Identify participants by provider, role, and declared/requested model in discussion updates. Review as an independent skeptic: check consequential assumptions, credible failure examples, and useful alternatives; require evidence for objections and reasons for dispositions. Do not manufacture disagreement or discard sound work to seem adversarial. A separate real report, not the coordinator writing both sides of a dialogue, supplies the second perspective.
 
@@ -111,9 +118,9 @@ All JSON is UTF-8. Reports use the report schema below; the assessment uses its 
 |---|---|---|
 | `project-assessment.json` | Runner from coordinator-supplied assessment | Required input to version 3 and newer preparation; sealed facts and direction shared at every peer stage. |
 | `PROJECT_CONTEXT.md` | Runner | Sealed readable assessment generated at preparation; a view of the JSON record, not a replacement for it. |
-| `coordinator-draft.json` | Coordinator | Before peer draft in plan mode; before peer review in review mode. |
+| `coordinator-draft.json` | Configured author worker, otherwise host | Before peer draft in plan mode; before peer review in review mode. |
 | `peer-draft.json` | Runner from peer | Created by successful draft in plan mode. |
-| `coordinator-review.json` | Coordinator | Before peer review. In plan mode, critique the peer draft; in review mode, independently critique the existing plan. |
+| `coordinator-review.json` | Author worker in plan mode when configured; otherwise host | Before peer review. In plan mode, critique the peer draft; in review mode, host independently checks the candidate. |
 | `peer-review.json` | Runner from peer | Created by successful review of the coordinator draft. |
 | `final-plan.md` | Coordinator | Before peer verification; revise afterward when warranted. |
 | `security-review.json` | Coordinator | Required before verification in version 2 and newer runs; standard report schema with `C-S…` finding IDs. |
@@ -124,7 +131,7 @@ All JSON is UTF-8. Reports use the report schema below; the assessment uses its 
 | `HANDOFF.md` | Runner for new runs | Generated after preparation and state transitions. Legacy handwritten notes are preserved. |
 | `NOTES.md` | Coordinator | Optional local decisions/context beyond generated progress. |
 | `run.json`, `run.checkpoint.json` | Runner | Checksummed current-state copies; never edit them to reset budgets or revise sealed evidence. |
-| `TASK_ASSESSMENT.md` | Coordinator | Advisory sizing and model recommendation before the first peer call; linked from the handoff and summarized in the final plan. Not read by the runner. |
+| `TASK_ASSESSMENT.md` | Coordinator | Task sizing, dated model research, recommendations, actual authorized choices and limits before worker calls; summarized in the final plan. Local instruction-level record, not parsed or web-verified by the runner. |
 | `IMPLEMENTATION_BRIEF.md` | Coordinator | Optional handoff for one selected milestone after plan completion; not executed or parsed by the runner. |
 
 Do not rewrite successful peer reports or earlier coordinator reports to erase disagreements. Use the final plan and decision record for synthesis. `finish` records reviewed and final hashes for the plan, decisions, and, in version 2 and newer runs, the security report. `changedSinceVerification` includes decision-record updates required for new verification findings. Use `plan_changed_since_verification` and `decisions_changed_since_verification` to distinguish them. Result counts separate successful peer responses from all launch attempts. Source status separates changed bytes from missing/unreadable originals. Disclose changes after verification; completion does not mean that revised artifacts received another peer check or that every recommendation is factually correct. Legacy version 1 completion does not satisfy the security requirement; legacy version 1/2 runs do not establish that the project assessment occurred.
@@ -169,9 +176,9 @@ The planning depth guides the coordinator's content and runner mode; `--budget-p
 
 | Depth | Typical choice | Final-plan emphasis |
 |---|---|---|
-| Focused feature | `review`: 2 successful peer calls | One bounded behavior change, affected components, ordered steps, relevant edge cases and acceptance checks. |
-| Feature design | `plan`: 3 successful peer calls | Meaningful alternatives, integration boundaries, tradeoffs, implementation steps, tests and relevant rollout concerns. |
-| Project roadmap | `plan`: 3 successful peer calls for the project-level plan | Scope/MVP, architecture, milestones and dependencies, validation gates, risks and a detailed first milestone. |
+| Focused feature | `review`: 2 worker calls with host author, 3 with background author | One bounded behavior change, affected components, ordered steps, relevant edge cases and acceptance checks. |
+| Feature design | `plan`: 3 worker calls with host author, 5 with background author | Meaningful alternatives, integration boundaries, tradeoffs, implementation steps, tests and relevant rollout concerns. |
+| Project roadmap | `plan`: 3 worker calls with host author, 5 with background author | Scope/MVP, architecture, milestones and dependencies, validation gates, risks and a detailed first milestone. |
 
 Present drafts and final plans using the [decision-first presentation guide](plan-presentation.md). Lead with status, recommendation, and priority user decisions; keep detailed technical appendices in the same file. Critical invariants and blocked next actions stay in the visible summary. A failed peer stage leaves an organized draft, not a completed council.
 
@@ -206,41 +213,26 @@ Make a proportionate assessment from the brief and available evidence. These are
 
 Separately rate complexity, risk, and uncertainty as low/moderate/high. Cite drivers: novelty, dependencies, context volume, reversibility, affected users/data, missing requirements, and verification burden. A small access-control change may be high risk; hundreds of mechanical replacements can have low reasoning complexity. If evidence is missing, give a provisional size or range, explain the missing facts, and use low/moderate/high confidence rather than a fabricated probability. A stronger model does not resolve missing requirements by itself.
 
-Match model capability to each role's actual need: bounded routine work may suit an efficient model; interacting requirements may justify a balanced general model; ambiguous architecture or consequential review may justify deeper reasoning. These are decision criteria, not fixed vendor rankings. Honor an expressed speed, budget, or quality preference; do not assume the largest model is always best. Prefer a specific current, supported model when verified, with one alternative only if it adds a meaningful tradeoff. Otherwise state the capability needed and mark any named candidate conditional on access. Keep model research proportionate for a small feature; reuse applicable dated evidence or give capability-tier advice when exact choices are unverified.
+Use the [model-selection procedure](model-selection.md) for fresh official research on every new task, task-fit planning/coding choices, worker routing, access evidence and user limits. Research within the same task is reused; a new task gets a fresh check. Do not invent price, latency or quality rankings. This runner does not expose an effort flag.
 
-Check official documentation for suitability and supported effort, and existing host/CLI model information for account availability. Read-only checks and dated evidence already available in this task can be reused when still applicable; do not launch paid model probes merely to choose a recommendation. Do not inspect credential files. There is no bundled permanent model ranking. Relevant primary sources:
-
-- [OpenAI model-selection guidance](https://developers.openai.com/api/docs/guides/model-selection): task fit and quality/time/usage tradeoffs.
-- [Models in ChatGPT and Codex](https://learn.chatgpt.com/docs/models): product-specific availability information; actual account access still needs local evidence.
-- [Claude Code model configuration](https://code.claude.com/docs/en/model-config): model aliases, configuration, and model-dependent effort support.
-
-The advisory boundary is strict: neither a model recommendation nor a suggested effort changes model flags, environment variables, configuration, skill frontmatter, active chats, or limits. Do not wait for a user response just to continue already-authorized work under the existing settings. For an assessment-only request, stop after delivering the advice. An explicit instruction to use a named peer model, or to choose the peer model, can authorize the supported selection. Same-provider runs need the distinct resolved IDs described above; advice is not a substitute for them. Do not invent an effort flag for this runner, which has none.
-
-Do not claim that an isolated CLI default matches a user's existing model choice when that choice's identifier is unknown. Record the gap; resolve it only if needed for an actual authorized invocation, without blocking an advice-only assessment.
-
-Record this task/model assessment after `prepare`, before `ask`, in the compact Markdown shape below. It is separate from the required project-assessment JSON gathered before preparation. For advice-only work with no run, save it in the requested workspace without invoking `prepare` or a peer. No JSON report-schema fields are added.
+Keep one compact local record after preparation and before any worker call. For advice-only work, save it in the requested workspace without preparing a run. The runner does not parse this Markdown or independently verify web research; the coordinator must perform and record it honestly.
 
 ```markdown
-# Task assessment — recommendation only
-- Assessed: date/time with timezone; relevant scope/source version.
-- Size: small/medium/large/extra-large or provisional range; concrete scope reason.
-- Planning depth and mode: focused feature / feature design / project roadmap; review / plan and why, or suggested only for advice-only work.
-- Complexity / risk / uncertainty: separate levels with their main drivers.
-- Confidence and assumptions: high/moderate/low; what could change the assessment.
-- Coordinator recommendation: verified model or capability tier; why it fits.
-- Peer recommendation: verified model or capability tier; why it fits; supported effort only if useful and verified.
-- Tradeoff: relevant quality, response-time and usage considerations; no invented exact cost or duration.
-- Evidence: official links and date checked; locally observed availability or explicitly unknown.
-- Actual selections: known current coordinator and explicit peer selection, or CLI default/unknown. Settings unchanged; advice not applied.
-- Run allowance: actual profile and per-call/total/attempt ceilings; chosen by coordinator or user with instruction/source. Record explicit user time/attempt/spending caps, existing permission for recovery, and any unknown provenance. For advice only, mark not prepared.
-- Reassess when: material change that would alter scope, risk or model suitability.
+# Task assessment
+- Assessed/researched: date/time with timezone; task scope and source revision.
+- Size / complexity / risk / uncertainty: separate judgments, reasons and confidence.
+- Route: pairing, planning depth, mode and host/background author; why appropriate.
+- Model research: planning and coding recommendation for each provider, source links/date, task-fit rationale and local availability evidence or gap.
+- Actual roles: author and critic model IDs, why selected, identity provenance and selection authority; separate recommendations from requested/reported models.
+- Limits: actual profile and per-call/total/attempt ceilings; who chose them, explicit user time/attempt/spending caps, existing recovery permission and unknown provenance.
+- Assumptions or blockers: material unknowns and what would change the recommendation.
 ```
 
-Keep it short without omitting decision-relevant evidence. Link it from the handoff and include a short assessment paragraph in `final-plan.md`; this makes the advice visible in the completed `RESULT.md`. Preserve the distinction between a recommendation, an authorized selection, and the model observed in a real response. Do not pass this task/model advice via `--assessment`, `--context` or other independent peer inputs: shared risk/constraint facts belong in the neutral project assessment and brief, not a coordinator's proposed solution.
+The final plan briefly states the choices, their evidence and meaningful tradeoffs. Keep this record out of --assessment, --context and other worker inputs; neutral project risk/constraint facts belong in shared assessment and brief, while model research stays local. Never claim an unreported runtime model was verified.
 
 ## Visible discussion
 
-Give the user brief updates before and after peer stages: name the actual agent and stage, summarize material objections from its report, explain the coordinator's response and plan change, and preserve open disagreements. A pending call has no response yet. Respect quiet/final-only requests. This is presentation of authored arguments and decisions, not a token stream or a new debate loop; the two-/three-call workflows remain unchanged.
+Give the user brief updates before and after peer stages: name the actual agent and stage, summarize material objections from its report, explain the coordinator's response and plan change, and preserve open disagreements. A pending call has no response yet. Respect quiet/final-only requests. This presents authored arguments and decisions, not a token stream or a new debate loop. Report the actual two/three-call host route or three/five-call author route.
 
 New runs create `DISCUSSION.md` and refresh it at saved state transitions, including before a call and after success/failure. It contains report summaries, finding evidence/actions/checks, accepted/rejected/unresolved coordinator dispositions, and current verification limits. It labels unsubmitted working drafts and excludes failed partial output. Decisions belong to the coordinator and do not establish peer agreement. Source report links allow closer inspection.
 
@@ -341,4 +333,4 @@ Peer calls disable shell, browser, image, connector and agent features where sup
 
 The runner checks the complete outbound packet for conservative patterns for private keys, common OpenAI/AWS/GitHub/Slack/Google credentials and password-bearing connection strings before sending it, including report content rather than only initial context. This is not complete data-loss prevention: it cannot prove that content is safe to share or detect every secret. Continue selecting and reviewing context carefully; never treat a passed scan as permission to transmit unrelated private data.
 
-The runner bounds stages, attempts, and subprocess runtime, not provider charges. A single run permits at most three successful peer calls in plan mode or two in review mode. A peer outage produces a partial run, never simulated consensus. The coordinator must tell the user what was actually reviewed, what remains unresolved, and whether the final plan changed after verification.
+The runner bounds stages, attempts, and subprocess runtime, not provider charges. The peer contributes at most three successful calls in plan mode or two in review mode; a configured author adds two or one, respectively. A worker outage produces a partial run, never simulated consensus. The coordinator must state what was actually reviewed, what remains unresolved, and whether the final plan changed after verification.

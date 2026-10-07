@@ -1,10 +1,10 @@
 # Research and select worker models
 
-Apply this policy to **each new planning task**. The current chat coordinates the work; worker selection never silently changes that chat or global configuration. Honor exact user selections, advice-only requests, provider preferences, and resource limits.
+Apply this policy to **each new worker-backed planning task** and explicit model-advice requests. The current chat coordinates the work; worker selection never silently changes that chat or global configuration. Honor exact user selections, advice-only requests, provider preferences, and resource limits. Check required tool availability first: an unavailable route uses [provisional planning](protocol.md#planning-with-unavailable-tools) without researching or probing inaccessible workers. Record the skipped selection and its reason; do not block a useful plan on setup or imply fresh recommendations were obtained.
 
 ## Research once per task
 
-Search current official guidance for **both OpenAI and Claude**, using concise task-fit terms without private project details. Open the relevant pages; snippets and remembered rankings are insufficient. Establish the date and current full model IDs, planning/coding suitability, constraints, and available reasoning settings. Reuse this evidence through the same run and retries. A new task needs a fresh search.
+Search current official guidance for the providers in the requested route (**both OpenAI and Claude** for cross-provider planning), using concise task-fit terms without private project details. Open the relevant pages; snippets and remembered rankings are insufficient. Establish the date and current full model IDs, planning/coding suitability, constraints, and available reasoning settings. Reuse this evidence through the same run and retries. A new worker-backed task needs a fresh search.
 
 Read relevant catalog and task-fit sections, then expand only to resolve material uncertainty about suitability, identity or access. Save concise conclusions and links instead of copied catalogs or full articles. Freshness does not require repeating the same research at every stage.
 

@@ -1,11 +1,11 @@
 ---
 name: C2C
-description: Plan and review features or projects through a real Codex–Claude Code exchange, or explicitly requested different models in one provider. Includes project assessment, security, testing, and clear decision briefs. Supports assessment-only requests without peer calls.
+description: Plan and review features or projects with available Codex and Claude Code workers, or explicitly requested different models in one provider. When a required tool is unavailable, produce a clearly labeled provisional plan in the current chat. Includes assessment, security, tests and an execution entry point.
 ---
 
 # C2C
 
-The current chat coordinates: selected workers author and critique plans through authenticated CLI calls; the chat synthesizes and owns decisions. Default to Codex–Claude collaboration. Use one-provider discussion only when explicitly requested, with a planning author and a distinct coding-focused critic. Never simulate another participant, force agreement, or invent objections.
+The current chat coordinates: eligible workers author and critique plans through authenticated CLI calls; the chat synthesizes and owns decisions. Prefer Codex–Claude collaboration when its required tools are available. Otherwise continue provisionally in the current chat. Use one-provider discussion only when explicitly requested, with a planning author and a distinct coding-focused critic. Never simulate another participant, force agreement, or invent objections.
 
 Require an explicit C2C or Codex–Claude exchange request before sharing context or spending quota; reuse existing authorization. Assessment-only requests receive advice and relevant security risks without preparing a run or calling workers. Read linked sections when needed and reuse this task's evidence instead of repeatedly loading full references.
 
@@ -19,17 +19,19 @@ Write neutral assessment JSON using the [assessment contract](references/project
 
 ## Research models and prepare
 
-For **every new planning task**, search current official OpenAI and Anthropic guidance, open relevant pages, and compare planning and coding choices for both providers. Follow [model selection](references/model-selection.md) for task fit, exact IDs, access evidence, overlapping winners and billing boundaries. Reuse this task's research across stages/retries, never a previous task's ranking without a fresh check.
+Resolve `RUNNER` to this skill's `scripts/council.mjs`. Before selecting workers, run `node RUNNER doctor` and check the required route's readiness fields using [commands](references/protocol.md#commands), not exit status alone. Ignore an unavailable CLI the route does not need. If Node or a required CLI is unavailable, incompatible or not ready, follow [available-chat planning](references/protocol.md#planning-with-unavailable-tools): skip that worker and deliver a provisional plan without requiring installation, upgrade, login or configuration changes. Setup is optional, only when requested. Do not substitute a different review route automatically. An explicit requirement to wait for both participants takes precedence.
+
+For **every new planning task that can use workers**, search current official guidance for the providers in the requested route, open relevant pages, and compare planning and coding choices. Follow [model selection](references/model-selection.md) for task fit, exact IDs, access evidence, overlapping winners and billing boundaries. Reuse this task's research across stages/retries, never a previous task's ranking without a fresh check. An unavailable route does not require researching inaccessible workers before useful provisional planning; record the skipped selection honestly.
 
 Automatically select eligible workers within user limits unless advice-only, reserved-selection or pinned-model instructions override. Cross-provider roles use a planning model from each; same-provider roles use a planner and distinct coding-focused critic. Never lower capability, effort or review depth to save tokens or fit a timeout; change no global configuration or billing source. The runner has no effort flag.
 
 **No paid limit recovery:** never buy credits, enable extra usage/auto-reload, raise spend limits, upgrade plans or switch to API/cloud billing to bypass a limit. A request to continue C2C is not spending authorization. Respect included-usage-only constraints before calls; see [billing boundaries](references/protocol.md#no-paid-limit-recovery).
 
-Record size, complexity, risk, uncertainty, dated sources, all four planning/coding recommendations, actual roles/IDs/access evidence, route and allowance provenance/user caps in local `TASK_ASSESSMENT.md`. Keep it out of peer packets and summarize choices in the plan. Use the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed; preserve unknowns honestly.
+Record size, complexity, risk, uncertainty, dated sources, planning/coding recommendations for the requested providers, actual roles/IDs/access evidence, route and allowance provenance/user caps in local `TASK_ASSESSMENT.md`. Record unavailable selections as skipped. Keep it out of peer packets and summarize choices in the plan. Use the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed; preserve unknowns honestly.
 
-Resolve `RUNNER` to this skill's `scripts/council.mjs`. Run `node RUNNER doctor` and check the route's readiness field using [commands](references/protocol.md#commands), not exit status alone. Workers need no open peer terminal/app. Readiness checks saved authentication, not valid tokens, model access or quota; distinguish limits from [login/setup failures](references/protocol.md#authentication-permissions-and-limits).
+Workers need no open peer terminal/app. Readiness checks saved authentication, not valid tokens, model access or quota; distinguish limits from [login/setup failures](references/protocol.md#authentication-permissions-and-limits).
 
-Pass **`--coordinator codex` from Codex or `--coordinator claude` from Claude Code**; there is no default. Use `--author-model FULL_ID` for a background planner in the coordinator provider and `--peer-model FULL_ID` for its reviewer; add `--pairing same` only when requested. Reuse the chat as council author only when trustworthy exact identity matches the selected planner. Never relabel or switch it. Follow [pairing and identity](references/protocol.md#pairing-and-model-identity); every worker provider needs a ready CLI.
+Pass **`--coordinator codex` from Codex or `--coordinator claude` from Claude Code**; there is no default. Use `--author-model FULL_ID` for a background planner in the coordinator provider and `--peer-model FULL_ID` for its reviewer; add `--pairing same` only when requested. Reuse the chat as council author only when trustworthy exact identity matches the selected planner. Never relabel or switch it. Follow [pairing and identity](references/protocol.md#pairing-and-model-identity); before the first launch, every provider actually needed by the chosen route must have a ready CLI and confirmed usage eligibility.
 
 | Need | Mode | Successful calls: host / background author |
 |---|---|---|

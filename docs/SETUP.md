@@ -4,6 +4,8 @@
 
 Use this page when you need help with installation, updating, or a failed setup check. For normal use, paste a request into your project chat and let the AI handle the runner.
 
+**Setup is optional for planning.** C2C uses compatible, authenticated tools already available. If a required worker CLI is missing or unusable, it skips that worker and produces a provisional plan in the current chat, with missing review disclosed. It does not require installing, updating or signing in to another tool. The repair instructions below apply when you choose to enable that exchange.
+
 **Install:** [Quick start](../README.md#install) · [One app](#install-for-one-app-only) · [Linux/macOS](#linux-and-macos) · [Check setup](#check-your-setup)
 
 **Maintain:** [Update or roll back](#update-the-skill) · [Uninstall](#uninstall) · [Models](#choose-the-participants) · [Usage and privacy](#usage-and-privacy)
@@ -22,7 +24,7 @@ node scripts/install.mjs --target codex
 node scripts/install.mjs --target claude
 ```
 
-This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI.
+This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. An explicitly requested same-provider discussion uses that provider's own CLI. Missing unused CLIs do not block a valid route; an unavailable required CLI leads to [provisional planning](../references/protocol.md#planning-with-unavailable-tools).
 
 Default locations (`~` means your user folder):
 
@@ -76,13 +78,13 @@ Node must be 18 or newer. `doctor` checks CLI availability, required flags and f
 - `codex_only_ready: true`: a Codex chat can call the Codex CLI for an explicitly requested same-provider run.
 - `claude_only_ready: true`: a Claude Code chat can call the Claude CLI for an explicitly requested same-provider run.
 
-A missing CLI is okay only when the selected route has no worker from that provider. Cross-provider planning with a background author needs both CLIs ready; same-provider planning needs that provider's CLI. Readiness does not validate credentials with the provider or establish model access or identity. A successful response confirms that particular call worked.
+A missing CLI does not block a route with no worker from that provider. If a required CLI is unavailable, C2C continues with a provisional plan in the current chat instead of requiring setup. A real cross-provider exchange with a background author needs both CLIs ready; an explicitly requested same-provider exchange needs that provider's CLI. Readiness does not validate credentials with the provider or establish model access or identity. A successful response confirms that particular call worked.
 
 ## Do I need another terminal open?
 
 No. Keep your coordinating chat open; C2C runs the peer non-interactively using `claude -p` or `codex exec`, with piped input/output and hidden Windows process windows. Claude can work for Codex without an open Claude panel, and Codex can work for Claude without an open Codex app. The peer CLI must be installed, accessible to the coordinator, and authenticated.
 
-Sign in through the native CLI once when needed. If the saved CLI login expires or is rejected, renew it with `claude auth login` or `codex login`; the browser flow may require your interaction. An environment-supplied key or token may instead be the selected credential; native login does not replace it. After fixing the selected authentication source, ask C2C to inspect the existing run and resume its failed stage within the remaining allowance. Opening a peer terminal alone does not renew a login. See [Claude's non-interactive mode](https://code.claude.com/docs/en/headless) and [login renewal](https://code.claude.com/docs/en/authentication#renew-an-expiring-login).
+An inaccessible or expired login leaves the worker unavailable; C2C can continue a provisional plan without asking you to repair it. If you choose to restore the exchange, renew a saved login with `claude auth login` or `codex login`; the browser flow may require your interaction. An environment-supplied key or token may instead be the selected credential; native login does not replace it. After fixing the selected authentication source, ask C2C to inspect the existing run and resume its failed stage within the remaining allowance. Opening a peer terminal alone does not renew a login. See [Claude's non-interactive mode](https://code.claude.com/docs/en/headless) and [login renewal](https://code.claude.com/docs/en/authentication#renew-an-expiring-login).
 
 ## Update the skill
 
@@ -130,7 +132,7 @@ Remove only the `C2C` folder from the installed locations above, then start a ne
 
 The default is Codex–Claude, with a suitable planning model from each provider. To stay within one provider, ask for “Codex only” or “Claude only”: C2C selects a planning author and a distinct coding-focused critic. These are real reports from the selected models, not an imagined dialogue.
 
-For **every new planning task**, C2C searches and opens current official model guidance for both providers, compares planning and coding suitability, and checks local access evidence. It selects workers within your limits and honors exact choices or advice-only requests. Findings and reasons go in `TASK_ASSESSMENT.md`; retries reuse that research. There is no permanent model ranking. If one model leads both roles, C2C explains why it chose a different adequate critic. See the [selection policy](../references/model-selection.md).
+After checking required tool availability, each new task using workers searches and opens current official model guidance for its requested providers, compares planning/coding suitability and checks access evidence. A provisional-only plan records unavailable selections as skipped without blocking on inaccessible-worker research. C2C selects eligible workers within your limits and honors exact choices or advice-only requests. Findings go in `TASK_ASSESSMENT.md`; retries reuse them. There is no permanent model ranking. If one model leads both roles in an explicitly requested same-provider discussion, C2C explains its distinct adequate critic. See the [selection policy](../references/model-selection.md).
 
 Your current chat stays unchanged. When trustworthy metadata shows it exactly matches the selected planner, C2C can reuse it as author. Otherwise `--author-model` launches that provider's selected planner in the background; `--peer-model` selects the other participant. Unknown chat identity need not block this route. Both CLIs are required when background workers use both providers.
 
@@ -180,15 +182,15 @@ Every new council plan includes a security review and relevant test checks. The 
 
 | What you see | What to do |
 |---|---|
-| `node` is not recognized or not found | Install [Node.js](https://nodejs.org/en/download), reopen your terminal, and try `node --version`. |
+| `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `git` is not recognized or not found | Use the [ZIP download](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/install.mjs` | You are in the wrong folder. Open a terminal in the extracted or cloned repository folder, then rerun the command. |
-| `doctor` cannot find `claude` or `codex` | Install the required CLI using the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) setup guide. Reopen the terminal and check again. |
-| `doctor` reports signed out | If the same CLI works in your normal terminal, check the environment/access row below first. Otherwise run `claude auth login` or `codex login` for the required peer, then rerun `doctor`. |
-| `doctor` is ready, but a call reports expired/rejected authentication | Authentication was visible; the provider rejected it during the call. Repair the selected credential source or renew native CLI login, then resume within the remaining allowance. C2C does not retry automatically or switch accounts/billing. |
+| `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise continue a provisional plan without that worker. If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
+| `doctor` reports signed out | Continue provisionally. If you choose setup repair, check the environment/access row below before renewing the selected native login. |
+| `doctor` is ready, but a call reports expired/rejected authentication | Preserve the failed attempt and continue provisionally. Repair is optional when requested; C2C does not retry automatically or switch accounts/billing. |
 | A provider, account, or model reports a usage limit | The available chat continues a provisional plan within your remaining limits, preserving actual work and identifying missing review. See [usage-limit fallback](#when-a-participant-hits-a-usage-limit). |
-| Codex is missing the required `view_image` control | Upgrade Codex or select a compatible binary using `COUNCIL_CODEX_BIN`. Version 0.146.0 lacks this control; 0.160.1 passed local checks. C2C blocks before spending an attempt. |
-| A required CLI flag is missing | Update that CLI using its official setup guide, then rerun `doctor`. |
+| Codex is missing the required `view_image` control | Skip the unusable worker and continue provisionally; required tool controls stay enforced. If you choose repair, update or explicitly select a compatible binary. Version 0.146.0 lacks this control; 0.160.1 passed local checks. |
+| A required CLI flag is missing | Continue provisionally; updating the CLI is optional setup work when requested. |
 | The installer finds a legacy skill | Follow [Update the skill](#update-the-skill) to move the old `codex-claude-council` installation outside all skill directories, then rerun installation. |
 | A different installation already exists | Follow [Update the skill](#update-the-skill). The installer protects existing files instead of overwriting them. |
 | The skill does not appear in chat | Confirm installation, then start a new chat or restart the app. Use the Codex `$C2C` or Claude `/C2C` prompt. |

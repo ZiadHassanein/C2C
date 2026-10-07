@@ -64,6 +64,43 @@ test('invalid explicit override fails instead of silently changing Codex version
   }
 });
 
+test('missing provider discovery is optional, precise and never launches a command', async () => {
+  const home = await fs.mkdtemp(path.join(root, 'missing-providers-'));
+  for (const provider of ['codex', 'claude']) {
+    let commands = 0;
+    await assert.rejects(() => probeProvider(provider, home, {
+      resolve: name => resolveExecutable(name, { platform: 'win32', env: { PATH: '' }, home }),
+      run: async () => { commands++; throw new Error('No command should run'); },
+    }), error => {
+      assert.equal(error.reason, 'cli_not_found');
+      assert.match(error.message, /not found in supported discovery locations/);
+      assert.match(error.message, /does not prove the CLI is not installed/);
+      assert.match(error.message, /Continue provisionally in the current chat within authorized limits/);
+      assert.match(error.message, /if the user explicitly requires peer review, preserve a checkpoint/);
+      assert.match(error.message, /Setup is optional and only when requested/);
+      assert.doesNotMatch(error.message, /before using this skill|Install its CLI|reinstall/);
+      return true;
+    });
+    assert.equal(commands, 0);
+  }
+});
+
+test('an unusable explicit override cannot fall back to a discoverable provider', async () => {
+  const home = await fs.mkdtemp(path.join(root, 'provider-overrides-'));
+  for (const provider of ['codex', 'claude']) {
+    await file(path.join(home, `${provider}.exe`));
+    const variable = `COUNCIL_${provider.toUpperCase()}_BIN`;
+    for (const override of [path.join(home, 'absent.exe'), await file(path.join(home, `${provider}.ps1`))]) {
+      let commands = 0;
+      await assert.rejects(() => probeProvider(provider, home, {
+        resolve: name => resolveExecutable(name, { platform: 'win32', env: { PATH: home, [variable]: override }, home }),
+        run: async () => { commands++; throw new Error('No command should run'); },
+      }), error => error.reason === 'cli_override_unusable' && /remains authoritative/.test(error.message));
+      assert.equal(commands, 0);
+    }
+  }
+});
+
 test('unrecognized and incomplete npm packages cannot convert arbitrary wrappers into executables', async () => {
   const fixture = await npmFixture('untrusted-package');
   await file(path.join(fixture.packageRoot, 'package.json'), JSON.stringify({ name: 'some-other-package', bin: { codex: 'bin/codex.js' } }));
@@ -190,6 +227,8 @@ test('compatible Codex preflight preserves required restrictions without model c
   const fixture = fakeProbe();
   const result = await probeProvider('codex', root, fixture);
   assert.equal(result.authenticated, true);
+  assert.equal(result.setup_status, 'ready');
+  assert.equal(result.reason, undefined);
   assert.equal(result.version, 'codex-cli 0.160.1');
   assert.equal(result.billing_check, 'not_checked');
   assert.equal(result.included_allowance_verified, false);
@@ -207,7 +246,12 @@ test('compatible Codex preflight preserves required restrictions without model c
 
 test('Codex 0.146 feature list fails closed rather than exposing its unguarded image tool', async () => {
   const fixture = fakeProbe({ featureOutput: features(oldFeatures) });
-  await assert.rejects(() => probeProvider('codex', root, fixture), /required view_image feature control.*update its CLI/);
+  await assert.rejects(() => probeProvider('codex', root, fixture), error => {
+    assert.equal(error.reason, 'cli_incompatible');
+    assert.match(error.message, /required view_image feature control.*safety controls cannot be relaxed/);
+    assert.match(error.message, /Setup is optional/);
+    return true;
+  });
   assert.deepEqual(fixture.calls, [['--version'], ['exec', '--help'], ['features', 'list']]);
   assert.throws(() => buildCodexArgs({ schemaPath: 'schema.json', codexFeatures: oldFeatures }), /required view_image feature control/);
 });
@@ -239,7 +283,38 @@ test('failed, unrecognized, or unsafe feature discovery rejects before authentic
 
 test('Codex signed-out status never reports readiness', async () => {
   for (const options of [{ authCode: 1, auth: 'Not logged in' }, { auth: 'Not logged in' }, { authCode: 1, auth: 'Logged in using ChatGPT' }]) {
-    assert.equal((await probeProvider('codex', root, fakeProbe(options))).authenticated, false);
+    const result = await probeProvider('codex', root, fakeProbe(options));
+    assert.equal(result.authenticated, false);
+    assert.equal(result.setup_status, 'unavailable');
+    assert.equal(result.reason, 'login_unavailable');
+    assert.match(result.guidance, /Setup is optional/);
+  }
+});
+
+test('unavailable metadata and login checks keep static setup reasons without exposing errors', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const options = provider === 'codex' ? {} : { provider, help: claudeHelp, auth: '{"loggedIn":true}' };
+    for (const blocked of ['--version', provider === 'codex' ? 'exec --help' : '--help', provider === 'codex' ? 'login status' : 'auth status']) {
+      const fixture = fakeProbe(options);
+      const run = fixture.run;
+      fixture.run = async (executable, args, options) => {
+        if (args.join(' ') === blocked) throw new Error('private-secret; usage_limit_reached; please /login');
+        return run(executable, args, options);
+      };
+      if (blocked.endsWith('status')) {
+        const result = await probeProvider(provider, root, fixture);
+        assert.equal(result.authenticated, false);
+        assert.equal(result.reason, 'login_unavailable');
+        assert.doesNotMatch(JSON.stringify(result), /private-secret|usage_limit_reached/);
+      } else {
+        await assert.rejects(() => probeProvider(provider, root, fixture), error => {
+          assert.equal(error.reason, 'cli_check_failed');
+          assert.match(error.message, /could not complete.*Setup is optional/);
+          assert.doesNotMatch(error.message, /private-secret|usage_limit_reached|authentication_error/);
+          return true;
+        });
+      }
+    }
   }
 });
 
@@ -272,6 +347,7 @@ test('authentication metadata distinguishes local credential status from request
   for (const auth of ['not-json', 'null', '{}', '{"loggedIn":"true"}', '{"loggedIn":false}']) {
     const result = await probeProvider('claude', root, fakeProbe({ provider: 'claude', help: claudeHelp, auth }));
     assert.equal(result.authenticated, false);
+    assert.equal(result.reason, 'login_unavailable');
     assert.equal(result.request_auth_verified, false);
   }
 });
@@ -292,6 +368,8 @@ test('authentication failures use static guidance for failed envelopes and nonze
     assert.equal(diagnostic?.reason, 'authentication_error');
     assert.match(diagnostic.message, /No peer terminal or app needs to stay open/);
     assert.match(diagnostic.message, /No automatic retry/);
+    assert.match(diagnostic.message, /Credential renewal is optional and only when requested/);
+    assert.match(diagnostic.message, /Continue provisionally in the current chat within authorized limits/);
     assert.match(diagnostic.message, provider === 'claude' ? /claude auth login/ : /codex login/);
     assert.doesNotMatch(JSON.stringify(diagnostic), /private-secret/);
   }

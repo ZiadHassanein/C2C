@@ -9,6 +9,8 @@
 
 Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. Use both providers, or explicitly choose different models within one provider.
 
+**Use what is already available.** If a required CLI is missing or unusable, C2C continues with a clearly labeled provisional plan in your current chat. It does not require you to install, upgrade or sign in to another tool, and never invents its review.
+
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
 **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
@@ -19,7 +21,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. Use both provider
 
 ### 1. Prepare your tools
 
-Install [Node.js 18 or newer](https://nodejs.org/en/download). For the easiest Codex–Claude setup, install **both command-line tools (CLIs)** and sign in to each:
+[Node.js 18 or newer](https://nodejs.org/en/download) runs the installer and council scripts. C2C uses existing compatible, authenticated command-line tools (CLIs) for independent review. If you want to add one, these are the optional setup instructions:
 
 | Tool | Official installation guide | Sign in if needed |
 |---|---|---|
@@ -32,6 +34,8 @@ Install [Node.js 18 or newer](https://nodejs.org/en/download). For the easiest C
 <summary>Can I use only one CLI?</summary>
 
 Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. For a Codex–Claude exchange, only the peer's CLI is needed when the current chat supplies the author's work. Automatic model selection may need a background author, which requires both CLIs. [Choose the participants](docs/SETUP.md#choose-the-participants).
+
+If a required CLI is unavailable, the current chat still produces a provisional plan with security, proposed tests and an execution entry point. A missing CLI that the selected route does not use is ignored. An explicitly requested two-model discussion is separate from this single-chat fallback.
 
 </details>
 
@@ -57,7 +61,7 @@ For the default setup with both CLIs, look for:
 }
 ```
 
-`doctor` checks CLI compatibility and locally visible authentication without making a model request. It cannot prove remaining quota or that the provider will accept your login. [Failed check?](docs/SETUP.md#troubleshooting) · [Install for one app](docs/SETUP.md#install-for-one-app-only)
+`doctor` checks CLI availability, compatibility and locally visible authentication without making a model request. A missing required tool leads to provisional planning; setup is optional. It cannot prove remaining quota or that the provider will accept your login. [Optional setup help](docs/SETUP.md#troubleshooting) · [Install for one app](docs/SETUP.md#install-for-one-app-only)
 
 ## Use it
 

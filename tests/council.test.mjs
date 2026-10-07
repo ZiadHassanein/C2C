@@ -8,11 +8,12 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse,
+  prepare, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse, doctor,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
 import { writeRunState } from '../scripts/state.mjs';
+import { probeProvider, resolveExecutable, CODEX_DISABLED_FEATURES } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(tempParent, 'council-test-'));
@@ -551,6 +552,42 @@ test('expired peer authentication preserves a failed attempt and resumes only on
   }
 });
 
+test('authentication fallback outranks local extension advice and clears only after successful explicit resumption', async () => {
+  for (const peer of ['claude', 'codex']) {
+    const f = await fixture(`auth-fallback-${peer}`, { coordinator: peer === 'claude' ? 'codex' : 'claude', 'max-attempts': '3' });
+    await hostDraft(f);
+    await ask({ run: f.out, stage: 'draft' }, invocation(report(['P-D1'])));
+    await hostReview(f);
+    const peerDraft = await fs.readFile(path.join(f.out, 'peer-draft.json'));
+    let calls = 0;
+    await assert.rejects(() => ask({ run: f.out, stage: 'review' }, async () => {
+      calls++;
+      return { code: 1, stdout: '', stderr: 'OAuth token has expired. private-provider-detail' };
+    }), error => error.reason === 'authentication_error');
+    assert.equal(calls, 1);
+    const failed = await read(path.join(f.out, 'run.json'));
+    assert.equal(failed.attempts.length, 2);
+    assert.equal(failed.attempts[1].reason, 'authentication_error');
+    assert.equal(status({ run: f.out }).budget.attempts_sufficient, false);
+    assert.equal(status({ run: f.out }).provider_limit, null);
+    const handoff = await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8');
+    assert.match(handoff, /Next: .*authentication was rejected.*Continue provisionally/);
+    assert.doesNotMatch(handoff, /Next: .*use extend|Next: .*request the review|private-provider-detail/);
+    await assert.rejects(() => ask({ run: f.out, stage: 'review' }, async () => { calls++; }), /Continue provisionally.*Credential renewal is optional/);
+    assert.equal(calls, 1);
+    assert.deepEqual(await read(path.join(f.out, 'run.json')), failed);
+    extend({ run: f.out, 'max-attempts': '4', reason: 'Explicit synthetic resumption after the user requested setup.' });
+    assert.match(await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8'), /Next: .*authentication was rejected.*Continue provisionally/);
+    await ask({ run: f.out, stage: 'review' }, invocation());
+    const resumed = await read(path.join(f.out, 'run.json'));
+    assert.deepEqual(resumed.attempts.slice(0, 2), failed.attempts);
+    assert.equal(resumed.stages.review.attempt, 3);
+    assert.deepEqual(await fs.readFile(path.join(f.out, 'peer-draft.json')), peerDraft);
+    assert.match(await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8'), /Next: .*request the verify stage/);
+    assert.doesNotMatch(await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8'), /Next: .*authentication was rejected/);
+  }
+});
+
 test('successful peer reports about expired authentication are not mistaken for transport failures', async () => {
   const f = await fixture('auth-report-prose');
   await hostDraft(f);
@@ -934,12 +971,12 @@ test('failed login and timeout resume in the same run only after sufficient audi
   assert.equal(status({ run: f.out }).attempts_remaining, 2);
   assert.equal(status({ run: f.out }).peer_progress.phase, 'model_working');
   let launched = false;
-  await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async request => { launched = true; return invocation()(request); }), /3 pending peer stages: 2 attempts remain/);
+  await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async request => { launched = true; return invocation()(request); }), /Continue provisionally.*Credential renewal is optional/);
   assert.equal(launched, false);
   // With no invoker, the same guard must also run before real CLI preflight.
   const oldBinary = process.env.COUNCIL_CLAUDE_BIN;
   process.env.COUNCIL_CLAUDE_BIN = path.join(f.root, 'missing-peer.exe');
-  try { await assert.rejects(() => ask({ run: f.out, stage: 'draft' }), /3 pending peer stages: 2 attempts remain/); }
+  try { await assert.rejects(() => ask({ run: f.out, stage: 'draft' }), /Continue provisionally.*Credential renewal is optional/); }
   finally { if (oldBinary === undefined) delete process.env.COUNCIL_CLAUDE_BIN; else process.env.COUNCIL_CLAUDE_BIN = oldBinary; }
   assert.deepEqual(await read(manifestPath), before, 'A futile ask cannot reserve an attempt');
   const limits = { run: f.out, 'timeout-seconds': '600', 'budget-seconds': '2400', 'max-attempts': '5', reason: 'Login repaired; retain failed attempts and provide time for remaining stages.' };
@@ -1846,6 +1883,169 @@ test('an incompatible peer executable fails preflight without consuming an attem
     if(previous===undefined) delete process.env.COUNCIL_CODEX_BIN;
     else process.env.COUNCIL_CODEX_BIN=previous;
   }
+});
+
+async function offlinePreflight(available, { signedOut = [], incompatible = [] } = {}) {
+  const home = await fs.mkdtemp(path.join(testRoot, 'offline-cli-'));
+  for (const provider of available) await write(path.join(home, `${provider}.exe`), 'Metadata fixture; never executed');
+  const calls = [];
+  const providers = [];
+  return {
+    calls, providers,
+    probe: async (provider, cwd) => {
+      providers.push(provider);
+      return probeProvider(provider, cwd, {
+        resolve: name => resolveExecutable(name, { platform: 'win32', env: { PATH: home }, home }),
+        run: async (executable, args) => {
+          assert.equal(executable, path.join(home, `${provider}.exe`));
+          calls.push({ provider, args });
+          const command = args.join(' ');
+          let stdout;
+          if (command === '--version') stdout = `${provider} offline fixture`;
+          else if (args.includes('--help')) stdout = incompatible.includes(provider) ? '--help' : provider === 'codex'
+            ? '--ignore-user-config --output-schema --sandbox --ephemeral --disable --skip-git-repo-check --json --color'
+            : '--safe-mode --tools --permission-mode --strict-mcp-config --mcp-config --disable-slash-commands --json-schema --no-session-persistence --output-format --verbose';
+          else if (command === 'features list') stdout = CODEX_DISABLED_FEATURES.map(name => `${name} stable true`).join('\n');
+          else if (command === 'login status') stdout = signedOut.includes(provider) ? 'Not logged in' : 'Logged in using ChatGPT';
+          else if (command === 'auth status') stdout = JSON.stringify({ loggedIn: !signedOut.includes(provider), authMethod: 'claude.ai' });
+          else throw new Error(`Unexpected command could launch a model: ${command}`);
+          return { code: 0, stdout, stderr: '' };
+        },
+      });
+    },
+  };
+}
+
+test('doctor reports both missing, mixed and ready providers without changing existing readiness fields', async () => {
+  for (const available of [[], ['codex'], ['claude'], ['codex', 'claude']]) {
+    const fixture = await offlinePreflight(available);
+    const result = await doctor({}, fixture);
+    assert.equal(result.codex_chat_ready, available.includes('claude'));
+    assert.equal(result.claude_chat_ready, available.includes('codex'));
+    assert.equal(result.codex_only_ready, available.includes('codex'));
+    assert.equal(result.claude_only_ready, available.includes('claude'));
+    assert.deepEqual(fixture.providers, ['codex', 'claude']);
+    for (const provider of result.providers) {
+      const ready = available.includes(provider.provider);
+      assert.equal(provider.authenticated, ready);
+      assert.equal(provider.setup_status, ready ? 'ready' : 'unavailable');
+      if (ready) {
+        assert.equal(provider.request_auth_verified, false);
+        assert.equal(provider.included_allowance_verified, false);
+        assert.equal(provider.billing_check, 'not_checked');
+      } else {
+        assert.equal(provider.reason, 'cli_not_found');
+        assert.match(provider.guidance, /Continue provisionally.*Setup is optional/);
+        assert.equal(fixture.calls.some(call => call.provider === provider.provider), false);
+      }
+    }
+  }
+});
+
+test('doctor distinguishes incompatible CLI controls and unavailable login without weakening readiness', async () => {
+  const fixture = await offlinePreflight(['codex', 'claude'], { incompatible: ['codex'], signedOut: ['claude'] });
+  const result = await doctor({}, fixture);
+  assert.deepEqual(result.providers.map(provider => provider.reason), ['cli_incompatible', 'login_unavailable']);
+  for (const field of ['codex_chat_ready', 'claude_chat_ready', 'codex_only_ready', 'claude_only_ready']) assert.equal(result[field], false);
+  assert.equal(fixture.calls.some(call => call.provider === 'codex' && call.args[0] === 'login'), false);
+});
+
+test('missing, incompatible and inaccessible-login peers consume no attempt or model call in either direction', async () => {
+  for (const coordinator of ['codex', 'claude']) {
+    const peer = coordinator === 'codex' ? 'claude' : 'codex';
+    for (const [reason, available, options] of [
+      ['cli_not_found', [], {}],
+      ['cli_incompatible', [peer], { incompatible: [peer] }],
+      ['login_unavailable', [peer], { signedOut: [peer] }],
+    ]) {
+      const f = await fixture(`optional-${coordinator}-${reason}`, { coordinator });
+      await hostDraft(f);
+      const before = await fs.readFile(path.join(f.out, 'run.json'));
+      const preflight = await offlinePreflight(available, options);
+      let calls = 0;
+      await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async () => { calls++; }, preflight), error => {
+        assert.equal(error.reason, reason);
+        assert.match(error.message, /Continue provisionally in the current chat within authorized limits/);
+        assert.match(error.message, /Setup is optional and only when requested/);
+        return true;
+      });
+      assert.equal(calls, 0);
+      assert.deepEqual(preflight.providers, [peer]);
+      assert.deepEqual(await fs.readFile(path.join(f.out, 'run.json')), before);
+      assert.equal(status({ run: f.out }).attempts_used, 0);
+      assert.equal(status({ run: f.out }).successful_peer_calls, 0);
+      assert.equal((await fs.readdir(f.out)).some(name => name.startsWith('attempt-') || name === 'peer-draft.json'), false);
+    }
+  }
+});
+
+test('an unavailable background author cannot consume an attempt or impersonate the current chat', async () => {
+  for (const coordinator of ['codex', 'claude']) {
+    const f = await fixture(`optional-author-${coordinator}`, {
+      coordinator, 'author-model': coordinator === 'codex' ? 'gpt-5.4' : 'claude-opus-4-6',
+      'peer-model': coordinator === 'codex' ? 'claude-opus-4-6' : 'gpt-5.4',
+    });
+    const preflight = await offlinePreflight([coordinator === 'codex' ? 'claude' : 'codex']);
+    let calls = 0;
+    await assert.rejects(() => ask({ run: f.out, stage: 'author-draft' }, async () => { calls++; }, preflight), error => error.reason === 'cli_not_found');
+    assert.equal(calls, 0);
+    assert.deepEqual(preflight.providers, [coordinator]);
+    assert.equal(status({ run: f.out }).attempts_used, 0);
+    await assert.rejects(() => fs.access(path.join(f.out, 'coordinator-draft.json')));
+  }
+});
+
+test('available worker routes succeed without probing an unused provider or relaxing capabilities', async () => {
+  for (const coordinator of ['codex', 'claude']) for (const pairing of ['cross', 'same']) {
+    const f = await fixture(`optional-ready-${coordinator}-${pairing}`, {
+      coordinator, pairing, ...(pairing === 'same' ? sameModels(coordinator) : {}),
+    });
+    await hostDraft(f);
+    const peer = pairing === 'same' ? coordinator : coordinator === 'codex' ? 'claude' : 'codex';
+    const preflight = await offlinePreflight([peer]);
+    let calls = 0;
+    await ask({ run: f.out, stage: 'draft' }, async request => {
+      calls++;
+      assert.equal(request.provider, peer);
+      if (peer === 'codex') {
+        assert.equal(request.args[request.args.indexOf('--sandbox') + 1], 'read-only');
+        assert.ok(request.args.includes('--ignore-user-config'));
+        for (const feature of CODEX_DISABLED_FEATURES) assert.equal(request.args[request.args.indexOf(feature) - 1], '--disable');
+      } else {
+        assert.ok(request.args.includes('--safe-mode'));
+        assert.ok(request.args.includes('--strict-mcp-config'));
+        assert.equal(request.args[request.args.indexOf('--tools') + 1], '');
+      }
+      return invocation()(request);
+    }, preflight);
+    assert.deepEqual(preflight.providers, [peer]);
+    assert.equal(calls, 1);
+    assert.equal(status({ run: f.out }).attempts_used, 1);
+    assert.equal(status({ run: f.out }).successful_peer_calls, 1);
+  }
+});
+
+test('setup refusal preserves prior reports, failed attempts, usage-limit notice and all saved run bytes', async () => {
+  const f = await fixture('optional-preserve-history');
+  await hostDraft(f);
+  await ask({ run: f.out, stage: 'draft' }, invocation(report(['P-D1'])));
+  await hostReview(f);
+  await assert.rejects(() => ask({ run: f.out, stage: 'review' }, async () => ({
+    code: 1, stdout: '', stderr: 'usage_limit_reached',
+  })), error => error.reason === 'usage_limit');
+  const files = await fs.readdir(f.out);
+  const before = await Promise.all(files.map(name => fs.readFile(path.join(f.out, name))));
+  const preflight = await offlinePreflight([]);
+  let calls = 0;
+  await assert.rejects(() => ask({ run: f.out, stage: 'review' }, async () => { calls++; }, preflight), error => error.reason === 'cli_not_found');
+  assert.equal(calls, 0);
+  assert.deepEqual(await fs.readdir(f.out), files);
+  assert.deepEqual(await Promise.all(files.map(name => fs.readFile(path.join(f.out, name)))), before);
+  const current = status({ run: f.out });
+  assert.equal(current.attempts_used, 2);
+  assert.equal(current.successful_peer_calls, 1);
+  assert.equal(current.provider_limit.reason, 'usage_limit');
+  assert.equal(current.stages.review, undefined);
 });
 
 test('corrupt manifest recovers completed stages without permitting a repeat call', async () => {

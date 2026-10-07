@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.12.2 — Plan with the tools already available
+
+- Checks required tool availability before worker selection. Missing or unusable tools lead to a labeled provisional plan in the current chat, with security, proposed tests, self-check and an execution entry point. No installation, upgrade, login or configuration change is required to keep planning.
+- Ignores unavailable CLIs that the chosen route does not use. Same-provider discussions remain explicit choices; missing reviewers are never simulated or silently replaced.
+- Makes preflight diagnostics and optional setup guidance distinct from quota failures. Unavailable required workers cannot launch or consume a model attempt; existing contributions and run state remain intact.
+- Skips inaccessible worker-model research for a provisional-only plan, keeping the missing review and selection evidence clear. Explicit requests to require both participants or wait still take precedence.
+
 ## 0.12.1 — No paid recovery from provider limits
 
 - Makes the spending boundary explicit: no credit purchases, extra usage, auto-reload, increased spend caps, upgrades or API/cloud-billing fallback to bypass a limit. Continue within the available chat's authorized allowance or checkpoint without requesting paid recovery.

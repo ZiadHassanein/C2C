@@ -8,6 +8,17 @@ const required = (ok, message) => { if (!ok) throw new Error(message); };
 const isFile = filename => { try { return fs.statSync(filename).isFile(); } catch { return false; } };
 const SHELL_WRAPPER = /\.(cmd|bat|ps1)$/i;
 
+export function providerSetupGuidance(provider) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  return `Skip the unavailable ${provider} worker and preserve this run and its reports. Continue provisionally in the current chat within authorized limits, clearly identifying missing review; if the user explicitly requires peer review, preserve a checkpoint. Setup is optional and only when requested. Do not automatically install, upgrade, sign in, change settings or billing, or substitute another provider/model. No worker model call was made by this preflight.`;
+}
+
+export function providerSetupError(provider, reason, detail) {
+  const error = new Error(`${detail} ${providerSetupGuidance(provider)}`);
+  error.reason = reason;
+  return error;
+}
+
 // Resolve known npm package layouts; never interpret or execute the shell shim.
 // Optional platform packages may be nested, hoisted, or linked by the installer.
 function npmCodexBinary(shim, arch) {
@@ -52,8 +63,9 @@ export function resolveExecutable(name, {
   };
   // An explicit override is authoritative: do not silently use another version.
   if (env[variable]) {
-    const found = resolveCandidate(path.resolve(env[variable]));
-    required(found, `${variable} does not resolve to an executable. Use a native binary or the codex.cmd shim beside an intact @openai/codex npm installation; arbitrary shell wrappers are unsupported.`);
+    let found;
+    try { found = resolveCandidate(path.resolve(env[variable])); } catch { /* An inaccessible override remains authoritative. */ }
+    if (!found) throw providerSetupError(name, 'cli_override_unusable', `${variable} does not resolve to a usable executable. It remains authoritative; arbitrary shell wrappers are unsupported.`);
     return found;
   }
   const pathValue = env.PATH ?? (platform === 'win32' ? env.Path : undefined) ?? '';
@@ -68,7 +80,7 @@ export function resolveExecutable(name, {
     const found = resolveCandidate(path.join(home, '.local', 'bin', platform === 'win32' ? 'claude.exe' : 'claude'));
     if (found) return found;
   }
-  throw new Error(`${name} executable not found. Install its CLI or set ${variable} to its native executable. Windows npm Codex requires its platform binary; reinstall @openai/codex if it is missing.`);
+  throw providerSetupError(name, 'cli_not_found', `${name} executable not found in supported discovery locations. This does not prove the CLI is not installed. Windows npm Codex requires an intact platform binary.`);
 }
 
 export const CODEX_DISABLED_FEATURES = Object.freeze([
@@ -86,9 +98,9 @@ export function parseCodexFeatures(stdout) {
     const match = line.trim().match(/^([a-z][a-z0-9_.-]*)\s+.+?\s+(true|false)$/);
     if (match) names.add(match[1]);
   }
-  required(names.size, 'Codex feature discovery returned no recognized features; update its CLI before using this skill');
+  if (!names.size) throw providerSetupError('codex', 'cli_incompatible', 'Codex feature discovery returned no recognized features.');
   for (const name of REQUIRED_CODEX_FEATURES) {
-    required(names.has(name), `Codex is missing required ${name} feature control; update its CLI or set COUNCIL_CODEX_BIN to a compatible native executable before using this skill`);
+    if (!names.has(name)) throw providerSetupError('codex', 'cli_incompatible', `Codex is missing required ${name} feature control; the worker safety controls cannot be relaxed.`);
   }
   return [...names];
 }
@@ -133,6 +145,12 @@ function errorText(value, depth = 0) {
 
 // Inspect failure envelopes, never successful report prose. Return a static
 // diagnostic so credentials or account details in provider errors cannot leak.
+export function authenticationFailureGuidance(provider) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  const login = provider === 'claude' ? 'claude auth login' : 'codex login';
+  return `${provider} authentication was rejected or its saved login expired. Preserve this run and its reports. Continue provisionally in the current chat within authorized limits, clearly identifying missing review; if the user explicitly requires peer review, preserve a checkpoint. Credential renewal is optional and only when requested; for a saved CLI login the command is ${login} in the same account/configuration. A credential environment override must be repaired at its source; signing in does not replace it. Do not change accounts or billing to bypass the failure. No peer terminal or app needs to stay open. No automatic retry was made.`;
+}
+
 export function peerAuthenticationFailure(provider, { code, stdout = '', stderr = '' } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
   const failed = failureEvents(stdout);
@@ -141,9 +159,7 @@ export function peerAuthenticationFailure(provider, { code, stdout = '', stderr 
     const status = event.status ?? event.status_code ?? error?.status ?? error?.status_code;
     return status === 401 || AUTH_FAILURE.test([event.message, error, event.errors, event.result].map(value => errorText(value)).join('\n'));
   }) || (Number.isInteger(code) && code !== 0 && AUTH_FAILURE.test(stderr));
-  if (!isAuth) return null;
-  const login = provider === 'claude' ? 'claude auth login' : 'codex login';
-  return { reason: 'authentication_error', message: `${provider} authentication was rejected or its saved login expired. Renew the configured credential; for a saved CLI login, run ${login} once in the same account/configuration, then resume this stage. A credential environment override must be repaired at its source; signing in does not replace it. No peer terminal or app needs to stay open. No automatic retry was made.` };
+  return isAuth ? { reason: 'authentication_error', message: authenticationFailureGuidance(provider) } : null;
 }
 
 // A generic 429/rate-limit error may be transient; it does not establish that
@@ -179,10 +195,17 @@ export function peerUsageLimitFailure(provider, { code, stdout = '', stderr = ''
 // doctor and ask share this preflight; ask must call it before reserving an attempt.
 export async function probeProvider(provider, cwd, { run = runProcess, resolve = resolveExecutable } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
-  const executable = resolve(provider);
+  let executable;
+  try { executable = resolve(provider); }
+  catch (error) {
+    if (['cli_not_found', 'cli_override_unusable'].includes(error.reason)) throw error;
+    throw providerSetupError(provider, 'cli_check_failed', `${provider} executable discovery could not complete.`);
+  }
   const check = async (args, label) => {
-    const result = await run(executable, args, { cwd, timeoutMs: 15000, peer: true });
-    required(result.code === 0, `${provider} ${label} failed; update or repair its CLI before using this skill`);
+    let result;
+    try { result = await run(executable, args, { cwd, timeoutMs: 15000, peer: true }); }
+    catch { throw providerSetupError(provider, 'cli_check_failed', `${provider} ${label} could not complete.`); }
+    if (result.code !== 0) throw providerSetupError(provider, 'cli_check_failed', `${provider} ${label} failed.`);
     return result;
   };
   const version = await check(['--version'], 'version check');
@@ -190,10 +213,12 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve =
   const flags = provider === 'codex'
     ? ['--ignore-user-config', '--output-schema', '--sandbox', '--ephemeral', '--disable', '--skip-git-repo-check', '--json', '--color']
     : ['--safe-mode', '--tools', '--permission-mode', '--strict-mcp-config', '--mcp-config', '--disable-slash-commands', '--json-schema', '--no-session-persistence', '--output-format', '--verbose'];
-  for (const flag of flags) required(help.stdout.includes(flag), `${provider} is missing required ${flag}; update its CLI before using this skill`);
+  for (const flag of flags) if (!help.stdout.includes(flag)) throw providerSetupError(provider, 'cli_incompatible', `${provider} is missing required ${flag}; the worker safety controls cannot be relaxed.`);
   let codexFeatures;
   if (provider === 'codex') codexFeatures = parseCodexFeatures((await check(['features', 'list'], 'feature discovery')).stdout);
-  const auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000, peer: true });
+  let auth;
+  try { auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000, peer: true }); }
+  catch { auth = { code: null, stdout: '', stderr: '' }; }
   let authenticated = false;
   let authMethod = 'unknown';
   if (provider === 'claude') {
@@ -205,6 +230,8 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve =
   } else authenticated = auth.code === 0 && /logged in/i.test(auth.stdout + auth.stderr) && !/not logged in/i.test(auth.stdout + auth.stderr);
   return {
     provider, executable, version: version.stdout.trim(), authenticated,
+    setup_status: authenticated ? 'ready' : 'unavailable',
+    ...(!authenticated ? { reason: 'login_unavailable', guidance: providerSetupGuidance(provider) } : {}),
     auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,
     authentication_note: 'CLI credential status does not validate token freshness, refresh success, or model access. No peer terminal or app needs to stay open.',
     billing_check: 'not_checked', included_allowance_verified: false,

@@ -115,9 +115,9 @@ Remove only the `C2C` folder from the installed locations above, then start a ne
 
 ## Follow the discussion
 
-Concise discussion updates are enabled by default. Ask “show the main disagreements and plan changes as you go” for emphasis, or “quiet mode” / “only the final plan” to limit chat updates. The AI handles the runner commands for you.
+The generated `DISCUSSION.md` is the default place to follow the discussion. C2C links it at the start, keeps chat focused on questions, blockers and necessary progress, then gives a short final decision brief with the plan and discussion links. Ask “show the main disagreements and plan changes as you go” if you also want live chat summaries. Quiet/final-only requests are honored within the host app's requirements. The AI handles the runner commands for you.
 
-Updates identify each agent's submitted points, the coordinator's decisions, and unresolved questions after completed stages. While waiting, safe activity updates show whether output has arrived and how much time remains. C2C does not invent dialogue or stream private reasoning. [Call counts](#usage-and-privacy) depend on whether the selected author runs in the current chat or in the background.
+The file identifies each agent's submitted points, the coordinator's decisions, and unresolved questions. It updates at saved transitions, not on every output token; a pending call is not a completed review. C2C does not invent dialogue or stream private reasoning. [Call counts](#usage-and-privacy) depend on whether the selected author runs in the current chat or in the background.
 
 Open the run's generated `DISCUSSION.md` to read the evidence-backed account. It stays local and is excluded from peer inputs. To refresh it after local report or decision edits, ask the AI to refresh the discussion. For manual inspection from the repository folder:
 

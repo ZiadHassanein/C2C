@@ -24,7 +24,7 @@ Invoke **`$C2C` in Codex** or **`/C2C` in Claude Code**. Your current chat coord
 | **Mutual plan review** | Independent participants challenge assumptions and failure cases; the coordinator records accepted, rejected, and unresolved findings. |
 | **Choice of participants** | Pair Codex with Claude, or explicitly request different models within Codex or Claude Code. |
 | **Clear plans** | Puts the recommendation, priority decisions, MVP, milestones, and next action before technical appendices. |
-| **Visible discussion** | Shows stage updates and saves attributed proposals, challenges, and responses in `DISCUSSION.md`. |
+| **Discussion in Markdown** | Updates `DISCUSSION.md` with attributed proposals, challenges, and responses; keeps chat focused on decisions and blockers. |
 | **Security and testing in every plan** | Requires a scoped security review and proposed acceptance checks, with gaps and unknowns preserved. |
 | **Current model research** | Checks official guidance for both providers on each new task, then selects suitable workers within your limits. Your chat model stays unchanged. |
 | **Saved context and progress** | Keeps Markdown plans and handoffs, structured evidence, bounded attempts, and recovery checkpoints. |
@@ -162,15 +162,15 @@ The same stages apply to explicitly selected same-provider pairs. The final deci
 
 ## Follow the discussion
 
-The chat shows concise updates as planning progresses: what each agent proposed, what the other challenged, and how the coordinator changed the plan or kept an issue open. Arguments and decisions come from completed reports. While a peer is working, safe activity and time updates show that its response is still pending; received output is not treated as a completed review.
+Open the linked **`DISCUSSION.md`** to follow what each agent proposed, what the other challenged, and how the coordinator responded. It updates at saved stages and after local decisions are refreshed. The discussion stays in the file by default; chat carries important questions, blockers, necessary progress, and a short final decision brief with links.
 
 ```text
 Use $C2C to plan a website for selling cars.
-Show me the main disagreements and plan changes as you go.
+Keep the discussion in Markdown and chat updates minimal.
 Include security and testing, and show me the plan before coding.
 ```
 
-In Claude Code, start the request with `/C2C`. No extra setting is needed. For fewer updates, ask for “quiet mode” or “only the final plan.”
+In Claude Code, start the request with `/C2C`. Minimal chat is the default. If you prefer live chat summaries too, ask, “Show me the main disagreements and plan changes as you go.”
 
 **Illustrative car-site example — not a recorded exchange:**
 
@@ -180,7 +180,7 @@ In Claude Code, start the request with `/C2C`. No extra setting is needed. For f
 | Claude challenges | Browsing and seller contact can work without customer accounts; protect inventory management with authenticated admin access. | Recommends a smaller launch scope. |
 | Codex decides | Defer customer accounts; keep browse, filter, contact, and secured inventory management. | Revises the plan and records the reason. |
 
-Actual exchanges can agree, disagree, or end with unresolved questions. `DISCUSSION.md` preserves the submitted points and decisions, with links to their evidence. Updates arrive between completed stages; private reasoning and token streams are not displayed. [Discussion controls →](docs/SETUP.md#follow-the-discussion)
+Actual exchanges can agree, disagree, or end with unresolved questions. `DISCUSSION.md` preserves submitted points, decisions, and evidence links. A pending or failed stage stays labeled; private reasoning and token streams are not displayed. Avoiding duplicate chat recaps targets unnecessary narration, with no measured token-saving percentage for this change. Review stages, evidence, security, and model choices stay intact. [Discussion controls →](docs/SETUP.md#follow-the-discussion)
 
 ## What you receive
 

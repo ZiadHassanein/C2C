@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 0.10.1 — Discussion in Markdown, less repeated chat
+
+- Makes generated `DISCUSSION.md` the primary discussion record. Links it at kickoff and completion, without recapping every stage in chat by default.
+- Keeps required user decisions, material blockers, actionable failures, and necessary progress visible. The final response gives a short decision brief and artifact links; live chat summaries remain available on request.
+- Reuses the existing generated view and validated reports, without rereading or manually rewriting the discussion. Review stages, evidence, security, model selection and worker prompts are unchanged. This targets coordinator narration; no new token-saving percentage or equal-quality claim is made.
+
 ## 0.10.0 — Current model research and selected planning workers
 
 - Researches current official planning and coding guidance for both providers on every new task, then reuses the dated evidence during that task. Choices remain task-specific; no permanent best-model list is bundled.

@@ -72,19 +72,19 @@ For **both**:
 
 1. Complete the security review below. Give every finding an accepted, rejected, or unresolved disposition and substantive rationale in `decisions.json` ([contract](references/protocol.md#decision-record)).
 2. Call `ask --stage verify`; address `peer-verify.json` and append its finding dispositions. Preserve earlier findings. Disclose subsequent edits: they receive no automatic re-review.
-3. Run `finish`. Present the plan, review-driven changes, material unresolved issues, and artifact links. Completion may mean a blocked plan; it grants no implementation authority.
+3. Run `finish`. Give a short decision brief with review status, recommendation, material blockers, next action, and links to the plan and discussion. Keep the detailed debate and changes in the artifacts. Completion may mean a blocked plan; it grants no implementation authority.
 
 ## Present a plan the user can decide on
 
 Before delivering a draft or final plan, use [plan presentation](references/plan-presentation.md). Lead with accurate review status, goal, recommended approach, and priority decisions/blockers. Separate confirmed requirements from proposals, MVP from deferred work, and proposed tests from executed results. Use a dependency/exit-gate milestone table when scope warrants it. Put technical depth in the same plan's appendix; keep critical invariants visible. End with the concrete next action. A failed peer exchange stays a clearly labeled draft, never a completed council.
 
-## Show the discussion as it develops
+## Keep the discussion in Markdown
 
-Give concise stage updates unless quiet/final-only is requested. Before a call, identify agent and stage; pending is not a response. While waiting, use `progress --run RUN --compact` for safe activity and elapsed/remaining call time without repeating the project assessment/history. Use full `status` for recovery; avoid raw-log polling. Activity proves neither a usable proposal nor a completed review.
+Use generated `DISCUSSION.md` as the primary account of proposals, objections, responses, and open disagreements. Link it once after preparation alongside the selected roles and allowance; use a file preview when available. The runner refreshes it at saved transitions. After local report or decision edits, refresh with `discussion --run RUN` between calls. Do not handwrite this generated view, reread it when its source reports are known, or send it as peer context.
 
-Afterward, highlight material objections, coordinator responses, plan changes, and open disagreements from actual reports. Attribute provider, role, and known/requested model correctly; same-provider labels must distinguish the two roles. Coordinator decisions do not prove peer agreement. Never invent dialogue, expose private reasoning/raw logs, or add calls for a debate.
+Default to minimal chat: no before/after recap for each stage. Surface required user decisions, material blockers, and failures or stale-view warnings affecting the next action. Keep host-required progress brief and factual; use `progress --run RUN --compact` when needed and full `status` for recovery. Pending activity is not a validated response or proof of liveness. Honor requests for live summaries, quiet, or final-only output within host requirements.
 
-Link generated `DISCUSSION.md` in updates and the final response; refresh with `discussion --run RUN` after local edits. Do not reread the entire view when its source reports are already known. It is a local summary, never a transcript or peer input.
+When live summaries are requested, report only new material points from actual reports. Attribute provider, role, and known/requested model correctly. Coordinator decisions do not prove peer agreement. Never invent dialogue, expose private reasoning/raw logs, or add calls for a debate. The final brief links the plan and discussion without replaying the exchange; material unresolved risks remain visible in chat.
 
 ## Security and testing
 

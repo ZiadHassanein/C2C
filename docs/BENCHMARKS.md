@@ -33,6 +33,14 @@ Judge missed requirements, unsupported assumptions, security gaps, harmful accep
 
 Report whole-task input/output usage, calls, retries and elapsed time separately from quality, including coordinator work and research. Missing usage remains unknown. Better quality at comparable effort, or equivalent quality at lower effort, supports the efficiency goal. Better quality with higher cost is a tradeoff; lower cost with material regressions is not a win. Do not publish an improvement claim until matched evidence supports it.
 
+## Execution model estimates
+
+Execution recommendations distinguish actual task-token measurements, equal-token API price estimates and subscription allowance. They are different quantities. A model can have lower token prices yet use more tokens or require extra attempts.
+
+For a price estimate, record official rate URLs/date, exact models, input/output and cache categories, context tier, service mode, applicable fees/exclusions and a named baseline. Calculate `(baseline cost - candidate cost) / baseline cost × 100` only with a positive baseline. Unknown workload mix means category-specific comparisons or no total, not a guessed project saving.
+
+An observed token reduction needs compatible complete task measurements, explicit quality/acceptance results and the same scope. Published experiments retain their original models, harness, sample and limitations; community anecdotes cannot supply a forecast. API list prices and credit rates do not quantify included-subscription allowance. If evidence is missing, report unknown. These recommendations do not authorize paid probes, execution, model switching or billing changes.
+
 ## Controls for repeated work
 
 C2C deduplicates repeated context paths, reuses returned reports and task research, offers compact runner output, and records discussion in Markdown. These are specific workflow behaviors. They do not guarantee lower total token use or faster planning.

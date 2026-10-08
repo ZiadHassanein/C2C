@@ -49,6 +49,8 @@ Include a concise **Start here** block in the main plan before any appendices. I
 - **Prerequisites and boundary:** decisions, access, dependencies or authorization that gate this work; what it covers and where it stops. Name an owner only when known. Production blockers gate affected live work, not unrelated authorized local discovery.
 - **Check and handoff:** the relevant command/check, expected result, and condition for moving to the next step. Use verified project commands when available, otherwise state how to establish them. Keep planned checks labeled proposed.
 
+Beside this block, include the concise [execution model recommendation](model-selection.md#recommend-models-for-execution), tied to this work item. Distinguish it from the models that reviewed the plan. Show supported savings with their metric/baseline/assumptions, or mark them unknown; keep the research detail in the existing assessment. Prepare this advice before verification so delivery does not trigger another review solely to append it.
+
 For a small feature, a few lines can cover this; reuse milestone/check IDs instead of repeating their detail. For a project, detail its first executable milestone. If a decision blocks choosing that milestone, state the decision and any bounded discovery that can resolve it, with later implementation explicitly conditional.
 
 Keep the **next user action** separate from the **first implementation action**. For “show me the plan before coding,” ask for the plan decision and still show where authorized work would begin. Honor implementation authority already given without adding a new approval ritual. This block also applies to provisional plans; it does not establish missing peer review or authorize coding.
@@ -59,6 +61,7 @@ Check the assembled plan before peer verification, then check corrections again 
 
 - The recommendation, scope, technical decisions, milestone order and Start here block agree with the latest finding dispositions and actual project evidence.
 - The first work item has a concrete location/action, prerequisites and observable acceptance result, or an explicit discovery/blocking condition. Dependencies do not require an unfinished later milestone or form a cycle.
+- Execution advice fits that work item and the user's limits; sources, eligibility gaps and savings labels are accurate. Price differences are not presented as token or subscription savings, and the recommendation grants no new implementation authority.
 - Applicable security, tests and unresolved decisions remain actionable; proposed checks are not reported as executed. Review status identifies material edits after verification and remaining limitations.
 
 Keep this a coordinator check within the existing workflow, not a new report, score, or extra peer round. Do not repeat it as chat narration. `finish` checks saved stages and evidence; it does not assess semantic quality. Complete corrections before sealing the result; a later revision must not inherit an earlier review/completion claim.

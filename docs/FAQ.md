@@ -122,6 +122,12 @@ If the active chat itself becomes unavailable, C2C cannot guarantee automatic ta
 
 C2C reuses saved reports and task research, removes repeated context paths, offers compact runner output, and keeps the discussion in Markdown. These controls avoid specific forms of repetition. They do not guarantee lower total usage: additional workers and review stages also consume tokens. Actual usage depends on the task, selected models, provider behavior, retries and outputs. C2C makes no quantified token-saving, cost or speed claim. See [measurement methods and limits](BENCHMARKS.md).
 
+## Will the plan recommend a model for implementation and show savings?
+
+Yes. The plan includes an advisory execution choice tied to the first work item, a justified alternative, source dates, availability gaps and conditions for reconsidering the choice. Roadmaps add different model recommendations only where the work warrants them. Official guidance establishes capabilities and rates; firsthand experiments and social reports add context with their limitations. The recommendation does not switch models, launch coding or enable paid usage.
+
+An equal-token API price comparison can show a percentage when its baseline and assumptions are explicit. Actual task-token reduction needs comparable task measurements and quality results. Subscription allowance is separate; API prices or social anecdotes cannot establish a percentage for your account. Missing evidence is reported as unknown. [Full recommendation policy](../references/model-selection.md#recommend-models-for-execution).
+
 ## Can I resume later, and will C2C start coding?
 
 Saved Markdown plans, a generated handoff, and structured run state support resuming from the current stage. The coordinator checks status and relevant evidence instead of replaying successful calls. Recovery still needs intact state; arbitrary disk damage is not recoverable by design. C2C produces a plan and can prepare an implementation brief for a selected milestone. Implementation and deployment need their own authorization and verification.

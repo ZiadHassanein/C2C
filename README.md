@@ -13,7 +13,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
-[**Version 1.1.1**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+[**Version 1.2.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
 [Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](docs/SETUP.md#uninstall) · [Help](#need-help)
 
@@ -168,9 +168,18 @@ Key decisions and tradeoffs
 Steps or milestones, dependencies and acceptance checks
 Security, testing and unresolved risks
 Start here: first task, location, prerequisites and success check
+Execution model recommendation, alternative and savings evidence
 ```
 
 Project evidence, model choices and resumable progress remain in `PROJECT_CONTEXT.md`, `TASK_ASSESSMENT.md` and `HANDOFF.md`. Unknown paths become bounded discovery tasks. Planning completion does not authorize coding or establish production readiness. [Plan layout](references/plan-presentation.md).
+
+### Which model should execute the plan?
+
+C2C recommends a model for the first implementation task, with a lower-cost alternative when justified, a reason to reconsider it, and dated sources. It reuses current official research and checks relevant firsthand community reports. Small edits and risky migrations can need different choices; there is no permanent best model. Recommendations do not switch your model or start coding.
+
+Savings are labeled separately: **task tokens**, **equal-token API price estimate**, and **subscription allowance**. A cheaper price does not mean fewer tokens or equal quality. Unsupported percentages stay **unknown**. [Execution advice and evidence rules](references/model-selection.md#recommend-models-for-execution).
+
+You can ask: “Recommend an execution model for each milestone within my included allowance. Show sourced savings where supported and mark unknowns.”
 
 ## How it works
 

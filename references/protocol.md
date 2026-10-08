@@ -293,6 +293,7 @@ Every delivered plan includes an [execution entry point](plan-presentation.md#ma
 - Link to `PROJECT_CONTEXT.md`, deployment evidence, readiness scope/gaps and any prerequisite for work with live impact.
 - Relevant files/components, snapshot/source version, evidence links, and constraints; mark unknown paths explicitly.
 - First concrete action and gate, then ordered work/dependencies and actual validation commands with expected acceptance results, or the missing information needed to establish them.
+- The plan's advisory execution-model choice, scope, evidence/eligibility limits and savings labels; reuse it rather than starting new research or silently changing models.
 - Security acceptance checks, finding dispositions, unresolved blockers, and prerequisites before proceeding.
 - Status of each check: proposed, tested with dated results, or blocked/unavailable; note any changes since plan verification.
 
@@ -351,12 +352,13 @@ Keep one compact local record after preparation and before any worker call. For 
 - Size / complexity / risk / uncertainty: separate judgments, reasons and confidence.
 - Route: pairing, planning depth, mode and host/background author; why appropriate.
 - Model research: planning and coding recommendation for each provider, source links/date, task-fit rationale and local availability evidence or gap.
+- Execution advice: first work item, recommended model/effort and justified alternative, official/firsthand sources with dates and limits, eligibility/confidence, reconsideration trigger; token, API-price and subscription evidence kept separate.
 - Actual roles: author and critic model IDs, why selected, identity provenance and selection authority; separate recommendations from requested/reported models.
 - Limits: actual profile and per-call/total/attempt ceilings; who chose them, explicit user time/attempt/spending caps, existing recovery permission and unknown provenance.
 - Assumptions or blockers: material unknowns and what would change the recommendation.
 ```
 
-The final plan briefly states the choices, their evidence and meaningful tradeoffs. Keep this record out of --assessment, --context and other worker inputs; neutral project risk/constraint facts belong in shared assessment and brief, while model research stays local. Never claim an unreported runtime model was verified.
+The final plan briefly states the choices, their evidence and meaningful tradeoffs. Keep the full TASK_ASSESSMENT record and worker-selection research out of --assessment, --context and other worker inputs; neutral project risk/constraint facts belong in shared assessment and brief. The compact execution recommendation with relevant rates, assumptions, source dates and limitations belongs in the final plan for verification; workers cannot independently open its source links. Never claim an unreported runtime model was verified.
 
 ## Visible discussion
 

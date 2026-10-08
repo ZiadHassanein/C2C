@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.2.0 — Execution model recommendations with sourced estimates
+
+- Adds task-specific execution advice beside the plan's first work item: primary model, justified alternative, task-fit rationale, eligibility, sources and conditions for reconsideration. Planning-worker selection remains separate from advisory implementation choices.
+- Reuses official research and checks relevant firsthand community evidence, retaining source dates, experimental limits and uncertainty. No permanent model ranking or automatic implementation/model/billing change.
+- Separates measured task-token changes, equal-token API price estimates and subscription allowance. Percentages require explicit baselines and compatible evidence; missing savings remain unknown. No guaranteed performance or reduction in total usage is claimed.
+
 ## 1.1.1 — Focus single-provider planning on consequential decisions
 
 - Gives same-provider author, independent draft and critique stages complementary planning and implementation perspectives. Reviews prioritize supported errors, minimal remedies and unresolved risks; no added worker stage or call is required.

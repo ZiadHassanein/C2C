@@ -75,6 +75,8 @@ Critique consequential assumptions against evidence, realistic failure cases and
 
 ## Deliver the plan and discussion
 
+Include [execution-model advice](references/model-selection.md#recommend-models-for-execution) beside Start here: task-fit choice, justified alternative, sources, and clearly separated token, API-price and allowance evidence. Reuse research; unsupported savings stay unknown. Advice does not launch coding or switch models.
+
 Before any draft/final delivery, apply [plan presentation](references/plan-presentation.md): accurate status (from generated records when a run exists), goal/recommendation, priority decisions/blockers, confirmed requirements versus proposals, MVP/deferred work, appropriate milestones and practical security/tests. Keep technical appendices in the same reviewed plan and critical invariants visible. Its **Start here** entry point separates the next user decision from the first authorized work item, location/action, prerequisites and check. A failed exchange remains a labeled draft, never a completed council.
 
 Use generated `DISCUSSION.md` as the primary account. Link it once after preparation with roles and allowance; preview when available. Refresh after local report/decision edits with `discussion --run RUN` between calls. Do not handwrite it, repeatedly reread known reports or send it as peer context. Put public arguments and actual ID-referenced replies in report summaries/findings and decision rationale; `proposal_markdown` is not rendered there. A coordinator's disposition is not a peer reply; missing replies stay unknown.

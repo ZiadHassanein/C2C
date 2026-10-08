@@ -5,6 +5,7 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 ## 2.0.1 — Review launch diagnostics
 
 - Separates normal authorized subscription use, no-paid-limit recovery and explicit zero-extra-charge restrictions. Unknown quota metadata no longer implies a provider is unavailable; genuine strict billing limits remain enforced by the coordinating instructions.
+- Selects candidate models and host/worker roles before checking launch eligibility. Only required workers need account checks; strict limits use available supported read-only evidence before falling back.
 - Adds an offline `preview` of the actual review packet, selected provider/model and remaining limits, with no worker call or run-state changes. Makes existing exchange authorization clear while respecting host permission decisions.
 - Reports sanitized authentication routes and local runtime-cache/lock permission failures without disclosing credentials, weakening locks or losing prior work.
 - Disables Claude credit-only fast mode and unrelated updater/title work for worker processes only. Model, effort and account settings remain unchanged; this is not a universal spending cap.

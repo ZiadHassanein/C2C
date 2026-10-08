@@ -697,8 +697,9 @@ test('provider usage limits preserve prior reports and prioritize no-paid fallba
     await assert.rejects(() => ask({ run: f.out, stage: 'verify' }, async () => { calls++; return failure; }), error => {
       assert.equal(error.reason, 'usage_limit');
       assert.match(error.message, /Do not buy or use paid credits/);
-      assert.match(error.message, /current chat only within its available included allowance/);
-      assert.match(error.message, /otherwise checkpoint and wait/);
+      assert.match(error.message, /eligible distinct-model pair in the unblocked initiating provider within remaining included allowance and task caps/);
+      assert.match(error.message, /never replace sealed participants or reset budgets/);
+      assert.match(error.message, /solo self-critique only within the current chat's available included allowance, or checkpoint/);
       assert.doesNotMatch(error.message, /private-provider-detail/);
       return true;
     });

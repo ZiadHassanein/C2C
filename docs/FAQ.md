@@ -1,24 +1,24 @@
 # C2C FAQ: Codex and Claude Code planning and review
 
-C2C is an open-source skill for collaborative planning between Codex and Claude Code, or explicitly chosen different models within one provider. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers cross-provider setup and usage.
+C2C is an open-source skill for collaborative planning between Codex and Claude Code, or distinct models within one provider. Either app can start and coordinate the work. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers historical cross-provider setup and usage.
 
 ## How do I make Codex and Claude Code work together?
 
-Install C2C and start a new project chat. In Codex, ask `Use $C2C to plan…`. In Claude Code, use `/C2C Plan… with Codex.` Your chat uses existing eligible CLI workers for the exchange, or delivers a provisional plan if a required tool is unavailable. Installing or authenticating another CLI is optional when you choose to enable its review. See [copyable prompts](../README.md#use-it) and [optional setup help](SETUP.md#troubleshooting).
+Install C2C and start a new project chat. In Codex, ask `Use $C2C to plan…`. In Claude Code, use `/C2C Plan…`. The initiating chat coordinates; there is no permanent main provider. It prefers an eligible exchange with the other provider, then distinct models from its own provider if the other is unavailable before calls. If neither route qualifies, it delivers a provisional plan with structured self-critique. See [copyable prompts](../README.md#use-it) and [optional setup help](SETUP.md#troubleshooting).
 
 ## Do I need both command-line tools?
 
-Only for an exchange that uses workers from both providers. When your current chat supplies the author's work, only the other provider's CLI is required. An explicitly requested Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. A missing CLI the route does not need is ignored. Node.js 18 or newer runs the installer/council scripts, with no npm dependencies. The installer does not install CLIs or sign you in.
+Only for an exchange that uses background workers from both providers. When your current chat supplies the author's work, only the other provider's CLI is required. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. Each also needs two eligible distinct models and authorized allowance. A missing unused CLI is ignored. Node.js 18 or newer runs the installer/council scripts, with no npm dependencies. The installer does not install CLIs or sign you in.
 
 ## What if one tool is not installed or ready?
 
-C2C checks the existing setup and skips an unavailable required worker. The current chat completes a clearly labeled provisional plan with security, proposed tests, a self-check and a concrete execution entry point. It does not require installation, upgrades, login or configuration changes. The plan identifies the missing independent review, and setup instructions are offered only if requested. If both CLIs—or Node—are unavailable, the active chat can still produce that standalone plan.
+C2C checks the existing setup before calls. If the other provider is missing or unusable, it automatically selects a planning author and distinct coding-focused critic from the current provider when that provider's CLI, exact models and allowance are eligible. It announces the selected roles and records actual responses. This works symmetrically from Codex or Claude Code.
 
-Missing, incompatible and inaccessible-login states are kept separate from quota failures. Installation alone does not establish authentication or included allowance. C2C does not silently replace the absent reviewer with another model or fabricate dialogue. An explicit request to wait for both participants takes precedence. [Fallback details](../references/protocol.md#planning-with-unavailable-tools).
+If the current provider's CLI is also absent, no distinct eligible pair exists, or authorized allowance is unknown or unavailable, the chat produces a provisional plan with structured self-critique, security, proposed tests and a concrete execution entry point. A self-critique is labeled as one chat's work and never presented as a second model's review. No installation, upgrade, login or configuration change is required. Missing tools, authentication failures and quota failures remain distinct. Explicit requirements for both providers, waiting, pinned choices or advice only take precedence. [Routing and recovery details](../references/protocol.md#planning-with-unavailable-tools).
 
 ## Must I keep Claude or Codex open while it works as the peer?
 
-No. Only your coordinating chat needs to stay open. C2C starts the peer CLI non-interactively and reuses its saved authentication; no second app, panel, or terminal is needed. If you choose to repair rejected credentials, native CLI login renewal may open a browser; otherwise C2C continues provisionally. A ready `doctor` result means authentication was visible locally, not that the provider accepted a fresh request. See [headless operation and login help](SETUP.md#do-i-need-another-terminal-open).
+No. Only your coordinating chat needs to stay open. C2C starts the peer CLI non-interactively and reuses its saved authentication; no second app, panel, or terminal is needed. A rejected login makes that worker unavailable under the routing rules above. If you choose to repair it, native CLI login renewal may open a browser. A ready `doctor` result means authentication was visible locally, not that the provider accepted a fresh request. See [headless operation and login help](SETUP.md#do-i-need-another-terminal-open).
 
 ## Does C2C really ask the other AI?
 
@@ -26,7 +26,7 @@ Yes, when the selected workers are available and eligible: C2C launches them and
 
 ## Can Codex discuss a plan with another Codex model, or Claude with another Claude model?
 
-Yes. Ask `Use $C2C with Codex only` or `/C2C Use Claude only`. C2C researches current options and selects a planning author and a distinct coding-focused critic within your limits. If trustworthy metadata exactly identifies your chat as the selected planner, it can author directly; otherwise C2C launches the selected author in the background. You can specify exact models or request advice only. See [copyable examples](../README.md#with-codex-only-or-claude-only) and [model identity limits](SETUP.md#choose-the-participants).
+Yes. This is selected automatically when the other provider is unavailable before calls and a same-provider pair is eligible. You can also ask `Use $C2C with Codex only` or `/C2C Use Claude only`. C2C researches current options and selects a planning author and a distinct coding-focused critic within your limits. If trustworthy metadata exactly identifies your chat as the selected planner, it can author directly; otherwise C2C launches the selected author in the background. Exact models, reserved selection and advice-only requests take precedence. See [copyable examples](../README.md#with-codex-only-or-claude-only) and [model identity limits](SETUP.md#choose-the-participants).
 
 Different model IDs do not prove independent reasoning or guarantee that a provider honored a request. The runner records declared/requested identities, uses reported identity when available, and keeps unknowns visible. It does not switch the current chat or simulate a debate.
 
@@ -42,7 +42,7 @@ The coordinator inspects relevant project evidence, records production status se
 
 Yes. Open the linked `DISCUSSION.md`: it records attributed proposals, findings, and coordinator responses as stages are saved. Chat stays minimal by default, surfacing important decisions and blockers instead of repeating each exchange. To also receive live chat summaries, ask, “Show me the main disagreements and plan changes as you go.” These are submitted arguments and decisions, not private reasoning or a live token stream. Every finding receives an accepted, rejected, or unresolved disposition; agreement is not required. See [discussion examples](../README.md#follow-the-discussion).
 
-Reviewers are asked to challenge consequential assumptions with evidence, counterexamples, and alternatives. Sound points may survive review; there is no required objection count and no instruction to agree. Same-provider updates distinguish the roles and known/requested models.
+Reviewers challenge consequential assumptions with evidence, counterexamples and alternatives. The coordinator responds to findings and revises or defends the plan; the reviewer answers material counterarguments by finding ID during verification. These are the actual roles, even when a background worker authored the draft. Sound points may survive review. There is no required objection count, forced agreement or invented disagreement. Same-provider updates distinguish the roles and known/requested models.
 
 ## What if every finding is accepted?
 
@@ -66,7 +66,7 @@ Every new council requires a scoped security review and proposed acceptance chec
 
 ## Does it choose or change my model automatically?
 
-C2C checks tool availability first. For each new task using workers, it searches current official guidance for the requested providers, records planning/coding candidates, and selects suitable workers within your limits. A provisional-only plan records skipped selection instead of researching inaccessible workers. Your chat and global settings stay unchanged; exact choices and advice-only instructions override automatic selection. An explicitly requested same-provider discussion uses a planner plus a distinct coding critic; cross-provider planning chooses a planning model from each provider. Research is reused for the same run and retries. [Selection policy](../references/model-selection.md).
+C2C checks tool availability first. For each new task using workers, it searches current official guidance for the selected providers, records planning/coding candidates, and selects suitable workers within your limits. A provisional-only plan records skipped selection instead of researching inaccessible workers. Your chat and global settings stay unchanged; exact choices and advice-only instructions override automatic selection. Same-provider discussion uses a planner plus a distinct coding critic; cross-provider planning chooses a planning model from each provider. Research is reused for the same run and retries. [Selection policy](../references/model-selection.md).
 
 If the same model is strongest for planning and coding, C2C selects an adequate distinct critic and explains the tradeoff. A model appearing in a catalog does not prove account access or guarantee quality. It does not make paid selection probes or silently choose a model outside your authorized billing scope. For advice alone, ask: “Assess the task and recommend models; advice only.”
 
@@ -82,7 +82,7 @@ Consequential changes after verification may use one additional successful revis
 
 ## Will C2C buy credits or require paid usage after a limit?
 
-No. C2C must not buy credits, enable extra usage or auto-reload, raise spending limits, upgrade your plan, or switch to API/cloud billing to keep an exchange running. Asking it to continue does not authorize those actions. It stops the blocked worker and uses the current chat's remaining authorized allowance for a clearly provisional plan; if none remains, it saves a checkpoint and waits. It does not ask you to pay to unblock the plan.
+No. C2C must not buy credits, enable extra usage or auto-reload, raise spending limits, upgrade your plan, or switch to API/cloud billing to keep an exchange running. Asking it to continue does not authorize those actions. It stops the blocked route and checks only permitted continuation within existing allowance. If none qualifies, it delivers a provisional plan with self-critique; if the chat has no allowance, it saves a checkpoint. It does not ask you to pay to unblock the plan.
 
 Provider billing remains separate. An existing paid-credit or overage setting can allow charges without a quota error, and a configured API key may select API billing. C2C does not verify or change those account controls, and a ready CLI is not a zero-charge guarantee. With an included-usage-only constraint, unknown billing eligibility must be resolved before worker calls. See [billing boundaries](../references/protocol.md#no-paid-limit-recovery) and your provider's usage settings.
 
@@ -102,9 +102,9 @@ C2C can increase a coordinator-selected allowance on the same run when your exis
 
 ## What happens when one AI hits its usage limit?
 
-When a participant has a reported provider, account, or model usage block, the available chat completes a **provisional plan** by default, within your remaining limits. It uses actual reports already received, chooses reasonable reversible assumptions with validation checks, and retains security, testing, unresolved risks, and decisions that need you. Missing independent review stays explicit; a host self-check cannot replace it. Ask to “wait for both participants” or “require both reviews” if that is your preference.
+C2C stops calls to the blocked route. Before calls, it can select an eligible planner and distinct critic from the starting provider when the other provider is unavailable. After a run is prepared, [bounded recovery](../references/protocol.md#no-paid-limit-recovery) preserves participants, actual reports and consumed allowance. A different model name does not establish fresh quota; models may share a limit. No account or billing switch is allowed.
 
-C2C stops calls to the blocked route and does not try alternative workers, providers, accounts, or billing sources. Different models may share an allowance. Timeouts and rejected logins keep their own recovery paths; they are not assumed to be quota failures. Saved reports, failed attempts, and participant settings remain intact, and the council stays incomplete until its required real stages succeed. A block before preparation produces a standalone plan, without an invented run or discussion record.
+If no eligible continuation fits your remaining limits, the available chat completes a **provisional plan with structured self-critique**, using actual reports already received. It retains reversible assumptions and validation checks, security, proposed tests, unresolved risks and decisions that need you. Missing independent review stays explicit. If no chat allowance remains, it saves a checkpoint. Requests to “wait for both participants” or “require both reviews” take precedence. Timeouts and rejected logins remain distinct from quota failures; no missing worker response is invented.
 
 If the active chat itself becomes unavailable, C2C cannot guarantee automatic takeover. You can ask an available chat to continue provisional planning from the saved plan, notes, and handoff; it preserves the original council's participant settings and unfinished stages. See [usage-limit fallback and resumption](SETUP.md#when-a-participant-hits-a-usage-limit).
 

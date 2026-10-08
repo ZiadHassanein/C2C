@@ -103,7 +103,8 @@ test('missing provider discovery is optional, precise and never launches a comma
       assert.match(error.message, /not found in supported discovery locations/);
       assert.match(error.message, /does not prove the CLI is not installed/);
       assert.match(error.message, /Continue provisionally in the current chat within authorized limits/);
-      assert.match(error.message, /if the user explicitly requires peer review, preserve a checkpoint/);
+      assert.match(error.message, /eligible planner and distinct critic in the initiating provider may run within existing limits/);
+      assert.match(error.message, /honor explicit required-participant or wait instructions/);
       assert.match(error.message, /Setup is optional and only when requested/);
       assert.doesNotMatch(error.message, /before using this skill|Install its CLI|reinstall/);
       return true;
@@ -648,8 +649,9 @@ test('explicit provider quota and payment failures return static no-paid-fallbac
     assert.equal(diagnostic?.reason, 'usage_limit', JSON.stringify(response));
     assert.match(diagnostic.message, /Stop calls to the blocked worker/);
     assert.match(diagnostic.message, /Do not buy or use paid credits, enable overage, switch to paid API access, change accounts or billing/);
-    assert.match(diagnostic.message, /current chat only within its available included allowance/);
-    assert.match(diagnostic.message, /otherwise checkpoint and wait/);
+    assert.match(diagnostic.message, /eligible distinct-model pair in the unblocked initiating provider within remaining included allowance and task caps/);
+    assert.match(diagnostic.message, /never replace sealed participants or reset budgets/);
+    assert.match(diagnostic.message, /solo self-critique only within the current chat's available included allowance, or checkpoint/);
     assert.match(diagnostic.message, /extend.*cannot restore provider quota/);
     assert.match(diagnostic.message, /No automatic retry/);
     assert.doesNotMatch(JSON.stringify(diagnostic), /private-/);

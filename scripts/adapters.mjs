@@ -10,7 +10,7 @@ const SHELL_WRAPPER = /\.(cmd|bat|ps1)$/i;
 
 export function providerSetupGuidance(provider) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
-  return `Skip the unavailable ${provider} worker and preserve this run and its reports. Continue provisionally in the current chat within authorized limits, clearly identifying missing review; if the user explicitly requires peer review, preserve a checkpoint. Setup is optional and only when requested. Do not automatically install, upgrade, sign in, change settings or billing, or substitute another provider/model. No worker model call was made by this preflight.`;
+  return `Skip the unavailable ${provider} worker and preserve any run and its reports. Follow SKILL.md route selection: an eligible planner and distinct critic in the initiating provider may run within existing limits; an existing sealed run requires the bounded linked-route procedure, never participant replacement or a budget reset. Continue provisionally in the current chat within authorized limits when no eligible pair can run, clearly identifying solo self-critique and missing independent review; honor explicit required-participant or wait instructions. Setup is optional and only when requested. Do not automatically install, upgrade, sign in, change settings or billing. No worker model call was made by this preflight.`;
 }
 
 export function providerSetupError(provider, reason, detail) {
@@ -162,7 +162,7 @@ function errorText(value, depth = 0) {
 export function authenticationFailureGuidance(provider) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
   const login = provider === 'claude' ? 'claude auth login' : 'codex login';
-  return `${provider} authentication was rejected or its saved login expired. Preserve this run and its reports. Continue provisionally in the current chat within authorized limits, clearly identifying missing review; if the user explicitly requires peer review, preserve a checkpoint. Credential renewal is optional and only when requested; for a saved CLI login the command is ${login} in the same account/configuration. A credential environment override must be repaired at its source; signing in does not replace it. Do not change accounts or billing to bypass the failure. No peer terminal or app needs to stay open. No automatic retry was made.`;
+  return `${provider} authentication was rejected or its saved login expired. Preserve this run and its reports. Follow SKILL.md bounded route fallback only if an eligible distinct-model pair in the initiating provider fits the remaining allowance; never replace sealed participants or reset budgets. Continue provisionally in the current chat within authorized limits when no eligible pair can run, identifying solo self-critique and missing independent review; honor explicit required-participant or wait instructions. Credential renewal is optional and only when requested; for a saved CLI login the command is ${login} in the same account/configuration. A credential environment override must be repaired at its source; signing in does not replace it. Do not change accounts or billing to bypass the failure. No peer terminal or app needs to stay open. No automatic retry was made.`;
 }
 
 export function peerAuthenticationFailure(provider, { code, stdout = '', stderr = '' } = {}) {
@@ -191,7 +191,7 @@ const isUsageLimit = text => USAGE_LIMIT_PATTERNS.some(pattern => pattern.test(t
 
 export function usageLimitGuidance(provider) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
-  return `${provider} reported a usage, quota, credit or payment limit. Stop calls to the blocked worker. Do not buy or use paid credits, enable overage, switch to paid API access, change accounts or billing, or try other models to bypass the limit. Preserve this run and its reports. Continue a provisional plan in the current chat only within its available included allowance, clearly identifying missing review; otherwise checkpoint and wait for included usage to reset. Local extend changes only C2C runtime/attempt allowances and cannot restore provider quota. No automatic retry was made.`;
+  return `${provider} reported a usage, quota, credit or payment limit. Stop calls to the blocked worker. Do not buy or use paid credits, enable overage, switch to paid API access, change accounts or billing, or try other models in the blocked provider to bypass the limit. Preserve this run and its reports. Follow SKILL.md bounded route fallback only for an eligible distinct-model pair in the unblocked initiating provider within remaining included allowance and task caps; never replace sealed participants or reset budgets. Otherwise continue a provisional plan with an honest solo self-critique only within the current chat's available included allowance, or checkpoint. Honor explicit required-participant or wait instructions. Local extend changes only C2C runtime/attempt allowances and cannot restore provider quota. No automatic retry was made.`;
 }
 
 export function peerUsageLimitFailure(provider, { code, stdout = '', stderr = '' } = {}) {

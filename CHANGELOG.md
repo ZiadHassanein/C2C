@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.1.0 — Equal starting points and available-provider review
+
+- Codex and Claude Code are equal entry points: the initiating chat coordinates. Examples and workflow diagrams use symmetric routes and planner/reviewer roles.
+- Before calls, the skill automatically selects an eligible planner and distinct coding-focused critic in the initiating provider when cross-provider review is unavailable. Explicit participant requirements, model choices, usage eligibility and no-paid limits take precedence.
+- Defines one bounded, linked same-provider transition after an opposite-provider block, preserving prior evidence and subtracting used attempts/runtime. The coordinator accounts for aggregate limits; the runner enforces each run's explicit caps. No sealed participant replacement or fresh allowance is permitted.
+- If no real pair can run, delivers an honestly labeled solo self-critique with evidence, failure cases, alternatives, security, tests and an execution entry point. No simulated participants or forced disagreement.
+
 ## 1.0.1 — Compatible workers and focused discovery
 
 - Checks distinct installed CLI candidates in order so an incompatible early PATH entry does not hide a compatible installation. Explicit binary overrides remain authoritative; execution, authentication and quota failures do not trigger another binary or account.

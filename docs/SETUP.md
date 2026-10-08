@@ -4,7 +4,7 @@
 
 Use this page when you need help with installation, updating, or a failed setup check. For normal use, paste a request into your project chat and let the AI handle the runner.
 
-**Setup is optional for planning.** C2C uses compatible, authenticated tools already available. If a required worker CLI is missing or unusable, it skips that worker and produces a provisional plan in the current chat, with missing review disclosed. It does not require installing, updating or signing in to another tool. The repair instructions below apply when you choose to enable that exchange.
+**Start in either app; setup is optional.** The initiating chat coordinates C2C. Before calls, it prefers an eligible cross-provider exchange, then a planner and distinct coding critic from the current provider if the other is unavailable. The latter needs that provider's ready CLI and two eligible exact models within your limits. If neither route qualifies, the chat produces a provisional plan with structured self-critique. It does not require installing, updating or signing in to another tool. The repair instructions below apply when you choose to enable that exchange.
 
 **Install:** [Quick start](../README.md#install) · [One app](#install-for-one-app-only) · [Linux/macOS](#linux-and-macos) · [Check setup](#check-your-setup)
 
@@ -24,7 +24,7 @@ node scripts/install.mjs --target codex
 node scripts/install.mjs --target claude
 ```
 
-This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. An explicitly requested same-provider discussion uses that provider's own CLI. Missing unused CLIs do not block a valid route; an unavailable required CLI leads to [provisional planning](../references/protocol.md#planning-with-unavailable-tools).
+This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI, whether selected automatically or requested. Missing unused CLIs do not block a valid route. See [routing and provisional planning](../references/protocol.md#planning-with-unavailable-tools).
 
 Default locations (`~` means your user folder):
 
@@ -75,10 +75,10 @@ Node must be 18 or newer. `doctor` checks CLI availability, required flags and f
 
 - `codex_chat_ready: true`: a Codex chat can call Claude.
 - `claude_chat_ready: true`: a Claude Code chat can call Codex.
-- `codex_only_ready: true`: a Codex chat can call the Codex CLI for an explicitly requested same-provider run.
-- `claude_only_ready: true`: a Claude Code chat can call the Claude CLI for an explicitly requested same-provider run.
+- `codex_only_ready: true`: a Codex chat can call the Codex CLI for a same-provider run.
+- `claude_only_ready: true`: a Claude Code chat can call the Claude CLI for a same-provider run.
 
-A missing CLI does not block a route with no worker from that provider. If a required CLI is unavailable, C2C continues with a provisional plan in the current chat instead of requiring setup. A real cross-provider exchange with a background author needs both CLIs ready; an explicitly requested same-provider exchange needs that provider's CLI. Readiness does not validate credentials with the provider or establish model access or identity. A successful response confirms that particular call worked.
+A missing CLI does not block a route with no worker from that provider. Before calls, an unavailable other provider can lead to a same-provider exchange; if that cannot qualify, C2C continues provisionally instead of requiring setup. A cross-provider exchange with a background author needs both CLIs ready; a same-provider exchange needs the current provider's CLI and eligible distinct models. Readiness does not validate credentials with the provider or establish model access, identity or included allowance. A successful response confirms that particular call worked.
 
 **Both apps work, but C2C reports an incompatible worker?** The app and terminal may use different CLI installations. C2C checks distinct installed candidates in PATH order and skips those missing required capabilities. `candidate_checks` shows the paths, versions and reasons; `executable` identifies the selected CLI. Explicit `COUNCIL_CODEX_BIN` / `COUNCIL_CLAUDE_BIN` overrides select one binary without fallback. Execution or login failures stop selection; C2C does not try another account or weaken restrictions. No reinstall or extra terminal is required when a compatible, eligible installation is already available.
 
@@ -86,7 +86,7 @@ A missing CLI does not block a route with no worker from that provider. If a req
 
 No. Keep your coordinating chat open; C2C runs the peer non-interactively using `claude -p` or `codex exec`, with piped input/output and hidden Windows process windows. Claude can work for Codex without an open Claude panel, and Codex can work for Claude without an open Codex app. The peer CLI must be installed, accessible to the coordinator, and authenticated.
 
-An inaccessible or expired login leaves the worker unavailable; C2C can continue a provisional plan without asking you to repair it. If you choose to restore the exchange, renew a saved login with `claude auth login` or `codex login`; the browser flow may require your interaction. An environment-supplied key or token may instead be the selected credential; native login does not replace it. After fixing the selected authentication source, ask C2C to inspect the existing run and resume its failed stage within the remaining allowance. Opening a peer terminal alone does not renew a login. See [Claude's non-interactive mode](https://code.claude.com/docs/en/headless) and [login renewal](https://code.claude.com/docs/en/authentication#renew-an-expiring-login).
+An inaccessible or expired login leaves that worker unavailable. C2C follows its [routing and recovery rules](../references/protocol.md#planning-with-unavailable-tools) without requiring a repair. If you choose to restore the exchange, renew a saved login with `claude auth login` or `codex login`; the browser flow may require your interaction. An environment-supplied key or token may instead be the selected credential; native login does not replace it. After fixing the selected authentication source, ask C2C to inspect the existing run and resume its failed stage within the remaining allowance. Opening a peer terminal alone does not renew a login. See [Claude's non-interactive mode](https://code.claude.com/docs/en/headless) and [login renewal](https://code.claude.com/docs/en/authentication#renew-an-expiring-login).
 
 ## Update the skill
 
@@ -132,13 +132,22 @@ Remove only the `C2C` folder from the installed locations above, then start a ne
 
 ## Choose the participants
 
-The default is Codex–Claude, with a suitable planning model from each provider. To stay within one provider, ask for “Codex only” or “Claude only”: C2C selects a planning author and a distinct coding-focused critic. These are real reports from the selected models, not an imagined dialogue.
+The chat you start is the coordinator; neither provider is permanently in charge. A normal C2C request selects the first eligible route below before calls:
 
-After checking required tool availability, each new task using workers searches and opens current official model guidance for its requested providers, compares planning/coding suitability and checks access evidence. A provisional-only plan records unavailable selections as skipped without blocking on inaccessible-worker research. C2C selects eligible workers within your limits and honors exact choices or advice-only requests. Findings go in `TASK_ASSESSMENT.md`; retries reuse them. There is no permanent model ranking. If one model leads both roles in an explicitly requested same-provider discussion, C2C explains its distinct adequate critic. See the [selection policy](../references/model-selection.md).
+| Starting chat | Preferred route | If the other provider is unavailable |
+|---|---|---|
+| Codex | Codex planning author + Claude planning reviewer | Codex planning author + distinct Codex coding critic |
+| Claude Code | Claude planning author + Codex planning reviewer | Claude planning author + distinct Claude coding critic |
+
+Same-provider review requires the current provider's compatible, authenticated CLI, two eligible exact model IDs, and known authorized allowance. You can also ask for “Codex only” or “Claude only.” These routes use actual responses from distinct models. If the required CLI is missing, no eligible pair exists, or allowance is unknown or unavailable, the current chat delivers a provisional plan with structured self-critique. It identifies assumptions, counterexamples, alternatives and unresolved risks without attributing invented replies to another model.
+
+Requests to require both providers, wait, pin participants or models, reserve selection, or receive advice only override automatic routing. A partially completed run retains its participants, reports and consumed allowance; any continuation follows the [recovery protocol](../references/protocol.md#planning-with-unavailable-tools).
+
+After checking required tool availability, each new task using workers searches and opens current official model guidance for its selected providers, compares planning/coding suitability and checks access evidence. A provisional-only plan records unavailable selections as skipped without blocking on inaccessible-worker research. Findings go in `TASK_ASSESSMENT.md`; retries reuse them. There is no permanent model ranking. If one model leads both roles in a same-provider discussion, C2C explains its distinct adequate critic. See the [selection policy](../references/model-selection.md).
 
 Your current chat stays unchanged. When trustworthy metadata shows it exactly matches the selected planner, C2C can reuse it as author. Otherwise `--author-model` launches that provider's selected planner in the background; `--peer-model` selects the other participant. Unknown chat identity need not block this route. Both CLIs are required when background workers use both providers.
 
-Exact versioned IDs distinguish participants; different effort, alias, or context variants of one model do not. Local catalog entries do not prove account entitlement, and recorded selections do not prove a provider honored them. CLI-reported identity and unknowns remain visible. C2C avoids models outside the known authorized billing scope and makes no paid model-selection probes. [Technical pairing rules](../references/protocol.md#pairing-and-model-identity) preserve independent contributions, security, and verification. Reviewers challenge weak claims with evidence; sound conclusions can survive review.
+Exact versioned IDs distinguish participants; different effort, alias, or context variants of one model do not. Different IDs and separate calls do not prove independent reasoning. Local catalog entries do not prove account entitlement, and recorded selections do not prove a provider honored them. CLI-reported identity and unknowns remain visible. C2C avoids models outside the known authorized billing scope and makes no paid model-selection probes. [Technical pairing rules](../references/protocol.md#pairing-and-model-identity) preserve separate contributions, security and verification. Reviewers challenge claims with evidence, counterexamples and alternatives; the coordinator adjudicates findings, and the reviewer answers material counterarguments by ID during verification. Sound conclusions can survive review; disagreement is not a quota.
 
 ## Follow the discussion
 
@@ -187,12 +196,12 @@ Every new council plan includes a security review and relevant test checks. The 
 | `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `git` is not recognized or not found | Use the [ZIP download](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/install.mjs` | You are in the wrong folder. Open a terminal in the extracted or cloned repository folder, then rerun the command. |
-| `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise continue a provisional plan without that worker. If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
-| `doctor` reports signed out | Continue provisionally. If you choose setup repair, check the environment/access row below before renewing the selected native login. |
-| `doctor` is ready, but a call reports expired/rejected authentication | Preserve the failed attempt and continue provisionally. Repair is optional when requested; C2C does not retry automatically or switch accounts/billing. |
-| A provider, account, or model reports a usage limit | The available chat continues a provisional plan within your remaining limits, preserving actual work and identifying missing review. See [usage-limit fallback](#when-a-participant-hits-a-usage-limit). |
-| Codex is missing the required `view_image` control | Skip the unusable worker and continue provisionally; required tool controls stay enforced. If you choose repair, update or explicitly select a compatible binary. Version 0.146.0 lacks this control; 0.160.1 passed local checks. |
-| A required CLI flag is missing | Continue provisionally; updating the CLI is optional setup work when requested. |
+| `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise apply [available-provider routing](#choose-the-participants). If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
+| `doctor` reports signed out | Treat that worker as unavailable and apply [routing rules](#choose-the-participants). If you choose setup repair, check the environment/access row below before renewing the selected native login. |
+| `doctor` is ready, but a call reports expired/rejected authentication | Preserve the failed attempt and follow [bounded recovery](../references/protocol.md#planning-with-unavailable-tools). Repair is optional; no account or billing change is implied. |
+| A provider, account, or model reports a usage limit | Stop that route and preserve actual work and used allowance. See [usage-limit fallback](#when-a-participant-hits-a-usage-limit) for eligible continuation or a provisional plan. |
+| Codex is missing the required `view_image` control | Keep required controls enforced and apply [routing rules](#choose-the-participants). If you choose repair, update or explicitly select a compatible binary. Version 0.146.0 lacks this control; 0.160.1 passed local checks. |
+| A required CLI flag is missing | Treat that worker as unavailable and apply [routing rules](#choose-the-participants); updating the CLI is optional setup work when requested. |
 | The installer finds a legacy skill | Follow [Update the skill](#update-the-skill) to move the old `codex-claude-council` installation outside all skill directories, then rerun installation. |
 | A different installation already exists | Follow [Update the skill](#update-the-skill). The installer protects existing files instead of overwriting them. |
 | The skill does not appear in chat | Confirm installation, then start a new chat or restart the app. Use the Codex `$C2C` or Claude `/C2C` prompt. |
@@ -229,9 +238,9 @@ The [technical recovery command](../references/protocol.md#budgets-and-bounded-r
 
 ## When a participant hits a usage limit
 
-When a provider, account, or model usage block is reported, C2C defaults to completing a **provisional plan with the available chat**, within your remaining limits. It keeps actual contributions, security analysis, acceptance checks, and unresolved risks. The chat can choose reasonable reversible assumptions, label them, and specify how to validate them; material decisions and missing authority remain gates. The plan names completed and missing review stages. This preserves planning discipline while independent review remains incomplete.
+Stop calls to the blocked route. Before any calls, an unavailable other provider can lead to an eligible same-provider pair under [participant selection](#choose-the-participants). For a prepared or partial exchange, follow the [usage-limit recovery protocol](../references/protocol.md#no-paid-limit-recovery): preserve actual reports, participant identities and all consumed allowance. A new folder cannot reset a task's limits. Models from one provider may share the exhausted allowance; availability cannot be inferred from a different model name.
 
-To require the full exchange, say “wait for both participants” or “require both reviews.” C2C honors that choice and preserves the partial work. It does not automatically wait and retry, select another worker/provider, change accounts, enable credits, or switch billing sources. Models from one provider may share the exhausted allowance. Your explicit time, attempt, spending, or whole-task caps still apply.
+If no eligible continuation fits the remaining authority and limits, the available chat completes a **provisional plan with structured self-critique**, or saves a checkpoint if it has no allowance. It retains actual contributions, security, proposed tests and unresolved risks. Reversible assumptions include validation checks; material decisions remain gates. Missing review stays explicit. “Wait for both participants” or “require both reviews” takes precedence. No credits, upgrades, account changes or alternative billing are part of recovery.
 
 Usage limits, timeouts, and rejected authentication are separate causes. C2C records the observed failure without guessing, and a larger runner allowance cannot remove a provider usage block. [Timeout recovery](#when-a-peer-call-takes-longer) and [login repair](#do-i-need-another-terminal-open) retain their existing rules.
 

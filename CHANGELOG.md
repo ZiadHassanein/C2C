@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.0.1 — Compatible workers and focused discovery
+
+- Checks distinct installed CLI candidates in order so an incompatible early PATH entry does not hide a compatible installation. Explicit binary overrides remain authoritative; execution, authentication and quota failures do not trigger another binary or account.
+- Reports checked executable paths, available versions and rejection reasons in local setup diagnostics. Required worker controls and included-usage checks remain unchanged; discovery makes no model calls or setup changes.
+- Starts repository assessment from current scoped records, validates freshness, and reads relevant sections or structured fields. Reuses known evidence and bounds output without removing material risks, security checks or review depth.
+
 ## 1.0.0 — Stable plan delivery
 
 - Keeps changing review progress and completion status in generated discussion/result records. The verified plan stays unchanged when announcing success, avoiding a repeat review caused only by rewriting its status paragraph.

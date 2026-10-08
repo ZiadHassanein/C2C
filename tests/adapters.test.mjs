@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure } from '../scripts/adapters.mjs';
+import { discoverExecutables, resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-adapters-test-'));
@@ -55,6 +55,33 @@ test('Windows resolution respects PATH order and an executable before its adjace
   assert.equal(resolveExecutable('codex', windowsOptions(`${otherDirectory};${fixture.prefix}`)), otherExecutable);
   const adjacentExecutable = await file(path.join(fixture.prefix, 'codex.exe'));
   assert.equal(resolveExecutable('codex', windowsOptions(fixture.prefix)), adjacentExecutable);
+});
+
+test('Windows discovery lists native and npm candidates in PATH order without duplicates', async () => {
+  const fixture = await npmFixture('candidate-order');
+  const adjacent = await file(path.join(fixture.prefix, 'codex.exe'));
+  const laterDirectory = await fs.mkdtemp(path.join(root, 'candidate-later-'));
+  const later = await file(path.join(laterDirectory, 'codex.exe'));
+  const options = windowsOptions(`${fixture.prefix};${laterDirectory};${fixture.prefix};${path.dirname(fixture.executable)}`);
+  assert.deepEqual(discoverExecutables('codex', options), [adjacent, fixture.executable, later]);
+  assert.equal(resolveExecutable('codex', options), adjacent);
+  assert.deepEqual(discoverExecutables('codex', {
+    ...options, env: { ...options.env, COUNCIL_CODEX_BIN: fixture.shim },
+  }), [fixture.executable]);
+});
+
+test('Windows discovery deduplicates case variants and a repeated Claude home fallback', {
+  skip: process.platform !== 'win32' ? 'Requires Windows case-insensitive filesystem lookup' : false,
+}, async () => {
+  const home = await fs.mkdtemp(path.join(root, 'candidate-case-'));
+  for (const provider of ['codex', 'claude']) {
+    const bin = path.join(home, '.local', 'bin');
+    const executable = await file(path.join(bin, `${provider}.exe`));
+    const candidates = discoverExecutables(provider, {
+      platform: 'win32', home, env: { PATH: `${bin};${bin.toUpperCase()};${bin.toLowerCase()}` },
+    });
+    assert.deepEqual(candidates, [executable]);
+  }
 });
 
 test('invalid explicit override fails instead of silently changing Codex versions', async () => {
@@ -199,6 +226,25 @@ test('POSIX Homebrew-style links and native Claude home fallback launch a native
   assert.deepEqual(launchFixture(resolved, ['-e', 'console.log(JSON.stringify({fixture: true}))']), { fixture: true });
 });
 
+test('POSIX discovery deduplicates relative symlink targets while preserving candidate order', posixOnly, async () => {
+  const home = await fs.mkdtemp(path.join(root, 'posix-candidate-links-'));
+  const bins = ['first', 'alias', 'later', path.join('.local', 'bin')].map(name => path.join(home, name));
+  for (const bin of bins) await fs.mkdir(bin, { recursive: true });
+  for (const provider of ['codex', 'claude']) {
+    const first = await posixExecutable(path.join(home, 'versions', `first-${provider}`));
+    const later = await posixExecutable(path.join(bins[2], provider));
+    for (const bin of [bins[0], bins[1], bins[3]]) {
+      await fs.symlink(path.relative(bin, first), path.join(bin, provider));
+    }
+    const options = { home, env: { PATH: [...bins, bins[0]].join(path.delimiter) } };
+    assert.deepEqual(discoverExecutables(provider, options), [first, later]);
+    assert.equal(resolveExecutable(provider, options), first);
+    assert.deepEqual(discoverExecutables(provider, {
+      ...options, env: { ...options.env, [`COUNCIL_${provider.toUpperCase()}_BIN`]: path.join(bins[1], provider) },
+    }), [first]);
+  }
+});
+
 const features = names => names.map(name => `${name}    stable    true`).join('\n');
 const oldFeatures = CODEX_DISABLED_FEATURES.filter(name => name !== 'view_image');
 const codexHelp = '--ignore-user-config --output-schema --sandbox --ephemeral --disable --skip-git-repo-check --json --color';
@@ -222,6 +268,197 @@ function fakeProbe({ help = codexHelp, featureOutput = features(CODEX_DISABLED_F
     },
   };
 }
+
+const metadataCommands = provider => provider === 'codex'
+  ? ['--version', 'exec --help', 'features list'] : ['--version', '--help'];
+const authCommand = provider => provider === 'codex' ? 'login status' : 'auth status';
+const candidateCalls = (executable, commands) => commands.map(command => ({ executable, command }));
+const candidateSummary = checks => checks.map(({ executable, version, setup_status, reason }) => ({
+  executable, version, setup_status, reason,
+}));
+function candidateProbe(provider, candidates) {
+  const calls = [];
+  return {
+    calls,
+    discover: name => { assert.equal(name, provider); return candidates.map(candidate => candidate.executable); },
+    run: async (executable, args, options) => {
+      const command = args.join(' ');
+      calls.push({ executable, command });
+      assert.deepEqual(options, { cwd: root, timeoutMs: 15000, peer: true });
+      const candidate = candidates.find(value => value.executable === executable);
+      assert.ok(candidate, `Unknown candidate: ${executable}`);
+      assert.ok([...metadataCommands(provider), authCommand(provider)].includes(command), `Unexpected model command: ${command}`);
+      if (candidate.failCommand === command) {
+        if (candidate.failMode === 'exit') return { code: 1, stdout: 'private-command-output', stderr: 'private-error-output' };
+        throw new Error('private-credential; usage_limit_reached; please /login');
+      }
+      let stdout;
+      if (command === '--version') stdout = candidate.version;
+      else if (command.endsWith('--help')) stdout = candidate.help ?? (provider === 'codex' ? codexHelp : claudeHelp);
+      else if (command === 'features list') stdout = candidate.featureOutput ?? features(CODEX_DISABLED_FEATURES);
+      else stdout = candidate.auth ?? (provider === 'codex' ? 'Logged in using ChatGPT' : '{"loggedIn":true,"authMethod":"claude.ai"}');
+      return { code: command === authCommand(provider) ? (candidate.authCode ?? 0) : 0, stdout, stderr: '' };
+    },
+  };
+}
+
+test('Codex preflight skips an older Windows npm binary and selects a compatible native PATH installation', async () => {
+  const npm = await npmFixture('old-npm-preflight');
+  const native = await file(path.join(root, 'new-native-preflight', 'codex.exe'));
+  const options = windowsOptions(`${npm.prefix};${path.dirname(native)}`);
+  const fixture = candidateProbe('codex', [
+    { executable: npm.executable, version: 'codex-cli 0.146.0', featureOutput: features(oldFeatures) },
+    { executable: native, version: 'codex-cli 0.160.1' },
+  ]);
+  fixture.discover = provider => discoverExecutables(provider, options);
+  assert.equal(resolveExecutable('codex', options), npm.executable, 'Legacy path resolution still returns the first installed binary');
+  const result = await probeProvider('codex', root, fixture);
+  assert.equal(result.executable, native);
+  assert.equal(result.version, 'codex-cli 0.160.1');
+  assert.equal(result.setup_status, 'ready');
+  assert.deepEqual(candidateSummary(result.candidate_checks), [
+    { executable: npm.executable, version: 'codex-cli 0.146.0', setup_status: 'incompatible', reason: 'cli_incompatible' },
+    { executable: native, version: 'codex-cli 0.160.1', setup_status: 'ready', reason: undefined },
+  ]);
+  assert.deepEqual(fixture.calls, [
+    ...candidateCalls(npm.executable, metadataCommands('codex')),
+    ...candidateCalls(native, [...metadataCommands('codex'), authCommand('codex')]),
+  ]);
+  assert.deepEqual(result.disabled_features, CODEX_DISABLED_FEATURES);
+});
+
+test('both providers stop at the first compatible candidate without probing later installs', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const help = provider === 'codex' ? codexHelp.replace('--ignore-user-config', '') : claudeHelp.replace('--safe-mode', '');
+    const candidates = [
+      { executable: `/fixture/${provider}/old`, version: 'old-version', help },
+      { executable: `/fixture/${provider}/ready`, version: 'ready-version' },
+      { executable: `/fixture/${provider}/later`, version: 'later-version' },
+    ];
+    const fixture = candidateProbe(provider, candidates);
+    const result = await probeProvider(provider, root, fixture);
+    assert.equal(result.executable, candidates[1].executable);
+    assert.equal(result.setup_status, 'ready');
+    assert.deepEqual(candidateSummary(result.candidate_checks), [
+      { executable: candidates[0].executable, version: 'old-version', setup_status: 'incompatible', reason: 'cli_incompatible' },
+      { executable: candidates[1].executable, version: 'ready-version', setup_status: 'ready', reason: undefined },
+    ]);
+    assert.deepEqual(fixture.calls, [
+      ...candidateCalls(candidates[0].executable, metadataCommands(provider).slice(0, 2)),
+      ...candidateCalls(candidates[1].executable, [...metadataCommands(provider), authCommand(provider)]),
+    ]);
+  }
+});
+
+test('an incompatible explicit override remains authoritative for both providers', async () => {
+  const npm = await npmFixture('incompatible-override');
+  for (const provider of ['codex', 'claude']) {
+    const selected = provider === 'codex' ? npm.executable : await file(path.join(root, 'override-selected', 'claude.exe'));
+    const other = await file(path.join(root, 'override-alternative', `${provider}.exe`));
+    const override = provider === 'codex' ? npm.shim : selected;
+    const options = { ...windowsOptions(path.dirname(other)), env: { PATH: path.dirname(other), [`COUNCIL_${provider.toUpperCase()}_BIN`]: override } };
+    const fixture = candidateProbe(provider, [
+      { executable: selected, version: 'explicit-old-version', help: '' },
+      { executable: other, version: 'compatible-alternative' },
+    ]);
+    fixture.discover = name => discoverExecutables(name, options);
+    assert.deepEqual(fixture.discover(provider), [selected]);
+    await assert.rejects(() => probeProvider(provider, root, fixture), error => {
+      assert.equal(error.reason, 'cli_incompatible');
+      assert.equal(error.executable, selected);
+      assert.equal(error.version, 'explicit-old-version');
+      assert.deepEqual(candidateSummary(error.candidate_checks), [
+        { executable: selected, version: 'explicit-old-version', setup_status: 'incompatible', reason: 'cli_incompatible' },
+      ]);
+      return true;
+    });
+    assert.deepEqual(fixture.calls, candidateCalls(selected, metadataCommands(provider).slice(0, 2)));
+  }
+});
+
+test('legacy injected resolve remains authoritative even when discovery is also supplied', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const fixture = fakeProbe(provider === 'codex' ? {} : { provider, help: claudeHelp, auth: '{"loggedIn":true}' });
+    let discoveries = 0;
+    fixture.discover = () => { discoveries++; throw new Error('Injected resolve must take precedence'); };
+    const result = await probeProvider(provider, root, fixture);
+    assert.equal(discoveries, 0);
+    assert.equal(result.executable, '/fake/native-executable');
+    assert.equal(result.candidate_checks.length, 1);
+    assert.equal(result.candidate_checks[0].setup_status, 'ready');
+  }
+});
+
+test('metadata execution failures stop candidate selection and preserve known diagnostics', async () => {
+  for (const provider of ['codex', 'claude']) {
+    for (const command of metadataCommands(provider)) {
+      for (const failMode of ['throw', 'exit']) {
+        const first = { executable: `/fixture/${provider}/failed-check`, version: 'known-version', failCommand: command, failMode };
+        const fixture = candidateProbe(provider, [first, { executable: `/fixture/${provider}/other-account`, version: 'later-version' }]);
+        await assert.rejects(() => probeProvider(provider, root, fixture), error => {
+          assert.equal(error.reason, 'cli_check_failed');
+          assert.equal(error.executable, first.executable);
+          assert.equal(error.version, command === '--version' ? undefined : first.version);
+          assert.deepEqual(candidateSummary(error.candidate_checks), [{
+            executable: first.executable, version: error.version, setup_status: 'unavailable', reason: 'cli_check_failed',
+          }]);
+          assert.doesNotMatch(`${error.message}\n${JSON.stringify(error)}`, /private-|usage_limit_reached/);
+          return true;
+        });
+        assert.deepEqual(fixture.calls, candidateCalls(first.executable, metadataCommands(provider).slice(0, metadataCommands(provider).indexOf(command) + 1)));
+      }
+    }
+  }
+});
+
+test('unavailable authentication never probes another installed candidate or exposes account details', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const signedOut = provider === 'codex' ? 'Not logged in; private-account@example.invalid' : '{"loggedIn":false,"email":"private-account@example.invalid","accessToken":"private-credential"}';
+    for (const authFailure of [
+      { auth: signedOut },
+      { authCode: 1, auth: signedOut },
+      { failCommand: authCommand(provider) },
+    ]) {
+      const first = { executable: `/fixture/${provider}/signed-out`, version: 'first-version', ...authFailure };
+      const fixture = candidateProbe(provider, [first, { executable: `/fixture/${provider}/other-account`, version: 'later-version' }]);
+      const result = await probeProvider(provider, root, fixture);
+      assert.equal(result.executable, first.executable);
+      assert.equal(result.setup_status, 'unavailable');
+      assert.equal(result.authenticated, false);
+      assert.equal(result.reason, 'login_unavailable');
+      assert.deepEqual(candidateSummary(result.candidate_checks), [{
+        executable: first.executable, version: first.version, setup_status: 'unavailable', reason: 'login_unavailable',
+      }]);
+      assert.doesNotMatch(JSON.stringify(result), /private-|usage_limit_reached/);
+      assert.deepEqual(fixture.calls, candidateCalls(first.executable, [...metadataCommands(provider), authCommand(provider)]));
+    }
+  }
+});
+
+test('all incompatible candidates fail with ordered versioned diagnostics and no authentication or model calls', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const first = { executable: `/fixture/${provider}/old-a`, version: 'old-version-a', help: 'private-help-output' };
+    const second = { executable: `/fixture/${provider}/old-b`, version: 'old-version-b',
+      ...(provider === 'codex' ? { featureOutput: `${features(oldFeatures)}\nprivate-feature-output` } : { help: `${claudeHelp.replace('--safe-mode', '')}\nprivate-help-output` }),
+    };
+    const fixture = candidateProbe(provider, [first, second]);
+    await assert.rejects(() => probeProvider(provider, root, fixture), error => {
+      assert.equal(error.reason, 'cli_incompatible');
+      assert.equal(error.executable, second.executable);
+      assert.equal(error.version, second.version);
+      assert.deepEqual(candidateSummary(error.candidate_checks), [first, second].map(({ executable, version }) => ({
+        executable, version, setup_status: 'incompatible', reason: 'cli_incompatible',
+      })));
+      assert.match(error.message, /safety controls cannot be relaxed/);
+      assert.doesNotMatch(`${error.message}\n${JSON.stringify(error)}`, /private-/);
+      return true;
+    });
+    assert.deepEqual(fixture.calls, [
+      ...candidateCalls(first.executable, metadataCommands(provider).slice(0, 2)),
+      ...candidateCalls(second.executable, metadataCommands(provider)),
+    ]);
+  }
+});
 
 test('compatible Codex preflight preserves required restrictions without model calls', async () => {
   const fixture = fakeProbe();

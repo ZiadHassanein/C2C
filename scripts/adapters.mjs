@@ -16,6 +16,7 @@ export function providerSetupGuidance(provider) {
 export function providerSetupError(provider, reason, detail) {
   const error = new Error(`${detail} ${providerSetupGuidance(provider)}`);
   error.reason = reason;
+  error.detail = detail;
   return error;
 }
 
@@ -46,7 +47,7 @@ function npmCodexBinary(shim, arch) {
   return null;
 }
 
-export function resolveExecutable(name, {
+export function discoverExecutables(name, {
   env = process.env, platform = process.platform, arch = process.arch, home = os.homedir(),
 } = {}) {
   required(['codex', 'claude'].includes(name), 'Unknown peer provider');
@@ -66,21 +67,34 @@ export function resolveExecutable(name, {
     let found;
     try { found = resolveCandidate(path.resolve(env[variable])); } catch { /* An inaccessible override remains authoritative. */ }
     if (!found) throw providerSetupError(name, 'cli_override_unusable', `${variable} does not resolve to a usable executable. It remains authoritative; arbitrary shell wrappers are unsupported.`);
-    return found;
+    return [found];
   }
+  const candidates = [];
+  const seen = new Set();
+  const add = candidate => {
+    let found;
+    try { found = resolveCandidate(candidate); } catch { return; }
+    if (!found) return;
+    const key = platform === 'win32' ? found.toLowerCase() : found;
+    if (!seen.has(key)) { seen.add(key); candidates.push(found); }
+  };
   const pathValue = env.PATH ?? (platform === 'win32' ? env.Path : undefined) ?? '';
   for (const entry of pathValue.split(platform === 'win32' ? ';' : ':').filter(Boolean)) {
     const directory = entry.replace(/^"|"$/g, '');
     for (const suffix of platform === 'win32' ? ['.exe', ...(name === 'codex' ? ['.cmd'] : [])] : ['']) {
-      const found = resolveCandidate(path.join(directory, `${name}${suffix}`));
-      if (found) return found;
+      add(path.join(directory, `${name}${suffix}`));
     }
   }
   if (name === 'claude') {
-    const found = resolveCandidate(path.join(home, '.local', 'bin', platform === 'win32' ? 'claude.exe' : 'claude'));
-    if (found) return found;
+    add(path.join(home, '.local', 'bin', platform === 'win32' ? 'claude.exe' : 'claude'));
   }
+  if (candidates.length) return candidates;
   throw providerSetupError(name, 'cli_not_found', `${name} executable not found in supported discovery locations. This does not prove the CLI is not installed. Windows npm Codex requires an intact platform binary.`);
+}
+
+// Retained for callers that only need discovery, without compatibility probing.
+export function resolveExecutable(name, options) {
+  return discoverExecutables(name, options)[0];
 }
 
 export const CODEX_DISABLED_FEATURES = Object.freeze([
@@ -193,14 +207,16 @@ export function peerUsageLimitFailure(provider, { code, stdout = '', stderr = ''
 
 // Only metadata and authentication-status commands run here, never a model turn.
 // doctor and ask share this preflight; ask must call it before reserving an attempt.
-export async function probeProvider(provider, cwd, { run = runProcess, resolve = resolveExecutable } = {}) {
+export async function probeProvider(provider, cwd, { run = runProcess, resolve, discover = discoverExecutables } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
-  let executable;
-  try { executable = resolve(provider); }
+  let candidates;
+  try { candidates = resolve ? [resolve(provider)] : discover(provider); }
   catch (error) {
     if (['cli_not_found', 'cli_override_unusable'].includes(error.reason)) throw error;
     throw providerSetupError(provider, 'cli_check_failed', `${provider} executable discovery could not complete.`);
   }
+  let executable, version, codexFeatures;
+  const candidateChecks = [];
   const check = async (args, label) => {
     let result;
     try { result = await run(executable, args, { cwd, timeoutMs: 15000, peer: true }); }
@@ -208,14 +224,28 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve =
     if (result.code !== 0) throw providerSetupError(provider, 'cli_check_failed', `${provider} ${label} failed.`);
     return result;
   };
-  const version = await check(['--version'], 'version check');
-  const help = await check(provider === 'codex' ? ['exec', '--help'] : ['--help'], 'help check');
   const flags = provider === 'codex'
     ? ['--ignore-user-config', '--output-schema', '--sandbox', '--ephemeral', '--disable', '--skip-git-repo-check', '--json', '--color']
     : ['--safe-mode', '--tools', '--permission-mode', '--strict-mcp-config', '--mcp-config', '--disable-slash-commands', '--json-schema', '--no-session-persistence', '--output-format', '--verbose'];
-  for (const flag of flags) if (!help.stdout.includes(flag)) throw providerSetupError(provider, 'cli_incompatible', `${provider} is missing required ${flag}; the worker safety controls cannot be relaxed.`);
-  let codexFeatures;
-  if (provider === 'codex') codexFeatures = parseCodexFeatures((await check(['features', 'list'], 'feature discovery')).stdout);
+  for (const [index, candidate] of candidates.entries()) {
+    executable = candidate;
+    version = undefined;
+    codexFeatures = undefined;
+    try {
+      version = (await check(['--version'], 'version check')).stdout.trim();
+      const help = await check(provider === 'codex' ? ['exec', '--help'] : ['--help'], 'help check');
+      for (const flag of flags) if (!help.stdout.includes(flag)) throw providerSetupError(provider, 'cli_incompatible', `${provider} is missing required ${flag}; the worker safety controls cannot be relaxed.`);
+      if (provider === 'codex') codexFeatures = parseCodexFeatures((await check(['features', 'list'], 'feature discovery')).stdout);
+      break;
+    } catch (error) {
+      candidateChecks.push({ executable, ...(version ? { version } : {}), setup_status: error.reason === 'cli_incompatible' ? 'incompatible' : 'unavailable', reason: error.reason, detail: error.detail });
+      // Only capability incompatibility permits trying another installed binary.
+      // Execution failures, login failures and quota errors never select accounts.
+      if (error.reason === 'cli_incompatible' && index + 1 < candidates.length) continue;
+      Object.assign(error, { executable, ...(version ? { version } : {}), candidate_checks: candidateChecks });
+      throw error;
+    }
+  }
   let auth;
   try { auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000, peer: true }); }
   catch { auth = { code: null, stdout: '', stderr: '' }; }
@@ -228,8 +258,9 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve =
       if (CLAUDE_AUTH_METHODS.has(status.authMethod)) authMethod = status.authMethod;
     } catch { /* Signed out or unsupported response. */ }
   } else authenticated = auth.code === 0 && /logged in/i.test(auth.stdout + auth.stderr) && !/not logged in/i.test(auth.stdout + auth.stderr);
+  candidateChecks.push({ executable, version, setup_status: authenticated ? 'ready' : 'unavailable', ...(!authenticated ? { reason: 'login_unavailable' } : {}) });
   return {
-    provider, executable, version: version.stdout.trim(), authenticated,
+    provider, executable, version, authenticated, candidate_checks: candidateChecks,
     setup_status: authenticated ? 'ready' : 'unavailable',
     ...(!authenticated ? { reason: 'login_unavailable', guidance: providerSetupGuidance(provider) } : {}),
     auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,

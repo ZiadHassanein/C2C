@@ -80,6 +80,8 @@ Node must be 18 or newer. `doctor` checks CLI availability, required flags and f
 
 A missing CLI does not block a route with no worker from that provider. If a required CLI is unavailable, C2C continues with a provisional plan in the current chat instead of requiring setup. A real cross-provider exchange with a background author needs both CLIs ready; an explicitly requested same-provider exchange needs that provider's CLI. Readiness does not validate credentials with the provider or establish model access or identity. A successful response confirms that particular call worked.
 
+**Both apps work, but C2C reports an incompatible worker?** The app and terminal may use different CLI installations. C2C checks distinct installed candidates in PATH order and skips those missing required capabilities. `candidate_checks` shows the paths, versions and reasons; `executable` identifies the selected CLI. Explicit `COUNCIL_CODEX_BIN` / `COUNCIL_CLAUDE_BIN` overrides select one binary without fallback. Execution or login failures stop selection; C2C does not try another account or weaken restrictions. No reinstall or extra terminal is required when a compatible, eligible installation is already available.
+
 ## Do I need another terminal open?
 
 No. Keep your coordinating chat open; C2C runs the peer non-interactively using `claude -p` or `codex exec`, with piped input/output and hidden Windows process windows. Claude can work for Codex without an open Claude panel, and Codex can work for Claude without an open Codex app. The peer CLI must be installed, accessible to the coordinator, and authenticated.

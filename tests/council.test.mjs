@@ -2032,6 +2032,12 @@ test('doctor distinguishes incompatible CLI controls and unavailable login witho
   const fixture = await offlinePreflight(['codex', 'claude'], { incompatible: ['codex'], signedOut: ['claude'] });
   const result = await doctor({}, fixture);
   assert.deepEqual(result.providers.map(provider => provider.reason), ['cli_incompatible', 'login_unavailable']);
+  const rejected = result.providers[0];
+  assert.equal(path.basename(rejected.executable), 'codex.exe');
+  assert.equal(rejected.version, 'codex offline fixture');
+  assert.deepEqual(rejected.candidate_checks.map(check => [check.executable, check.version, check.setup_status, check.reason]), [
+    [rejected.executable, rejected.version, 'incompatible', 'cli_incompatible'],
+  ]);
   for (const field of ['codex_chat_ready', 'claude_chat_ready', 'codex_only_ready', 'claude_only_ready']) assert.equal(result[field], false);
   assert.equal(fixture.calls.some(call => call.provider === 'codex' && call.args[0] === 'login'), false);
 });

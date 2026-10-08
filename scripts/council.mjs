@@ -361,7 +361,9 @@ export async function doctor(options = {}, { probe = probeProvider } = {}) {
     const providers = await Promise.all(['codex', 'claude'].map(async provider => {
       try { return await probe(provider, cwd); }
       catch (error) {
-        return { provider, error: error.message, authenticated: false, setup_status: 'unavailable', reason: error.reason ?? 'cli_check_failed', guidance: providerSetupGuidance(provider) };
+        return { provider, error: error.message, authenticated: false, setup_status: 'unavailable', reason: error.reason ?? 'cli_check_failed', guidance: providerSetupGuidance(provider),
+          ...(error.executable ? { executable: error.executable } : {}), ...(error.version ? { version: error.version } : {}),
+          ...(error.candidate_checks ? { candidate_checks: error.candidate_checks } : {}) };
       }
     }));
     return { skill_version: PACKAGE_VERSION, node: process.version, providers, codex_chat_ready: providers[1].authenticated, claude_chat_ready: providers[0].authenticated, codex_only_ready: providers[0].authenticated, claude_only_ready: providers[1].authenticated, note: 'Readiness checks executable, required CLI flags, supported feature controls and local credential status only. Token freshness, refresh success, model availability, distinct identities, included allowance, paid-credit balance, billing and overage settings are not attested. A successful ask proves a model invocation, not that it used included allowance. The peer CLI starts automatically; no peer terminal or app needs to stay open.' };

@@ -11,7 +11,7 @@ Require an explicit C2C or Codex–Claude exchange request before sharing contex
 
 ## Establish context and direction
 
-Inspect relevant instructions, current behavior, architecture, tests and deployment evidence proportionally. Distinguish observations, user reports and inference. Separate deployment (`production`, `non_production`, `unknown`, `not_applicable`) from readiness for a stated scope; configuration and passing tests prove neither live use nor general readiness. Preserve unknowns without inspecting secrets or probing live systems for classification.
+Before repository discovery, read [focused discovery](references/project-assessment.md#gather-evidence-without-expanding-scope), then use scoped current records and verify their claims. Check sizes/keys of unfamiliar records and select relevant fields before displaying JSON; line limits do not bound compact JSON. Avoid unbounded listings and reuse known reference sections. Inspect relevant behavior, architecture, tests and deployment evidence proportionally. Distinguish observations, user reports and inference. Separate deployment (`production`, `non_production`, `unknown`, `not_applicable`) from readiness for a stated scope; configuration and passing tests prove neither live use nor general readiness. Preserve unknowns without inspecting secrets or probing live systems for classification.
 
 Establish goal, scope/non-goals, success criteria, constraints, next action and its gate. Resolve essential user choices before paid calls; bounded discovery is valid. Fit existing architecture and applicable compatibility, data, migration, rollout and recovery requirements.
 
@@ -44,7 +44,7 @@ Use `--budget-profile standard` for bounded work (300 seconds/call, 900 total, f
 
 Prepare a concise UTF-8 brief and necessary selected context with source revision/local changes. Avoid duplicating assessment facts; exclude credentials/private irrelevancies and use relative evidence paths. Run `prepare --assessment FILE` with coordinator, mode and a fresh absolute run directory outside the skill. Inputs are frozen. Peers cannot browse the repository; answer missing-context requests through [bounded evidence](references/protocol.md#bounded-evidence-requests), never broader worker tools. Review outbound content yourself; secret scanning cannot prove safe disclosure.
 
-Use `--compact` for routine commands and the validated report returned by `ask`; read saved JSON only if that return is missing/truncated.
+`--compact` changes formatting, not which fields are returned. Reuse the validated report returned by `ask`; read saved JSON only if that return is missing/truncated, selecting the needed fields instead of dumping a compact line.
 
 ## Run the exchange
 

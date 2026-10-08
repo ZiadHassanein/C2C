@@ -1,6 +1,6 @@
 # Project notes and continuation guide
 
-Last updated: 2026-10-07. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
+Last updated: 2026-10-08. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
 
 ## Objective and current status
 
@@ -35,6 +35,14 @@ The user explicitly requested suitability for both small features and big-projec
 - Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
+
+### Version 1.0.1: compatible workers and focused discovery
+
+Preflight now enumerates distinct installed candidates in PATH order, followed by Claude's existing native user location, and moves past capability-incompatible binaries only. An explicit override selects exactly one binary. The first compatible candidate is used even if its login is unavailable; metadata execution failures also stop discovery. This preserves account/billing boundaries, required tool restrictions and existing run limits. No provider/model substitution, installation, global configuration change or model call is part of discovery. Doctor retains path/version/candidate outcomes locally, including failed checks. Run format and worker prompts are unchanged.
+
+Assessment guidance now starts with current scoped handoff/checkpoint/ownership records and checks their freshness against source/run/Git evidence. Filename/symbol searches, bounded excerpts and structured field projections replace repeated broad dumps; read reference sections once and stop discovery when the authorized planning decision has sufficient evidence. Material contradictions, security evidence and unknowns remain visible. These changes target demonstrated overhead without promising a measured token-saving percentage.
+
+Validation: ten new offline adapter regressions cover ordered selection/deduplication, authoritative overrides, compatibility-only fallback, authentication/metadata stop conditions and diagnostics. Doctor's failure diagnostic propagation is also checked. The full Windows / Node 24 suite passed 273 tests with seven expected platform skips (280 total); 160 local documentation targets and affected skill metadata pass, retaining the requested uppercase identifier. Independent source review found no actionable issue. An initial isolated instruction walkthrough exposed a premature large JSON read, so the critical reading rules were moved to the entry point; a fresh walkthrough used selected fields and retained source-drift, security and test limitations. These are offline behavior observations, not measured token savings or a live council. Machine-specific preflight evidence and private project records remain outside this repository. Native CI runs on the pushed task branch before merge.
 
 ### Version 1.0.0: stable plan delivery
 

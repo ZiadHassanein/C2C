@@ -149,6 +149,121 @@ test('corrupt legacy runs with no checkpoint fail clearly without inventing reco
 
 const syntheticIdentity = pid => ({ status: 'alive', identity: `start-${pid}` });
 
+test('lock publication permission failures preserve existing ownership and recorded allowance', t => {
+  for (const code of ['EACCES', 'EPERM', 'EROFS']) {
+    for (const existingOwner of [false, true]) {
+      const dir = fixture(`lock-${code}-${existingOwner}`), file = path.join(dir, '.lock');
+      const manifest = state(); reserve(manifest); manifest.elapsed_ms = 7200;
+      manifest.max_attempts = 4; manifest.limit_history = [{ reason: 'Prior authorized extension', max_attempts: 4 }];
+      writeRunState(dir, manifest);
+      const before = fs.readFileSync(path.join(dir, 'run.json'));
+      const ownerBytes = Buffer.from(JSON.stringify({ version: 1, pid: process.pid, identity: `start-${process.pid}`, token: 'existing-owner' }));
+      if (existingOwner) fs.writeFileSync(file, ownerBytes);
+      const denied = Object.assign(new Error(`${code}: synthetic link denial`), { code });
+      const original = fs.linkSync;
+      const link = t.mock.method(fs, 'linkSync', function (from, to) {
+        if (to === file) throw denied;
+        return original.call(this, from, to);
+      });
+      try {
+        assert.throws(() => acquireRunLock(dir, { inspect: syntheticIdentity }), error => {
+          assert.equal(error.code, code);
+          assert.equal(error.cause, denied);
+          assert.equal(error.reason, 'run_lock_access_denied');
+          assert.match(error.message, /Cannot acquire the C2C run lock/);
+          assert.match(error.message, /do not delete locks or reset attempts/);
+          assert.match(error.message, /retry the unchanged command through the approved execution path/);
+          return true;
+        });
+      } finally { link.mock.restore(); }
+      assert.deepEqual(fs.readFileSync(path.join(dir, 'run.json')), before);
+      assert.deepEqual(fs.readFileSync(path.join(dir, 'run.checkpoint.json')), before);
+      if (existingOwner) assert.deepEqual(fs.readFileSync(file), ownerBytes);
+      else assert.equal(fs.existsSync(file), false);
+      assert.equal(fs.readdirSync(dir).some(name => name.endsWith('.tmp')), false);
+    }
+  }
+});
+
+test('recovery gate or archival permission failure preserves lock bytes and prior attempts', t => {
+  for (const boundary of ['gate', 'archive']) {
+    const dir = fixture(`recovery-access-${boundary}`), file = path.join(dir, '.lock');
+    const manifest = state(); reserve(manifest); manifest.elapsed_ms = 7200;
+    writeRunState(dir, manifest);
+    const before = fs.readFileSync(path.join(dir, 'run.json'));
+    const ownerBytes = Buffer.from('incomplete legacy owner record');
+    fs.writeFileSync(file, ownerBytes);
+    const denied = Object.assign(new Error('EPERM: synthetic recovery denial'), { code: 'EPERM' });
+    const original = fs.linkSync;
+    const link = t.mock.method(fs, 'linkSync', function (from, to) {
+      if (boundary === 'gate' && to === path.join(dir, '.lock.reclaim') || boundary === 'archive' && from === file) throw denied;
+      return original.call(this, from, to);
+    });
+    try {
+      assert.throws(() => recoverRunLock(dir, { expectedHash: digest(ownerBytes), confirmedStopped: true, inspect: syntheticIdentity }), error => {
+        assert.equal(error.code, 'EPERM');
+        assert.equal(error.cause, denied);
+        assert.equal(error.reason, 'run_lock_access_denied');
+        assert.match(error.message, /Cannot recover the C2C run lock/);
+        return true;
+      });
+    } finally { link.mock.restore(); }
+    assert.deepEqual(fs.readFileSync(file), ownerBytes);
+    assert.deepEqual(fs.readFileSync(path.join(dir, 'run.json')), before);
+    assert.deepEqual(fs.readFileSync(path.join(dir, 'run.checkpoint.json')), before);
+    assert.equal(fs.existsSync(path.join(dir, '.lock.reclaim')), false);
+    assert.equal(fs.readdirSync(dir).some(name => name.endsWith('.tmp') || name.startsWith('.lock.recovered-')), false);
+  }
+});
+
+test('release permission failure retains the owner token and permits an unchanged later release', t => {
+  const dir = fixture('release-access'), file = path.join(dir, '.lock');
+  const release = acquireRunLock(dir, { inspect: syntheticIdentity });
+  const manifest = state(); reserve(manifest);
+  manifest.attempts[0].status = 'succeeded'; manifest.elapsed_ms = 7200;
+  manifest.stages.review = { status: 'succeeded', file: 'peer-review.json', attempt: 1 };
+  manifest.status = 'awaiting_coordinator';
+  writeRunState(dir, manifest);
+  const savedResult = fs.readFileSync(path.join(dir, 'run.json'));
+  const ownerBytes = fs.readFileSync(file);
+  const denied = Object.assign(new Error('EACCES: synthetic release denial'), { code: 'EACCES' });
+  const original = fs.unlinkSync;
+  const unlink = t.mock.method(fs, 'unlinkSync', function (target) {
+    if (target === file) throw denied;
+    return original.call(this, target);
+  });
+  try {
+    assert.throws(release, error => {
+      assert.equal(error.code, 'EACCES');
+      assert.equal(error.cause, denied);
+      assert.match(error.message, /Cannot release the C2C run lock/);
+      assert.match(error.message, /worker result may already be saved/);
+      assert.match(error.message, /Inspect run status and the recorded lock owner/);
+      assert.match(error.message, /do not repeat a completed worker stage/);
+      assert.doesNotMatch(error.message, /retry the unchanged command/);
+      return true;
+    });
+  } finally { unlink.mock.restore(); }
+  assert.deepEqual(fs.readFileSync(file), ownerBytes);
+  assert.deepEqual(fs.readFileSync(path.join(dir, 'run.json')), savedResult);
+  release();
+  assert.equal(fs.existsSync(file), false);
+  assert.deepEqual(fs.readFileSync(path.join(dir, 'run.json')), savedResult);
+});
+
+test('nonpermission lock publication failures retain their original classification', t => {
+  const dir = fixture('lock-unrelated'), file = path.join(dir, '.lock');
+  const failure = Object.assign(new Error('Disk full'), { code: 'ENOSPC' });
+  const original = fs.linkSync;
+  const link = t.mock.method(fs, 'linkSync', function (from, to) {
+    if (to === file) throw failure;
+    return original.call(this, from, to);
+  });
+  try { assert.throws(() => acquireRunLock(dir, { inspect: syntheticIdentity }), error => error === failure); }
+  finally { link.mock.restore(); }
+  assert.equal(fs.existsSync(file), false);
+});
+
 test('exclusive lock contains a complete process identity and never replaces a live owner', () => {
   const dir = fixture('lock-live');
   const release = acquireRunLock(dir, { inspect: syntheticIdentity });

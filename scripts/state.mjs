@@ -202,26 +202,39 @@ function withReclaimGate(dir, inspect, work) {
   try { return work(); } finally { releaseOwned(gate, record.token); }
 }
 
+function lockAccess(action, work, { afterWork = false } = {}) {
+  try { return work(); }
+  catch (error) {
+    if (!['EACCES', 'EPERM', 'EROFS'].includes(error.code) || error.reason === 'run_lock_access_denied') throw error;
+    const next = afterWork
+      ? 'Run changes or a worker result may already be saved. Inspect run status and the recorded lock owner; do not repeat a completed worker stage. Request required filesystem access from the host, and use approved lock recovery only after confirming the owner has stopped.'
+      : 'Ask the host to authorize the required filesystem operations, then retry the unchanged command through the approved execution path.';
+    throw Object.assign(new Error(`Cannot ${action}: local filesystem access was denied (${error.code}). This is a host/filesystem restriction, not a provider or usage-limit failure. Preserve the run and its lock records; do not delete locks or reset attempts. ${next} Original error: ${error.message}`, { cause: error }), { code: error.code, reason: 'run_lock_access_denied' });
+  }
+}
+
 /** Obtain an exclusive lock; age alone never authorizes reclaiming it. */
 export function acquireRunLock(dir, { inspect = inspectProcess } = {}) {
-  const file = path.join(dir, '.lock');
-  required(!fs.existsSync(path.join(dir, '.lock.reclaim')), 'Lock recovery is in progress; wait for it to finish. If it crashed, preserve and inspect .lock.reclaim before removing its marker.');
-  const record = ownRecord(inspect);
-  try { publishExclusive(file, record); }
-  catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-    const previous = lockSnapshot(file);
-    const owner = ownerState(previous, inspect);
-    required(owner !== 'active', 'Another process is using this run. Wait for it to finish; lock age never overrides a live owner.');
-    required(owner === 'stale', `Lock ownership is ambiguous. ${recoveryHint(previous)}`);
-    withReclaimGate(dir, inspect, () => {
-      const current = lockSnapshot(file);
-      required(current.digest === previous.digest && ownerState(current, inspect) === 'stale', 'Lock ownership changed during recovery; retry after the current owner finishes.');
-      fs.unlinkSync(file);
-      publishExclusive(file, record);
-    });
-  }
-  return () => releaseOwned(file, record.token);
+  return lockAccess('acquire the C2C run lock', () => {
+    const file = path.join(dir, '.lock');
+    required(!fs.existsSync(path.join(dir, '.lock.reclaim')), 'Lock recovery is in progress; wait for it to finish. If it crashed, preserve and inspect .lock.reclaim before removing its marker.');
+    const record = ownRecord(inspect);
+    try { publishExclusive(file, record); }
+    catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const previous = lockSnapshot(file);
+      const owner = ownerState(previous, inspect);
+      required(owner !== 'active', 'Another process is using this run. Wait for it to finish; lock age never overrides a live owner.');
+      required(owner === 'stale', `Lock ownership is ambiguous. ${recoveryHint(previous)}`);
+      withReclaimGate(dir, inspect, () => {
+        const current = lockSnapshot(file);
+        required(current.digest === previous.digest && ownerState(current, inspect) === 'stale', 'Lock ownership changed during recovery; retry after the current owner finishes.');
+        fs.unlinkSync(file);
+        publishExclusive(file, record);
+      });
+    }
+    return () => lockAccess('release the C2C run lock', () => releaseOwned(file, record.token), { afterWork: true });
+  });
 }
 
 /** Explicitly clear malformed legacy locks without silently stealing live work. */
@@ -229,7 +242,7 @@ export function recoverRunLock(dir, { expectedHash, confirmedStopped, inspect = 
   required(confirmedStopped === true, 'Recovery requires --confirm-owner-stopped yes after checking that the previous runner has stopped.');
   required(typeof expectedHash === 'string' && /^[a-f0-9]{64}$/.test(expectedHash), 'Recovery requires the exact --expected-sha256 printed by the lock error.');
   const file = path.join(dir, '.lock');
-  return withReclaimGate(dir, inspect, () => {
+  return lockAccess('recover the C2C run lock', () => withReclaimGate(dir, inspect, () => {
     const snapshot = lockSnapshot(file);
     required(snapshot.digest === expectedHash, 'The lock changed after inspection; preserve it and inspect the current owner before recovery.');
     const owner = ownerState(snapshot, inspect);
@@ -245,5 +258,5 @@ export function recoverRunLock(dir, { expectedHash, confirmedStopped, inspect = 
     fs.unlinkSync(file);
     syncDirectory(dir);
     return { recovered: true, archived, attempts_reset: false };
-  });
+  }));
 }

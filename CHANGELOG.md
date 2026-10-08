@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.0.1 — Review launch diagnostics
+
+- Separates normal authorized subscription use, no-paid-limit recovery and explicit zero-extra-charge restrictions. Unknown quota metadata no longer implies a provider is unavailable; genuine strict billing limits remain enforced by the coordinating instructions.
+- Adds an offline `preview` of the actual review packet, selected provider/model and remaining limits, with no worker call or run-state changes. Makes existing exchange authorization clear while respecting host permission decisions.
+- Reports sanitized authentication routes and local runtime-cache/lock permission failures without disclosing credentials, weakening locks or losing prior work.
+- Disables Claude credit-only fast mode and unrelated updater/title work for worker processes only. Model, effort and account settings remain unchanged; this is not a universal spending cap.
+
 ## 2.0.0 — Planning and maintenance milestone
 
 - Consolidates the existing planning, review, available-provider fallback, managed setup and stable-update workflows under the 2.0 release requested by the maintainer. No runner, schema, command or migration change is introduced by this version bump.

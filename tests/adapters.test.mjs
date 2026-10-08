@@ -250,14 +250,15 @@ const features = names => names.map(name => `${name}    stable    true`).join('\
 const oldFeatures = CODEX_DISABLED_FEATURES.filter(name => name !== 'view_image');
 const codexHelp = '--ignore-user-config --output-schema --sandbox --ephemeral --disable --skip-git-repo-check --json --color';
 const claudeHelp = '--safe-mode --tools --permission-mode --strict-mcp-config --mcp-config --disable-slash-commands --json-schema --no-session-persistence --output-format --verbose';
-function fakeProbe({ help = codexHelp, featureOutput = features(CODEX_DISABLED_FEATURES), featureCode = 0, helpCode = 0, authCode = 0, auth = 'Logged in using ChatGPT', provider = 'codex' } = {}) {
+function fakeProbe({ help = codexHelp, featureOutput = features(CODEX_DISABLED_FEATURES), featureCode = 0, helpCode = 0, authCode = 0, auth = 'Logged in using ChatGPT', provider = 'codex', env = {} } = {}) {
   const calls = [];
   return {
-    calls, resolve: name => { assert.equal(name, provider); return '/fake/native-executable'; },
+    calls, env, resolve: name => { assert.equal(name, provider); return '/fake/native-executable'; },
     run: async (executable, args, options) => {
       assert.equal(executable, '/fake/native-executable');
       assert.equal(options.timeoutMs, 15000);
       assert.equal(options.peer, true, 'Preflight must use the same peer environment as a model invocation');
+      assert.equal(options.env, env, 'Diagnostics and metadata commands must receive the same environment');
       calls.push(args);
       let stdout, code = 0;
       if (args.join(' ') === '--version') stdout = 'codex-cli 0.160.1';
@@ -279,13 +280,14 @@ const candidateSummary = checks => checks.map(({ executable, version, setup_stat
 }));
 function candidateProbe(provider, candidates) {
   const calls = [];
+  const env = {};
   return {
-    calls,
+    calls, env,
     discover: name => { assert.equal(name, provider); return candidates.map(candidate => candidate.executable); },
     run: async (executable, args, options) => {
       const command = args.join(' ');
       calls.push({ executable, command });
-      assert.deepEqual(options, { cwd: root, timeoutMs: 15000, peer: true });
+      assert.deepEqual(options, { cwd: root, timeoutMs: 15000, peer: true, env });
       const candidate = candidates.find(value => value.executable === executable);
       assert.ok(candidate, `Unknown candidate: ${executable}`);
       assert.ok([...metadataCommands(provider), authCommand(provider)].includes(command), `Unexpected model command: ${command}`);
@@ -587,6 +589,115 @@ test('authentication metadata distinguishes local credential status from request
     assert.equal(result.authenticated, false);
     assert.equal(result.reason, 'login_unavailable');
     assert.equal(result.request_auth_verified, false);
+  }
+});
+
+test('Codex authentication route is sanitized metadata and never quota or overage proof', async () => {
+  for (const [auth, expectedMethod, expectedRoute] of [
+    ['Logged in using ChatGPT', 'chatgpt', 'subscription'],
+    ['Logged in with ChatGPT', 'chatgpt', 'subscription'],
+    ['Logged in using an API key - private-key-value', 'api_key', 'metered'],
+    ['Logged in with API key: private-key-value', 'api_key', 'metered'],
+    ['Logged in using unrecognized-private-method', 'unknown', 'unknown'],
+  ]) {
+    const fixture = fakeProbe({ auth });
+    const result = await probeProvider('codex', root, fixture);
+    assert.equal(result.authenticated, true);
+    assert.equal(result.setup_status, 'ready');
+    assert.equal(result.auth_method, expectedMethod);
+    assert.equal(result.auth_route, expectedRoute);
+    assert.equal(result.quota_status, 'unknown');
+    assert.equal(result.overage_status, 'unknown');
+    assert.equal(result.billing_check, 'not_checked');
+    assert.equal(result.included_allowance_verified, false);
+    assert.match(result.billing_note, /Not checked means unknown, not a provider failure/);
+    assert.deepEqual(result.route_environment_overrides, []);
+    assert.doesNotMatch(JSON.stringify(result), /private-/);
+    assert.deepEqual(fixture.calls, [['--version'], ['exec', '--help'], ['features', 'list'], ['login', 'status']]);
+  }
+});
+
+test('Claude subscription metadata is allowlisted and routing stays separate from entitlement', async () => {
+  for (const subscriptionType of ['free', 'pro', 'max', 'team', 'enterprise', 'private-plan-value']) {
+    const result = await probeProvider('claude', root, fakeProbe({ provider: 'claude', help: claudeHelp,
+      auth: JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType,
+        email: 'private-account', accessToken: 'private-token', orgId: 'private-org' }),
+    }));
+    assert.equal(result.auth_route, 'subscription');
+    assert.equal(result.subscription_type, subscriptionType.startsWith('private-') ? 'unknown' : subscriptionType);
+    assert.equal(result.quota_status, 'unknown');
+    assert.equal(result.overage_status, 'unknown');
+    assert.equal(result.included_allowance_verified, false);
+    assert.doesNotMatch(JSON.stringify(result), /private-/);
+  }
+  for (const [authMethod, apiProvider, expectedRoute] of [
+    ['api_key', 'firstParty', 'metered'], ['api_key_helper', 'firstParty', 'metered'],
+    ['oauth_token', 'firstParty', 'unknown'], ['third_party', 'private-provider', 'unknown'],
+    ['claude.ai', 'private-provider', 'unknown'],
+  ]) {
+    const result = await probeProvider('claude', root, fakeProbe({ provider: 'claude', help: claudeHelp,
+      auth: JSON.stringify({ loggedIn: true, authMethod, apiProvider }),
+    }));
+    assert.equal(result.auth_route, expectedRoute);
+    assert.equal(result.setup_status, 'ready');
+    assert.doesNotMatch(JSON.stringify(result), /private-provider/);
+  }
+});
+
+test('inherited credential and provider overrides prevent an unsupported subscription-route claim without exposing values', async () => {
+  const names = {
+    codex: ['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'CODEX_BASE_URL', 'CODEX_API_BASE_URL'],
+    claude: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_BASE_URL',
+      'ANTHROPIC_PROFILE', 'ANTHROPIC_FEDERATION_RULE_ID', 'ANTHROPIC_ORGANIZATION_ID',
+      'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY',
+      'CLAUDE_CODE_USE_ANTHROPIC_AWS', 'CLAUDE_CODE_USE_MANTLE'],
+  };
+  for (const provider of ['codex', 'claude']) {
+    for (const name of names[provider]) {
+      const fixture = fakeProbe({ provider, env: { [name]: 'private-override-value', PRIVATE_UNRELATED: 'private-other-value' },
+        ...(provider === 'claude' ? { help: claudeHelp, auth: '{"loggedIn":true,"authMethod":"claude.ai"}' } : {}),
+      });
+      const result = await probeProvider(provider, root, fixture);
+      assert.equal(result.authenticated, true);
+      assert.equal(result.setup_status, 'ready');
+      assert.equal(result.auth_route, 'unknown');
+      assert.deepEqual(result.route_environment_overrides, [name]);
+      assert.equal(result.billing_check, 'not_checked');
+      assert.doesNotMatch(JSON.stringify(result), /private-|PRIVATE_UNRELATED/);
+    }
+  }
+});
+
+test('route diagnostics respect Windows environment casing and ignore disabled or irrelevant selectors', async () => {
+  const fixture = fakeProbe({ provider: 'claude', help: claudeHelp, auth: '{"loggedIn":true,"authMethod":"claude.ai"}',
+    env: { anthropic_api_key: 'private-value', CLAUDE_CODE_USE_VERTEX: 'false', CLAUDE_CODE_USE_FOUNDRY: '0',
+      ANTHROPIC_AUTH_TOKEN: '', CLAUDECODE: '1', DISABLE_EXTRA_USAGE_COMMAND: '1' },
+  });
+  const windows = await probeProvider('claude', root, { ...fixture, platform: 'win32' });
+  assert.deepEqual(windows.route_environment_overrides, ['ANTHROPIC_API_KEY']);
+  assert.equal(windows.auth_route, 'unknown');
+  assert.doesNotMatch(JSON.stringify(windows), /private-value/);
+  const posix = await probeProvider('claude', root, { ...fixture, platform: 'linux' });
+  assert.deepEqual(posix.route_environment_overrides, []);
+  assert.equal(posix.auth_route, 'subscription');
+  assert.equal(posix.overage_status, 'unknown', 'Hiding a billing command does not disable paid overflow');
+});
+
+test('failed authentication cannot retain stale subscription or route eligibility', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const fixture = fakeProbe({ provider, authCode: 1,
+      ...(provider === 'claude'
+        ? { help: claudeHelp, auth: '{"loggedIn":true,"authMethod":"claude.ai","subscriptionType":"max"}' }
+        : { auth: 'Logged in using ChatGPT' }),
+    });
+    const result = await probeProvider(provider, root, fixture);
+    assert.equal(result.authenticated, false);
+    assert.equal(result.setup_status, 'unavailable');
+    assert.equal(result.reason, 'login_unavailable');
+    assert.equal(result.auth_route, 'unknown');
+    assert.equal(result.quota_status, 'unknown');
+    assert.equal(result.overage_status, 'unknown');
+    if (provider === 'claude') assert.equal(result.subscription_type, 'unknown');
   }
 });
 

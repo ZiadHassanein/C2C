@@ -33,7 +33,7 @@ Automatically select eligible workers within user limits unless advice-only, res
 
 For one-provider work, use [complementary planning perspectives](references/protocol.md#single-provider-planning-perspectives) within the existing stages. Aim to catch consequential errors and improve decisions, not produce more debate. Different models are not independent evidence and cannot impersonate or acquire another provider's capabilities.
 
-**No paid limit recovery:** never buy credits, enable extra usage/auto-reload, raise spend limits, upgrade plans or switch to API/cloud billing to bypass a limit. A request to continue C2C is not spending authorization. Respect included-usage-only constraints before calls; see [billing boundaries](references/protocol.md#no-paid-limit-recovery).
+**No paid limit recovery:** never buy credits, enable extra usage/auto-reload, raise spend limits, upgrade plans or switch to API/cloud billing to bypass a limit. Use the existing authorized subscription route; unknown quota metadata is not an exhausted account. Do not turn this rule into a new requirement for billing-settings confirmation. An explicit hard included-only/zero-extra-charge constraint is stricter and still applies before calls; see [billing boundaries](references/protocol.md#no-paid-limit-recovery).
 
 Record size, complexity, risk, uncertainty, dated sources, planning/coding recommendations for the requested providers, actual roles/IDs/access evidence, route and allowance provenance/user caps in local `TASK_ASSESSMENT.md`. Record unavailable selections as skipped. Keep it out of peer packets and summarize choices in the plan. Use the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed; preserve unknowns honestly.
 
@@ -57,6 +57,8 @@ Prepare a concise UTF-8 brief and necessary selected context with source revisio
 ## Run the exchange
 
 Use the [file contract](references/protocol.md#file-contract) and [report schema](references/protocol.md#report-schema), or generated schemas. Keep drafts/final plans self-contained. Review prose describes changes rather than repeating proposals; every substantive correction needs a finding ID, evidence, action and verification. Retain material risks, unknowns and required fields regardless of compactness.
+
+Before the first worker call, use `preview --run RUN --stage STAGE` to inspect the actual provider/model, outbound labels, packet fingerprint and limits. Review the content locally. The explicit C2C request authorizes relevant selected context for that exchange; reuse it instead of asking again. For a host-required permission request, identify that authorization and the bounded review command. Follow [launch and local-permission handling](references/protocol.md#launch-preview-and-local-permissions); a denied local cache/lock/process operation is not evidence that either provider failed.
 
 Critique consequential assumptions against evidence, realistic failure cases and alternatives. Judge each concern separately from its remedy: test consequential fixes for failure modes, unnecessary scope, user friction and operational cost. Record adoption, adaptation or rejection with the decisive reason; preserve unresolved parts. Sound agreement needs reasons, not a disagreement quota. Follow the [decision contract](references/protocol.md#decision-record).
 

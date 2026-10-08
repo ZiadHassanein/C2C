@@ -79,7 +79,7 @@ function terminateOwned(child, details, onTreeSettled) {
  */
 export function runProcess(executable, args, {
   prompt = '', cwd, timeoutMs = 30000, peer = false,
-  stdoutPath, stderrPath, signal: abortSignal,
+  stdoutPath, stderrPath, signal: abortSignal, env: inheritedEnv = process.env,
 } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = { stdout: [], stderr: [] };
@@ -194,9 +194,14 @@ export function runProcess(executable, args, {
           return;
         }
       }
-      const env = { ...process.env };
+      const env = { ...inheritedEnv };
       if (peer) {
         env.CODEX_CLAUDE_COUNCIL_PEER = '1';
+        // Per-process controls only: preserve authentication, selected model and
+        // reasoning settings. These are not a general provider spending cap.
+        env.CLAUDE_CODE_DISABLE_FAST_MODE = '1';
+        env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
+        env.DISABLE_AUTOUPDATER = '1';
         delete env.CLAUDECODE;
       }
       child = spawn(executable, args, {

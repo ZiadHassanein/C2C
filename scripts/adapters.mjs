@@ -131,6 +131,25 @@ export function buildCodexArgs({ schemaPath, model, codexFeatures = CODEX_DISABL
 }
 
 const CLAUDE_AUTH_METHODS = new Set(['none', 'claude.ai', 'oauth_token', 'api_key', 'api_key_helper', 'third_party']);
+const CLAUDE_SUBSCRIPTION_TYPES = new Set(['free', 'pro', 'max', 'team', 'enterprise']);
+const ROUTE_ENVIRONMENT = {
+  codex: ['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'CODEX_BASE_URL', 'CODEX_API_BASE_URL'],
+  claude: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_BASE_URL',
+    'ANTHROPIC_PROFILE', 'ANTHROPIC_FEDERATION_RULE_ID', 'ANTHROPIC_ORGANIZATION_ID',
+    'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY',
+    'CLAUDE_CODE_USE_ANTHROPIC_AWS', 'CLAUDE_CODE_USE_MANTLE'],
+};
+
+function routeEnvironmentOverrides(provider, env, platform) {
+  // Emit only canonical allowlisted names, never values or arbitrary env keys.
+  const entries = platform === 'win32'
+    ? Object.fromEntries(Object.entries(env).map(([key, value]) => [key.toUpperCase(), value])) : env;
+  return ROUTE_ENVIRONMENT[provider].filter(name => {
+    const value = entries[name];
+    if (typeof value !== 'string' || !value.trim()) return false;
+    return !name.startsWith('CLAUDE_CODE_USE_') || !/^(?:0|false)$/i.test(value.trim());
+  });
+}
 const AUTH_FAILURE = /\b(?:authentication[_ -](?:failed|error)|invalid[_ -](?:api[_ -]?key|grant)|token[_ -](?:expired|invalid|revoked|reused)|(?:oauth(?:[_ -]token)?|access[_ -]token|refresh[_ -]token|login|session)[\s\S]{0,60}(?:expired|invalid|revoked|rejected|already used)|(?:expired|invalid|revoked|rejected)[\s\S]{0,60}(?:oauth|access[_ -]token|refresh[_ -]token)|not logged in|please (?:run )?\/login|(?:http|status|api error)\s*:?\s*401)\b/i;
 
 // Only failed transport envelopes are eligible for classification. Successful
@@ -207,10 +226,11 @@ export function peerUsageLimitFailure(provider, { code, stdout = '', stderr = ''
 
 // Only metadata and authentication-status commands run here, never a model turn.
 // doctor and ask share this preflight; ask must call it before reserving an attempt.
-export async function probeProvider(provider, cwd, { run = runProcess, resolve, discover = discoverExecutables } = {}) {
+export async function probeProvider(provider, cwd, { run = runProcess, resolve, discover = discoverExecutables,
+  env = process.env, platform = process.platform } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
   let candidates;
-  try { candidates = resolve ? [resolve(provider)] : discover(provider); }
+  try { candidates = resolve ? [resolve(provider)] : discover(provider, { env, platform }); }
   catch (error) {
     if (['cli_not_found', 'cli_override_unusable'].includes(error.reason)) throw error;
     throw providerSetupError(provider, 'cli_check_failed', `${provider} executable discovery could not complete.`);
@@ -219,7 +239,7 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
   const candidateChecks = [];
   const check = async (args, label) => {
     let result;
-    try { result = await run(executable, args, { cwd, timeoutMs: 15000, peer: true }); }
+    try { result = await run(executable, args, { cwd, timeoutMs: 15000, peer: true, env }); }
     catch { throw providerSetupError(provider, 'cli_check_failed', `${provider} ${label} could not complete.`); }
     if (result.code !== 0) throw providerSetupError(provider, 'cli_check_failed', `${provider} ${label} failed.`);
     return result;
@@ -247,26 +267,48 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     }
   }
   let auth;
-  try { auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000, peer: true }); }
+  try { auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000, peer: true, env }); }
   catch { auth = { code: null, stdout: '', stderr: '' }; }
   let authenticated = false;
   let authMethod = 'unknown';
+  let subscriptionType = 'unknown';
+  let firstParty = true;
   if (provider === 'claude') {
     try {
       const status = JSON.parse(auth.stdout);
       authenticated = auth.code === 0 && status.loggedIn === true;
       if (CLAUDE_AUTH_METHODS.has(status.authMethod)) authMethod = status.authMethod;
+      if (authenticated && CLAUDE_SUBSCRIPTION_TYPES.has(status.subscriptionType)) subscriptionType = status.subscriptionType;
+      firstParty = status.apiProvider === undefined || status.apiProvider === 'firstParty';
     } catch { /* Signed out or unsupported response. */ }
-  } else authenticated = auth.code === 0 && /logged in/i.test(auth.stdout + auth.stderr) && !/not logged in/i.test(auth.stdout + auth.stderr);
+  } else {
+    const text = `${auth.stdout}\n${auth.stderr}`;
+    authenticated = auth.code === 0 && /logged in/i.test(text) && !/not logged in/i.test(text);
+    if (authenticated) {
+      if (/logged in (?:using|with) ChatGPT\b/i.test(text)) authMethod = 'chatgpt';
+      else if (/logged in (?:using|with) (?:an? )?API key\b/i.test(text)) authMethod = 'api_key';
+    }
+  }
+  const routeOverrides = routeEnvironmentOverrides(provider, env, platform);
+  // Authentication route is metadata, not model entitlement or billing proof.
+  // Inherited overrides can differ from the locally reported saved login.
+  let authRoute = 'unknown';
+  if (authenticated && routeOverrides.length === 0 && firstParty) {
+    if (['chatgpt', 'claude.ai'].includes(authMethod)) authRoute = 'subscription';
+    else if (['api_key', 'api_key_helper'].includes(authMethod)) authRoute = 'metered';
+  }
   candidateChecks.push({ executable, version, setup_status: authenticated ? 'ready' : 'unavailable', ...(!authenticated ? { reason: 'login_unavailable' } : {}) });
   return {
     provider, executable, version, authenticated, candidate_checks: candidateChecks,
     setup_status: authenticated ? 'ready' : 'unavailable',
     ...(!authenticated ? { reason: 'login_unavailable', guidance: providerSetupGuidance(provider) } : {}),
     auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,
+    auth_route: authRoute, route_environment_overrides: routeOverrides,
+    ...(provider === 'claude' ? { subscription_type: subscriptionType } : {}),
     authentication_note: 'CLI credential status does not validate token freshness, refresh success, or model access. No peer terminal or app needs to stay open.',
     billing_check: 'not_checked', included_allowance_verified: false,
-    billing_note: 'Local credential status does not attest included allowance, paid-credit balance, billing or overage settings. This check makes no model call and does not authorize spending.',
+    quota_status: 'unknown', overage_status: 'unknown',
+    billing_note: 'Local credential status does not attest included allowance, paid-credit balance, billing or overage settings. Not checked means unknown, not a provider failure. Apply the existing user billing scope and supported evidence before selecting a route. This check makes no model call and does not authorize spending.',
     login_command: provider === 'codex' ? 'codex login' : 'claude auth login',
     ...(codexFeatures ? { codex_features: codexFeatures, disabled_features: CODEX_DISABLED_FEATURES.filter(name => codexFeatures.includes(name)) } : {}),
   };

@@ -7,7 +7,7 @@ C2C is an open-source skill for collaborative planning between Codex and Claude 
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -29,7 +29,7 @@ C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
@@ -38,7 +38,7 @@ Unchanged managed skill folders move into recoverable backups; customized, unkno
 
 C2C checks the existing setup before calls. If the other provider is missing or unusable, it automatically selects a planning author and distinct coding-focused critic from the current provider when that provider's CLI, exact models and allowance are eligible. It announces the selected roles and records actual responses. This works symmetrically from Codex or Claude Code.
 
-If the current provider's CLI is also absent, no distinct eligible pair exists, or authorized allowance is unknown or unavailable, the chat produces a provisional plan with structured self-critique, security, proposed tests and a concrete execution entry point. A self-critique is labeled as one chat's work and never presented as a second model's review. No installation, upgrade, login or configuration change is required. Missing tools, authentication failures and quota failures remain distinct. Explicit requirements for both providers, waiting, pinned choices or advice only take precedence. [Routing and recovery details](../references/protocol.md#planning-with-unavailable-tools).
+If the current provider's CLI is also absent, no distinct eligible pair exists, or evidence required by your usage restrictions is missing, the chat produces a provisional plan with structured self-critique, security, proposed tests and a concrete execution entry point. Unknown live quota alone does not disqualify normal authorized subscription use. A self-critique is labeled as one chat's work and never presented as a second model's review. No installation, upgrade, login or configuration change is required. Missing tools, authentication failures and quota failures remain distinct. Explicit requirements for both providers, waiting, pinned choices or advice only take precedence. [Routing and recovery details](../references/protocol.md#planning-with-unavailable-tools).
 
 ## Must I keep Claude or Codex open while it works as the peer?
 
@@ -102,7 +102,7 @@ If the same model is strongest for planning and coding, C2C selects an adequate 
 
 ## Does C2C send my whole repository to another provider?
 
-C2C sends explicitly selected, frozen context and relevant review artifacts. The peer does not receive the whole repository by default. Collaboration requires an explicit C2C or Codex–Claude exchange request. Review the selected material and exclude secrets or unrelated private information; the secret scan is incomplete. Local run files and logs may also contain private context. See [usage and privacy](SETUP.md#usage-and-privacy).
+C2C sends explicitly selected, frozen context and relevant review artifacts. The peer does not receive the whole repository by default. Your explicit C2C or Codex–Claude exchange request authorizes the relevant context for that exchange. Before the first call, a local `preview` describes its provider, model, input labels, packet hash and limits without calling a model or changing the run. Review the material and exclude secrets or unrelated private information; the secret scan is incomplete. Host permissions still apply. See [usage and privacy](SETUP.md#usage-and-privacy).
 
 ## How much does a planning exchange cost?
 
@@ -114,7 +114,7 @@ Consequential changes after verification may use one additional successful revis
 
 No. C2C must not buy credits, enable extra usage or auto-reload, raise spending limits, upgrade your plan, or switch to API/cloud billing to keep an exchange running. Asking it to continue does not authorize those actions. It stops the blocked route and checks only permitted continuation within existing allowance. If none qualifies, it delivers a provisional plan with self-critique; if the chat has no allowance, it saves a checkpoint. It does not ask you to pay to unblock the plan.
 
-Provider billing remains separate. An existing paid-credit or overage setting can allow charges without a quota error, and a configured API key may select API billing. C2C does not verify or change those account controls, and a ready CLI is not a zero-charge guarantee. With an included-usage-only constraint, unknown billing eligibility must be resolved before worker calls. See [billing boundaries](../references/protocol.md#no-paid-limit-recovery) and your provider's usage settings.
+Provider billing remains separate. For ordinary authorized subscription use, unknown live usage metadata is not treated as an exhausted account or a reason for repeated billing questions. Existing credit/overage settings can permit charges without a quota error, so this is not a zero-charge guarantee. An explicit included-only/zero-extra-charge restriction needs applicable no-overflow evidence before calls; an API key never supplies spending permission by itself. Worker processes disable Claude's credit-only fast mode without changing your account settings, selected model or effort. See [billing policies](../references/protocol.md#no-paid-limit-recovery).
 
 ## Can the reviewer check missing repository facts?
 

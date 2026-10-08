@@ -45,9 +45,16 @@ function identity(version, files) { return { schema: 1, version, digest: hash(JS
 function validatePin(pin) {
   requireThat(pin && pin.schema === 1 && SEMVER.test(pin.version) && HASH.test(pin.digest) && Object.keys(pin).sort().join(',') === 'digest,schema,version', 'Invalid pinned C2C runtime identity');
 }
+function runtimeAccess(action, work) {
+  try { return work(); }
+  catch (error) {
+    if (!['EACCES', 'EPERM', 'EROFS'].includes(error.code) || error.reason === 'runtime_access_denied') throw error;
+    throw Object.assign(new Error(`Cannot ${action}: local filesystem access was denied (${error.code}). This is not a provider or usage-limit failure. Request the required filesystem access from the host. Before a new run, C2C_RUNTIME_HOME may select a private, persistent, user-owned directory outside the installation and project/run; use that same value for every later command. For an existing run, preserve its original trusted runtime and plan; do not reset attempts or substitute current code. Original error: ${error.message}`, { cause: error }), { code: error.code, reason: 'runtime_access_denied' });
+  }
+}
 export function runtimeHome() {
   const selected = process.env.C2C_RUNTIME_HOME?.trim();
-  return canonical(path.resolve(selected || path.join(os.homedir(), '.c2c', 'runtimes')));
+  return runtimeAccess('resolve the trusted C2C runtime store', () => canonical(path.resolve(selected || path.join(os.homedir(), '.c2c', 'runtimes'))));
 }
 
 /** Capture package identity in memory at module load; prepare checks it again. */
@@ -94,25 +101,27 @@ export function pinRuntime(source, loadedIdentity) {
   const hashes = Object.fromEntries(RUNTIME_FILES.map(file => [file, hash(files[file])]));
   const pin = identity(version, hashes);
   requireThat(JSON.stringify(pin) === JSON.stringify(loadedIdentity), 'C2C changed after this process started. Retry preparation with the installed version; no plan was created.');
-  fs.mkdirSync(home, { recursive: true, mode: 0o700 }); directory(home);
-  const destination = path.join(home, pin.digest);
-  if (exists(destination)) return { pin, ...validateBundle(destination, pin) };
-  const stage = fs.mkdtempSync(path.join(home, '.prepare-')); directory(stage);
-  try {
-    for (const [file, bytes] of Object.entries(files)) {
-      const target = path.join(stage, ...file.split('/'));
-      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-      fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 });
+  return runtimeAccess('prepare the trusted C2C runtime', () => {
+    fs.mkdirSync(home, { recursive: true, mode: 0o700 }); directory(home);
+    const destination = path.join(home, pin.digest);
+    if (exists(destination)) return { pin, ...validateBundle(destination, pin) };
+    const stage = fs.mkdtempSync(path.join(home, '.prepare-')); directory(stage);
+    try {
+      for (const [file, bytes] of Object.entries(files)) {
+        const target = path.join(stage, ...file.split('/'));
+        fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+        fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 });
+      }
+      atomicWriteFile(path.join(stage, MANIFEST), { ...pin, files: hashes });
+      validateBundle(stage, pin);
+      try { fs.renameSync(stage, destination); }
+      catch (error) { if (!exists(destination)) throw error; validateBundle(destination, pin); }
+      return { pin, ...validateBundle(destination, pin) };
+    } finally {
+      // stage is an owned, newly created direct child; never clean a run or cache.
+      if (exists(stage)) { requireThat(path.dirname(stage) === home && path.basename(stage).startsWith('.prepare-'), 'Unsafe runtime staging cleanup'); fs.rmSync(stage, { recursive: true, force: true }); }
     }
-    atomicWriteFile(path.join(stage, MANIFEST), { ...pin, files: hashes });
-    validateBundle(stage, pin);
-    try { fs.renameSync(stage, destination); }
-    catch (error) { if (!exists(destination)) throw error; validateBundle(destination, pin); }
-    return { pin, ...validateBundle(destination, pin) };
-  } finally {
-    // stage is an owned, newly created direct child; never clean a run or cache.
-    if (exists(stage)) { requireThat(path.dirname(stage) === home && path.basename(stage).startsWith('.prepare-'), 'Unsafe runtime staging cleanup'); fs.rmSync(stage, { recursive: true, force: true }); }
-  }
+  });
 }
 
 /** Read-only guard shared by the runner and updater. A run cannot supply code. */
@@ -131,10 +140,12 @@ export function inspectRunRuntime(run, { allowLegacy = false } = {}) {
   requireThat(JSON.stringify(state.runtime) === JSON.stringify(snapshot.runtime), 'Pinned C2C runtime identity changed after preparation');
   const home = runtimeHome();
   requireThat(!contained(dir, home), 'Trusted C2C runtime store cannot be inside a plan directory');
-  directory(home);
-  const root = path.join(home, state.runtime.digest);
-  requireThat(exists(root), 'Pinned C2C runtime is missing from this user\'s trusted store. Preserve the plan and restore its original trusted runtime; no current-version fallback is allowed.');
-  return { ...validateBundle(root, state.runtime), status: state.status };
+  return runtimeAccess('read the pinned C2C runtime', () => {
+    directory(home);
+    const root = path.join(home, state.runtime.digest);
+    requireThat(exists(root), 'Pinned C2C runtime is missing from this user\'s trusted store. Preserve the plan and restore its original trusted runtime; no current-version fallback is allowed.');
+    return { ...validateBundle(root, state.runtime), status: state.status };
+  });
 }
 
 export function assertMatchingRuntime(run, loadedIdentity, { allowLegacy = false } = {}) {

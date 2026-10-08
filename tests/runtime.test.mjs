@@ -212,6 +212,65 @@ test('preparation rejects changed loaded package identity and cache inside insta
   assert.throws(() => pinRuntime(f.source, packageRuntimeIdentity(f.source)), /must be outside the installation/);
 });
 
+test('runtime store permission failures are actionable and never relocate or create a run', t => {
+  for (const code of ['EACCES', 'EPERM', 'EROFS']) {
+    const f = fixture(`access-${code}`), loaded = packageRuntimeIdentity(f.source);
+    const denied = Object.assign(new Error(`${code}: synthetic trusted-store denial`), { code });
+    const original = fs.mkdirSync;
+    const mkdir = t.mock.method(fs, 'mkdirSync', function (file, ...args) {
+      if (file === f.home) throw denied;
+      return original.call(this, file, ...args);
+    });
+    try {
+      assert.throws(() => pinRuntime(f.source, loaded), error => {
+        assert.equal(error.code, code);
+        assert.equal(error.cause, denied);
+        assert.equal(error.reason, 'runtime_access_denied');
+        assert.match(error.message, /Request the required filesystem access from the host/);
+        assert.match(error.message, /C2C_RUNTIME_HOME.*private, persistent, user-owned/);
+        assert.match(error.message, /do not reset attempts or substitute current code/);
+        return true;
+      });
+    } finally { mkdir.mock.restore(); }
+    assert.equal(fs.existsSync(f.home), false);
+    assert.equal(fs.existsSync(f.out), false);
+    assert.deepEqual(fs.readdirSync(f.dir).sort(), ['package', 'project']);
+  }
+});
+
+test('inaccessible pinned runtime preserves the original plan and failure provenance', t => {
+  const f = prepareFixture('read-denied'), runtime = inspectRunRuntime(f.out);
+  const stateBefore = fs.readFileSync(path.join(f.out, 'run.json'));
+  const denied = Object.assign(new Error('EPERM: synthetic pinned runtime denial'), { code: 'EPERM' });
+  const original = fs.readFileSync;
+  const read = t.mock.method(fs, 'readFileSync', function (file, ...args) {
+    if (file === path.join(runtime.root, 'runtime.json')) throw denied;
+    return original.call(this, file, ...args);
+  });
+  try {
+    assert.throws(() => inspectRunRuntime(f.out), error => {
+      assert.equal(error.cause, denied);
+      assert.equal(error.reason, 'runtime_access_denied');
+      assert.match(error.message, /Cannot read the pinned C2C runtime/);
+      assert.match(error.message, /For an existing run, preserve its original trusted runtime and plan/);
+      return true;
+    });
+  } finally { read.mock.restore(); }
+  assert.deepEqual(fs.readFileSync(path.join(f.out, 'run.json')), stateBefore);
+  assert.equal(inspectRunRuntime(f.out).digest, runtime.digest);
+});
+
+test('unrelated runtime store errors retain their original classification', t => {
+  const f = fixture('unexpected-error'), loaded = packageRuntimeIdentity(f.source);
+  const original = fs.mkdirSync, failure = Object.assign(new Error('Disk full'), { code: 'ENOSPC' });
+  const mkdir = t.mock.method(fs, 'mkdirSync', function (file, ...args) {
+    if (file === f.home) throw failure;
+    return original.call(this, file, ...args);
+  });
+  try { assert.throws(() => pinRuntime(f.source, loaded), error => error === failure); }
+  finally { mkdir.mock.restore(); }
+});
+
 test('invalid nested output locations never create files inside installation or cache', () => {
   const f = fixture('output-boundary');
   for (const destination of [path.join(f.source, 'new-folder', 'run'), path.join(f.home, 'new-folder', 'run'), f.dir]) {

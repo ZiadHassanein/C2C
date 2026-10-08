@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.0.1: distinguish review-launch barriers
+
+Review launch now has a read-only `preview` describing the exact serialized packet, provider/model, limits and application controls. It omits raw content/private source paths and does not probe accounts, reserve an attempt, change locks or recover state. It shares stage validation with `ask`; independent-draft/review inputs remain withheld until their intended stages. Existing explicit exchange authorization applies to relevant selected context, while host approval remains separate and denials must be respected.
+
+Runtime cache and lock permission diagnostics preserve original error codes/causes and all ownership, pinning and attempt accounting. Local permission denial is not provider authentication or quota failure. Auth preflight now reports sanitized route metadata and environment override names, with quota/overage explicitly unknown. Unknown quota alone does not prevent ordinary authorized subscription use; equivalent wording forbidding paid-credit consumption still requires strict no-overflow evidence. Never weaken a user's policy to make a test pass.
+
+Worker environment controls disable Claude fast mode, automatic updating and background terminal-title generation only for the child process. They preserve authentication, model and effort and are not a general spending cap. Full offline validation passed:336 tests,328 passed,8 platform skips,zero failures. Independent review then refined lock-release guidance to inspect already-saved results instead of repeating a completed stage; the targeted state suite passed28 tests with1 platform skip. Documentation validation checked219 local targets and8 SVGs. Native CI remains the final release gate. Live communication is a separate test, not inferred from offline success. Private trial/account records remain outside this repository.
+
 ### Version 2.0.0: validated milestone, unchanged runtime
 
 The maintainer requested a real uninstall/reinstall and a fresh planning trial before the 2.0 milestone. Managed removal retained recoverable backups; both installed copies were then verified against the 1.4.0 source and all 23 packaged files. The fresh chat checked local CLI readiness and usage evidence, then delivered a useful provisional plan because a hard included-only worker billing boundary remained unverified. It preserved project constraints, distinguished historical from current evidence, and included security, proposed tests, substantive self-critique and an execution entry point. Independent review found no blocking plan defect. No worker or prepared council run occurred, so this trial does not validate live two-model review or update continuity. Private project details and measurements remain outside the public repository.

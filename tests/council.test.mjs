@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse, doctor,
+  prepare, preview, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse, doctor,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -2960,4 +2960,112 @@ test('an explicitly dated peer model cannot resolve to a different snapshot or u
       }
     }
   }
+});
+
+async function runFileBytes(dir) {
+  return Object.fromEntries(await Promise.all((await fs.readdir(dir)).sort().map(async name => [name, (await fs.readFile(path.join(dir, name))).toString('base64')])));
+}
+
+test('preview CLI is read-only and metadata-only without installed workers or a run lock', async () => {
+  const f = await fixture('preview-offline', { 'peer-model': 'claude-opus-4-6' });
+  await hostDraft(f);
+  await write(path.join(f.out, '.lock'), 'Existing lock must not be read, replaced or removed by preview.');
+  const before = await runFileBytes(f.out);
+  const result = spawnSync(process.execPath, [path.join(packageRoot, 'scripts', 'council.mjs'), 'preview', '--run', f.out, '--stage', 'draft', '--compact'], {
+    encoding: 'utf8', windowsHide: true, timeout: 5000,
+    env: { ...process.env, COUNCIL_CODEX_BIN: path.join(f.root, 'missing-codex'), COUNCIL_CLAUDE_BIN: path.join(f.root, 'missing-claude') },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const shown = JSON.parse(result.stdout);
+  assert.deepEqual(shown.worker, { provider: 'claude', role: 'peer', model: 'claude-opus-4-6' });
+  assert.equal(shown.stage, 'draft');
+  assert.equal(shown.project_assessment, true);
+  assert.deepEqual(shown.inputs.map(input => input.path), ['brief-1.txt', 'context.txt']);
+  assert.deepEqual(shown.artifacts, [], 'Independent draft must not disclose the validated host draft');
+  assert.deepEqual(shown.supplementary_evidence, []);
+  assert.equal(shown.allowance.attempts_remaining, 4);
+  assert.match(shown.note, /not authorization or proof of billing eligibility/);
+  for (const privateText of [f.root, 'INPUT_CONTEXT_TOKEN', 'ASSESSMENT_CONTEXT_TOKEN', 'HOST_DRAFT_SECRET_714', 'Build a reliable export feature.']) assert.ok(!result.stdout.includes(privateText));
+  assert.deepEqual(await runFileBytes(f.out), before);
+});
+
+test('preview fingerprints exactly the actual draft, review and verification packets', async () => {
+  const f = await fixture('preview-packets');
+  await hostDraft(f);
+  async function compare(stage, expectedArtifacts, response = report()) {
+    const before = await runFileBytes(f.out);
+    const shown = preview({ run: f.out, stage });
+    assert.deepEqual(await runFileBytes(f.out), before);
+    assert.deepEqual(shown.artifacts, expectedArtifacts);
+    await ask({ run: f.out, stage }, async request => {
+      assert.equal(shown.prompt.bytes, Buffer.byteLength(request.prompt));
+      assert.equal(shown.prompt.sha256, createHash('sha256').update(request.prompt).digest('hex'));
+      return invocation(response)(request);
+    });
+    return shown;
+  }
+  const draft = report();
+  draft.evidence_requests = [{ id: 'P-D-E1', path: 'caller.txt', question: 'PRIVATE_QUESTION: what caller behavior is required?' }];
+  await compare('draft', [], draft);
+  await write(path.join(f.project, 'caller.txt'), 'PRIVATE_FACT: retain deterministic pagination.');
+  evidence({ run: f.out, request: 'P-D-E1', status: 'supplied', file: 'caller.txt', reason: 'PRIVATE_REASON: supplied contract answers the question.', 'source-revision': `PRIVATE_REVISION ${f.project}` });
+  await hostReview(f);
+  const review = await compare('review', ['coordinator-draft.json', 'peer-draft.json']);
+  assert.equal(review.supplementary_evidence[0].path, 'caller.txt');
+  assert.equal(review.supplementary_evidence[0].request_id, undefined, 'Independent critique receives no requesting question or attribution');
+  assert.equal(review.supplementary_evidence[0].source_revision_sha256.length, 64);
+  await write(path.join(f.out, 'final-plan.md'), '# Private plan\nKeep stable pagination.');
+  await write(path.join(f.out, 'security-review.json'), report());
+  await write(path.join(f.out, 'decisions.json'), []);
+  const verification = await compare('verify', ['coordinator-draft.json', 'peer-draft.json', 'coordinator-review.json', 'peer-review.json', 'final-plan.md', 'decisions.json', 'security-review.json']);
+  assert.equal(verification.supplementary_evidence[0].request_id, 'P-D-E1');
+  assert.equal(verification.supplementary_evidence[0].status, 'supplied');
+  assert.equal(verification.supplementary_evidence[0].evidence.path, 'caller.txt');
+  for (const shown of [review, verification]) for (const value of ['PRIVATE_', f.project, 'HOST_REVIEW_SECRET_952', '# Private plan']) assert.ok(!JSON.stringify(shown).includes(value));
+  assert.throws(() => preview({ run: f.out, stage: 'verify-final' }), /No revised plan/);
+  await write(path.join(f.out, 'final-plan.md'), '# Revised private plan\nKeep stable pagination and verify ties.');
+  await compare('verify-final', ['coordinator-draft.json', 'peer-draft.json', 'coordinator-review.json', 'peer-review.json', 'final-plan.md', 'decisions.json', 'security-review.json', 'peer-verify.json']);
+});
+
+test('preview selects the actual same-provider and background-author worker without relabeling the host', async () => {
+  for (const coordinator of ['codex', 'claude']) {
+    const planner = coordinator === 'codex' ? 'gpt-5.4' : 'claude-opus-4-6';
+    const critic = coordinator === 'codex' ? 'gpt-5.3-codex' : 'claude-sonnet-4-6';
+    const otherPlanner = coordinator === 'codex' ? 'claude-opus-4-6' : 'gpt-5.4';
+    for (const pairing of ['same', 'cross']) {
+      const f = await fixture(`preview-${coordinator}-${pairing}`, { coordinator, pairing, mode: 'review', 'author-model': planner, 'peer-model': pairing === 'same' ? critic : otherPlanner });
+      const author = preview({ run: f.out, stage: 'author-draft' });
+      assert.deepEqual(author.worker, { provider: coordinator, role: 'author', model: planner });
+      assert.deepEqual(author.artifacts, []);
+      await ask({ run: f.out, stage: 'author-draft' }, invocation());
+      await hostReview(f);
+      const peer = preview({ run: f.out, stage: 'review' });
+      assert.deepEqual(peer.worker, { provider: pairing === 'same' ? coordinator : coordinator === 'codex' ? 'claude' : 'codex', role: 'peer', model: pairing === 'same' ? critic : otherPlanner });
+      assert.deepEqual(peer.artifacts, ['coordinator-draft.json']);
+      assert.equal(peer.allowance.attempts_remaining, 3);
+    }
+  }
+});
+
+test('preview rejects invalid stages and tampered evidence without repairing or persisting state', async () => {
+  const f = await fixture('preview-integrity');
+  await hostDraft(f);
+  const before = await runFileBytes(f.out);
+  assert.throws(() => preview({ run: f.out, stage: 'anything' }), /Stage must/);
+  assert.throws(() => preview({ run: f.out, stage: 'review' }), /Complete the draft/);
+  assert.deepEqual(await runFileBytes(f.out), before);
+  const state = await read(path.join(f.out, 'run.json'));
+  state.attempts.push({ number: 1, stage: 'draft', status: 'running', timeout_ms: 10000 });
+  state.status = 'running';
+  await write(path.join(f.out, 'run.json'), state);
+  const runningBefore = await runFileBytes(f.out);
+  const shown = preview({ run: f.out, stage: 'draft' });
+  assert.deepEqual(shown.allowance.recorded_running_attempts, [1]);
+  assert.equal(shown.allowance.peer_seconds_reserved, 10);
+  assert.deepEqual(await runFileBytes(f.out), runningBefore, 'Preview cannot recover or charge an interrupted attempt');
+  const snapshotFile = path.join(f.out, 'snapshot.json');
+  await fs.appendFile(snapshotFile, '\n');
+  const changed = await runFileBytes(f.out);
+  assert.throws(() => preview({ run: f.out, stage: 'draft' }), /Sealed artifact changed/);
+  assert.deepEqual(await runFileBytes(f.out), changed);
 });

@@ -65,6 +65,29 @@ test('peer workers need no terminal and retain configured login context without 
   }
 });
 
+test('peer controls disable credit-only fast mode and unrelated background work without changing the parent', async () => {
+  const keys = ['CLAUDE_CODE_DISABLE_FAST_MODE', 'CLAUDE_CODE_DISABLE_TERMINAL_TITLE', 'DISABLE_AUTOUPDATER'];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const source = `console.log(JSON.stringify(${JSON.stringify(keys)}.map(key=>process.env[key])));`;
+  try {
+    for (const value of [undefined, '0']) {
+      for (const key of keys) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+      const result = await node(source, { peer: true });
+      assert.equal(result.code, 0);
+      assert.deepEqual(JSON.parse(result.stdout), ['1', '1', '1']);
+      for (const key of keys) assert.equal(process.env[key], value);
+    }
+    const ordinary = await node(source);
+    assert.deepEqual(JSON.parse(ordinary.stdout), ['0', '0', '0'], 'ordinary subprocesses keep their environment');
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
 test('successful calls return stdout, stderr and exit status while streaming files', async () => {
   const stdoutPath = path.join(root, 'success-stdout.txt');
   const stderrPath = path.join(root, 'success-stderr.txt');

@@ -1,11 +1,11 @@
 <picture>
   <source media="(max-width: 640px)" srcset="docs/assets/cover-mobile.svg">
-  <img src="docs/assets/cover.svg" alt="C2C. Two perspectives. One clearer plan." width="1120">
+  <img src="docs/assets/cover.svg" alt="C2C — Plan, review, refine. Codex, Claude Code, or both." width="1120">
 </picture>
 
-# C2C — Codex and Claude Code planning skill
+# C2C — planning with Codex and Claude Code
 
-**Turn a feature idea or project brief into a plan with evidence-based critique.** C2C checks the project, asks important questions, compares proposals, and records decisions, security considerations, tests, and a clear starting point for implementation.
+**A planning skill that turns your brief into a plan with evidence-based critique.** C2C checks the project, asks important questions, compares proposals, and records decisions, security considerations, tests, and a clear starting point for implementation.
 
 Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you start coordinates the work.** Either provider can lead, and your chat model stays unchanged.
 

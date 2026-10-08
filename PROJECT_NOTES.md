@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README header: a simpler introduction
+
+Replaced the generic rounded teal banner with a custom geometric C2C wordmark, warm paper surface and restrained red emphasis. The user requested a simpler, clearer idea: both desktop and mobile assets now show only the brand, the sequence “Plan → Review → Refine,” and “Codex, Claude Code, or both.” Provider roles are not fixed; equal entry points and eligible same-provider/solo routing remain in native README text. The searchable title is shorter, with the skill description retained in the introduction.
+
+Scope is the README header and its two existing SVG assets. Workflow assets, runtime, packaged instructions, version and installation are unchanged. SVGs retain accessible title/description and the README image has descriptive alternative text. Local desktop/mobile previews, documentation references and source review are the validation for this visual-only change; no worker calls or performance claims are involved.
+
 ### Version 1.2.1: explanations before ratios
 
 The user clarified that model advice should explain why, not merely display a percentage. Recommendations now connect task facts to supported capabilities/evidence, compare the alternative, expose tradeoffs and identify an acceptance check or scope change that could alter the decision. Savings explain lower published rates or actual observed usage causes, without inventing model internals, fewer retries or quality equivalence from price. The plan leads with this explanation before numeric comparisons. Instructions/public docs and version change; runtime, schemas, stages, research scope and spending boundaries are unchanged.

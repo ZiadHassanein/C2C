@@ -1,13 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="480" height="254" viewBox="0 0 480 254" role="img" aria-labelledby="title desc">
-  <title id="title">C2C — Two perspectives. One clearer plan.</title>
-  <desc id="desc">A compact ink-colored banner with teal and terracotta accents for Codex and Claude.</desc>
-  <rect x="1" y="1" width="478" height="252" rx="18" fill="#142a2f" stroke="#29484d" stroke-width="2"/>
-  <g font-family="Segoe UI, Arial, sans-serif">
-    <rect x="28" y="28" width="6" height="16" rx="3" fill="#64c5b3"/>
-    <rect x="39" y="28" width="6" height="16" rx="3" fill="#e0a085"/>
-    <text x="57" y="42" font-size="16" font-weight="600" letter-spacing="1.4" fill="#c0d1d1">C2C</text>
-    <text x="27" y="108" font-size="43" font-weight="600" letter-spacing="-1.2" fill="#fbfaf6">Two perspectives.</text>
-    <text x="27" y="163" font-size="43" font-weight="600" letter-spacing="-1.2" fill="#fbfaf6">One clearer plan.</text>
-    <text x="29" y="216" font-size="20" fill="#b6cbcc">Plan with intent. Review with evidence.</text>
+  <title id="title">C2C — Plan, review, refine</title>
+  <desc id="desc">The C2C wordmark above a simple sequence: plan, review, refine. Use Codex, Claude Code, or both.</desc>
+  <rect width="480" height="254" fill="#f7f4ed"/>
+  <g transform="translate(29 23) scale(.79)" fill="none" stroke-width="17" stroke-linejoin="round">
+    <path d="M91 18H54C28 18 12 35 12 60S28 102 54 102H91" stroke="#202820"/>
+    <path d="M124 37C124 10 197 10 197 37C197 62 125 71 125 102H205" stroke="#b63827"/>
+    <path d="M319 18H282C256 18 240 35 240 60S256 102 282 102H319" stroke="#202820"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#202820">
+    <text x="34" y="170" font-size="29">Plan</text>
+    <text x="169" y="170" font-size="29">Review</text>
+    <text x="344" y="170" font-size="29">Refine</text>
+    <g fill="none" stroke="#b63827" stroke-width="2">
+      <path d="M111 160H143M135 153L143 160L135 167"/>
+      <path d="M289 160H321M313 153L321 160L313 167"/>
+    </g>
+    <text x="34" y="220" font-size="25" fill="#5d554d">Codex, Claude Code, or both.</text>
   </g>
 </svg>

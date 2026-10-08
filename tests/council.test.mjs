@@ -73,7 +73,7 @@ async function inputFixture(label) {
   await write(assessmentFile, assessment());
   return {root,project,out,brief,context,assessment:assessmentFile};
 }
-const prepareOptions = f => ({project:f.project,brief:f.brief,assessment:f.assessment,context:[f.context],coordinator:'codex',mode:'plan',out:f.out});
+const prepareOptions = f => ({project:f.project,brief:f.brief,assessment:f.assessment,context:[f.context],coordinator:'codex',mode:'plan','timeout-policy':'fixed',out:f.out});
 async function fixture(label, extra = {}) {
   const f = await inputFixture(label);
   await prepare({...prepareOptions(f),...extra});
@@ -106,6 +106,91 @@ test('report validator rejects incomplete and invalid reports', () => {
   assert.throws(()=>validateReport(report(['C-D1','C-D1'])));
   assert.throws(()=>validateReport(report(['C-R1']),'C-D'));
   assert.equal(REPORT_SCHEMA.type,'object');
+});
+
+test('new activity runs pass only an inactivity guard and retain honest unlimited-time artifacts', async () => {
+  for (const coordinator of ['codex', 'claude']) {
+    const f = await inputFixture(`activity-default-${coordinator}`);
+    const options = prepareOptions(f);
+    delete options['timeout-policy'];
+    const prepared = prepare({ ...options, coordinator, mode: 'review' });
+    assert.equal(prepared.budget.timeout_policy, 'activity');
+    assert.equal(prepared.budget.timeout_seconds, null);
+    assert.equal(prepared.budget.budget_seconds, null);
+    assert.equal(prepared.budget.idle_seconds, 600);
+    assert.equal(prepared.budget.max_attempts, 4);
+    await hostDraft(f);
+    await hostReview(f);
+    const packet = preview({ run: f.out, stage: 'review' });
+    assert.equal(packet.allowance.timeout_seconds, null);
+    const invoke = async request => {
+      assert.equal(request.timeoutMs, null, 'No fixed process deadline is invented');
+      assert.equal(request.idleTimeoutMs, 600000);
+      assert.equal(request.provider, coordinator === 'codex' ? 'claude' : 'codex');
+      return invocation()(request);
+    };
+    await ask({ run: f.out, stage: 'review' }, invoke);
+    await write(path.join(f.out, 'final-plan.md'), '# Ready candidate\nReview the implementation before release.');
+    await write(path.join(f.out, 'security-review.json'), report([], 'Synthetic applicable security assessment.'));
+    await write(path.join(f.out, 'decisions.json'), []);
+    await ask({ run: f.out, stage: 'verify' }, invoke);
+    const completed = finish({ run: f.out });
+    assert.equal(completed.budget.budget_seconds, null);
+    assert.equal(completed.successful_peer_calls, 2);
+    const result = await fs.readFile(path.join(f.out, 'RESULT.md'), 'utf8');
+    assert.match(result, /per-call cap not set, cumulative cap not set, inactivity guard 600 seconds/);
+    assert.doesNotMatch(result, /(?:NaN|Infinity|null) seconds/);
+    const handoff = await fs.readFile(path.join(f.out, 'HANDOFF.md'), 'utf8');
+    assert.match(handoff, /per-call timeout: not set/);
+    assert.doesNotMatch(handoff, /(?:NaN|Infinity|null) seconds/);
+  }
+});
+
+test('activity routes retain explicit hard caps and reject a removed policy marker', async () => {
+  const f = await fixture('activity-caps', { 'timeout-policy': 'activity', 'timeout-seconds': 30, 'budget-seconds': 10, 'idle-timeout-seconds': 90 });
+  await hostDraft(f);
+  await ask({ run: f.out, stage: 'draft' }, async request => {
+    assert.equal(request.timeoutMs, 10000, 'The smaller cumulative cap remains authoritative');
+    assert.equal(request.idleTimeoutMs, 90000);
+    return invocation()(request);
+  });
+  const saved = await read(path.join(f.out, 'run.json'));
+  assert.equal(saved.version, 7);
+  assert.equal(saved.attempts[0].timeout_ms, 10000);
+  assert.equal(saved.attempts[0].idle_timeout_ms, 90000);
+  delete saved.timeout_policy;
+  await write(path.join(f.out, 'run.json'), saved);
+  assert.throws(() => status({ run: f.out }), /timeout policy/);
+});
+
+test('Claude partial streaming is enabled only after selected CLI capability discovery', () => {
+  assert.equal(buildPeerArgs('claude', {}).includes('--include-partial-messages'), false);
+  const args = buildPeerArgs('claude', { claudePartialMessages: true });
+  assert.equal(args.filter(value => value === '--include-partial-messages').length, 1);
+  assert.equal(args[args.indexOf('--output-format') + 1], 'stream-json');
+  assert.equal(args[args.indexOf('--tools') + 1], '');
+  assert.ok(args.includes('--safe-mode'));
+});
+
+test('format six finite runs retain their original waiting and recovery rules', async () => {
+  const f = await fixture('format-six-timeouts');
+  const manifest = await read(path.join(f.out, 'run.json'));
+  const snapshot = await read(path.join(f.out, 'snapshot.json'));
+  manifest.version = 6;
+  snapshot.run_format = 6;
+  delete manifest.timeout_policy;
+  delete manifest.idle_timeout_ms;
+  delete manifest.initial_limits.idle_timeout_ms;
+  await write(path.join(f.out, 'snapshot.json'), snapshot);
+  manifest.seals['snapshot.json'] = createHash('sha256').update(await fs.readFile(path.join(f.out, 'snapshot.json'))).digest('hex');
+  await write(path.join(f.out, 'run.json'), manifest);
+  await hostDraft(f);
+  await ask({ run: f.out, stage: 'draft' }, async request => {
+    assert.equal(request.timeoutMs, 300000);
+    assert.equal(request.idleTimeoutMs, null);
+    return invocation()(request);
+  });
+  assert.equal(status({ run: f.out }).successful_peer_calls, 1);
 });
 
 test('bounded final revision check reviews changed plan and prior counterarguments without replaying verification', async () => {
@@ -177,7 +262,7 @@ test('generated completion preserves reviewed plan bytes and required calls acro
   for (const route of routes) {
     const f = await fixture(`stable-completion-${route.name}`, route.options);
     const initial = status({ run: f.out });
-    assert.equal((await read(path.join(f.out, 'run.json'))).version, 6);
+    assert.equal((await read(path.join(f.out, 'run.json'))).version, 7);
     assert.deepEqual(initial.budget.pending_stages, route.stages);
     assert.equal(initial.budget.successful_calls_remaining, route.stages.length);
     const calls = [];
@@ -540,7 +625,7 @@ test('prepare CLI accepts an explicit assessment and persists the preflight with
   assert.equal(result.status,0,result.stderr);
   assert.equal(JSON.parse(result.stdout).run,f.out);
   const manifest=await read(path.join(f.out,'run.json'));
-  assert.equal(manifest.version,6);
+  assert.equal(manifest.version,7);
   assert.equal(manifest.status,'prepared');
   assert.deepEqual(manifest.attempts,[]);
   assert.deepEqual(await read(path.join(f.out,'project-assessment.json')),assessment());
@@ -1040,7 +1125,7 @@ test('failed login and timeout resume in the same run only after sufficient audi
   const f = await fixture('extend-failed-draft');
   await hostDraft(f);
   await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async () => ({ code: 1, stdout: JSON.stringify({ type: 'result', is_error: true, errors: ['OAuth token has expired.'] }), stderr: '' })), /authentication|login/i);
-  const partial = JSON.stringify({ type: 'system', subtype: 'thinking_tokens', text: 'PRIVATE_RAW_PROGRESS' });
+  const partial = JSON.stringify({ type: 'system', subtype: 'thinking_tokens', estimated_tokens: 50, text: 'PRIVATE_RAW_PROGRESS' });
   await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async () => {
     await new Promise(resolve => setTimeout(resolve, 5));
     throw Object.assign(new Error('Simulated peer deadline exceeded (300 seconds)'), { reason: 'timeout', stdout: partial, stderr: '' });
@@ -1185,7 +1270,7 @@ test('completed runs reject budget changes and legacy runs retain their original
     const f = await fixture(`extend-legacy-${version}`);
     const manifest = await read(path.join(f.out, 'run.json'));
     manifest.version = version;
-    for (const key of ['pairing', 'coordinator_model', 'budget_profile', 'initial_limits', 'limit_history']) delete manifest[key];
+    for (const key of ['pairing', 'coordinator_model', 'budget_profile', 'initial_limits', 'limit_history', 'timeout_policy', 'idle_timeout_ms']) delete manifest[key];
     const snapshotPath = path.join(f.out, 'snapshot.json');
     const snapshot = await read(snapshotPath);
     delete snapshot.participants;
@@ -2468,7 +2553,7 @@ test('selected background planners and critics complete both modes and provider 
     const models = authorModels(coordinator, pairing);
     const f = await fixture(`author-${coordinator}-${pairing}-${mode}`, { coordinator, pairing, mode, ...models });
     const prepared = status({ run: f.out });
-    assert.equal((await read(path.join(f.out, 'run.json'))).version, 6);
+    assert.equal((await read(path.join(f.out, 'run.json'))).version, 7);
     assert.equal(prepared.participants.coordinator_model, null, 'The unknown host model must not be replaced by the selected planner');
     assert.equal(prepared.participants.author_model, models['author-model']);
     assert.equal(prepared.budget.successful_calls_remaining, mode === 'plan' ? 5 : 3);
@@ -2602,7 +2687,7 @@ test('background stages require their actual predecessors and never overwrite a 
 
 test('failed background author attempts stay charged through resume and successful stages cannot replay', async () => {
   const f = await fixture('author-recovery', { ...authorModels('claude'), coordinator: 'claude', pairing: 'same', mode: 'review' });
-  const failure = new Error('Synthetic author timeout'); failure.reason = 'timeout'; failure.stdout = JSON.stringify({ type: 'system', subtype: 'thinking_tokens' });
+  const failure = new Error('Synthetic author timeout'); failure.reason = 'timeout'; failure.stdout = JSON.stringify({ type: 'system', subtype: 'thinking_tokens', estimated_tokens: 50 });
   await assert.rejects(() => ask({ run: f.out, stage: 'author-draft' }, async () => { throw failure; }), /Synthetic author timeout/);
   const failed = await read(path.join(f.out, 'run.json'));
   assert.equal(failed.attempts[0].provider, 'claude');

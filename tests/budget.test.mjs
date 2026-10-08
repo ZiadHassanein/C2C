@@ -2,19 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareBudget, budgetSummary, recoverInterruptedAttempts, extendBudget } from '../scripts/budget.mjs';
 
-const state = options => ({ ...prepareBudget(options ?? {}), mode: 'plan', elapsed_ms: 0, attempts: [], stages: {}, status: 'prepared' });
+const activeState = options => ({ ...prepareBudget(options ?? {}), mode: 'plan', elapsed_ms: 0, attempts: [], stages: {}, status: 'prepared' });
+const state = options => {
+  const run = activeState({ ...options, 'timeout-policy': 'fixed' });
+  delete run.timeout_policy; delete run.idle_timeout_ms; delete run.initial_limits.idle_timeout_ms;
+  return run;
+};
 const at = '2026-10-07T12:00:00.000Z';
 
-test('budget profiles provide bounded allowances while explicit values remain authoritative', () => {
-  assert.deepEqual(prepareBudget({}).initial_limits, { timeout_ms: 300000, budget_ms: 900000, max_attempts: 4 });
-  assert.deepEqual(prepareBudget({ 'budget-profile': 'project' }).initial_limits, { timeout_ms: 600000, budget_ms: 2400000, max_attempts: 5 });
+test('activity profiles avoid implicit hard deadlines while explicit caps remain authoritative', () => {
+  assert.deepEqual(prepareBudget({}).initial_limits, { timeout_ms: null, budget_ms: null, max_attempts: 4, idle_timeout_ms: 600000 });
+  assert.deepEqual(prepareBudget({ 'budget-profile': 'project' }).initial_limits, { timeout_ms: null, budget_ms: null, max_attempts: 5, idle_timeout_ms: 1200000 });
   const custom = prepareBudget({ 'budget-profile': 'project', 'timeout-seconds': '20', 'budget-seconds': '30', 'max-attempts': '2' });
-  assert.deepEqual(custom.initial_limits, { timeout_ms: 20000, budget_ms: 30000, max_attempts: 2 });
+  assert.deepEqual(custom.initial_limits, { timeout_ms: 20000, budget_ms: 30000, max_attempts: 2, idle_timeout_ms: 1200000 });
   assert.equal(custom.budget_profile, 'project');
+  assert.equal(custom.timeout_policy, 'activity');
   assert.throws(() => prepareBudget({ 'budget-profile': 'unlimited' }), /budget-profile/);
-  for (const [name, values] of [['timeout-seconds', [0, 901, 1.5, 'NaN']], ['budget-seconds', [0, 3601, Infinity]], ['max-attempts', [0, 7, 1.5]]]) {
+  assert.throws(() => prepareBudget({ 'timeout-policy': 'unlimited' }), /timeout-policy/);
+  for (const [name, values] of [['timeout-seconds', [0, 901, 1.5, 'NaN']], ['budget-seconds', [0, 3601, Infinity]], ['max-attempts', [0, 7, 1.5]], ['idle-timeout-seconds', [0, 59, 3601, 60.5, Infinity]]]) {
     for (const value of values) assert.throws(() => prepareBudget({ [name]: value }), /must be an integer/);
   }
+});
+
+test('explicit fixed policy preserves old profile durations without an inactivity timer', () => {
+  const fixed = prepareBudget({ 'timeout-policy': 'fixed' });
+  assert.deepEqual(fixed.initial_limits, { timeout_ms: 300000, budget_ms: 900000, max_attempts: 4, idle_timeout_ms: null });
+  assert.equal(fixed.timeout_policy, 'fixed');
+  assert.deepEqual(prepareBudget({ 'budget-profile': 'project', 'timeout-policy': 'fixed' }).initial_limits,
+    { timeout_ms: 600000, budget_ms: 2400000, max_attempts: 5, idle_timeout_ms: null });
+  assert.throws(() => prepareBudget({ 'timeout-policy': 'fixed', 'idle-timeout-seconds': 600 }), /requires the activity/);
 });
 
 test('budget status separates definite attempt shortage from advisory runtime headroom', () => {
@@ -110,4 +126,125 @@ test('invalid runtime counters and reserved time fail before budget mutation', (
   assert.throws(() => recoverInterruptedAttempts(run, at), /reserved timeout/);
   assert.equal(run.elapsed_ms, 0);
   assert.equal(run.attempts[0].status, 'running');
+});
+
+test('activity summaries distinguish uncapped time from zero and retain finite attempt limits', () => {
+  const run = activeState();
+  const idle = budgetSummary(run);
+  assert.equal(idle.timeout_policy, 'activity');
+  assert.equal(idle.idle_seconds, 600);
+  for (const key of ['timeout_seconds', 'budget_seconds', 'peer_seconds_available', 'full_timeout_seconds_needed', 'full_timeout_headroom']) assert.equal(idle[key], null, key);
+  assert.equal(idle.peer_seconds_reserved, 0);
+  assert.equal(idle.assessment, 'ready_for_next_attempt');
+  run.attempts.push({ number: 1, status: 'running', timeout_ms: null });
+  const before = structuredClone(run), running = budgetSummary(run);
+  assert.equal(running.peer_seconds_reserved, null);
+  assert.equal(running.assessment, 'running_attempt_recorded');
+  assert.equal(running.attempts_remaining, 3);
+  assert.equal(running.attempts_sufficient, null);
+  assert.equal(running.attempts_sufficient_if_running_fails, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(running)), running, 'No Infinity or NaN is hidden by JSON serialization');
+  assert.deepEqual(run, before, 'Reading progress does not change accounting');
+});
+
+test('activity recovery retains unknown uncapped runtime without charging recovery downtime', () => {
+  const run = activeState();
+  run.elapsed_ms = 7000;
+  run.attempts = [{ number: 1, status: 'running', timeout_ms: null, started_at: '2026-10-01T00:00:00.000Z', elapsed_ms: 1234 }];
+  assert.equal(recoverInterruptedAttempts(run, at), 1);
+  assert.equal(run.elapsed_ms, 8234);
+  assert.equal(run.runtime_accounting_incomplete, true);
+  assert.equal(run.attempts[0].runtime_charge_ms, null);
+  assert.equal(run.attempts[0].runtime_known_ms, 1234);
+  assert.equal(run.attempts[0].runtime_charge_basis, 'unknown_after_interruption');
+  const summary = budgetSummary(run);
+  assert.equal(summary.peer_seconds_used, null);
+  assert.equal(summary.peer_seconds_used_known, 8);
+  assert.equal(summary.assessment, 'ready_for_next_attempt');
+  assert.match(summary.note, /total is unknown/);
+  assert.equal(recoverInterruptedAttempts(run, '2099-01-01T00:00:00.000Z'), 0);
+  assert.equal(run.elapsed_ms, 8234);
+});
+
+test('activity recovery without an observed duration marks unknown rather than inventing a duration', () => {
+  const run = activeState();
+  run.attempts = [{ status: 'running', timeout_ms: null }];
+  recoverInterruptedAttempts(run, at);
+  assert.equal(run.attempts[0].runtime_charge_ms, null);
+  assert.equal(run.attempts[0].runtime_known_ms, 0);
+  assert.equal(budgetSummary(run).peer_seconds_used, null);
+  assert.equal(budgetSummary(run).peer_seconds_used_known, 0);
+});
+
+test('a finite total remains fully reserved and charged after an uncapped interrupted attempt', () => {
+  const run = activeState({ 'budget-seconds': 100 });
+  run.elapsed_ms = 11000;
+  run.attempts = [{ number: 1, status: 'running', timeout_ms: null }];
+  assert.equal(budgetSummary(run).peer_seconds_reserved, 89);
+  assert.equal(budgetSummary(run).peer_seconds_available, 0);
+  recoverInterruptedAttempts(run, at);
+  assert.equal(run.attempts[0].runtime_charge_ms, 89000);
+  assert.equal(run.attempts[0].runtime_charge_basis, 'remaining_budget_after_interruption');
+  assert.equal(run.elapsed_ms, 100000);
+  assert.equal(budgetSummary(run).assessment, 'runtime_exhausted');
+  assert.equal(run.runtime_accounting_incomplete, undefined);
+});
+
+test('new policy permits a hard deadline derived from a one-hour total and retains its charge', () => {
+  const run = activeState({ 'budget-seconds': 3600 });
+  run.attempts = [{ status: 'running', timeout_ms: 3600000 }];
+  assert.equal(budgetSummary(run).peer_seconds_reserved, 3600);
+  recoverInterruptedAttempts(run, at);
+  assert.equal(run.elapsed_ms, 3600000);
+  assert.equal(run.attempts[0].runtime_charge_basis, 'reserved_timeout_after_interruption');
+  const legacy = state();
+  legacy.attempts = [{ status: 'running', timeout_ms: 900001 }];
+  assert.throws(() => budgetSummary(legacy), /reserved timeout/);
+});
+
+test('activity budget amendment preserves uncapped fields, policy and prior accounting', () => {
+  const run = activeState();
+  const before = structuredClone(run.initial_limits);
+  assert.equal(extendBudget(run, { 'idle-timeout-seconds': 1200, 'max-attempts': 5, reason: 'Allow longer silent intervals.' }, at), true);
+  assert.equal(run.idle_timeout_ms, 1200000);
+  assert.equal(run.timeout_policy, 'activity');
+  assert.equal(run.timeout_ms, null); assert.equal(run.budget_ms, null);
+  assert.deepEqual(run.initial_limits, before);
+  const amended = structuredClone(run);
+  for (const changes of [{ 'timeout-seconds': 900 }, { 'budget-seconds': 3600 }, { 'timeout-policy': 'fixed' }, { 'idle-timeout-seconds': 1199 }]) {
+    assert.throws(() => extendBudget(run, { ...changes, reason: 'An extension cannot tighten or replace the contract.' }, at), /cannot/);
+    assert.deepEqual(run, amended);
+  }
+  const capped = activeState({ 'timeout-seconds': 100, 'budget-seconds': 200 });
+  extendBudget(capped, { 'timeout-seconds': 200, 'budget-seconds': 300, reason: 'Raise existing explicit allowances.' }, at);
+  assert.equal(capped.timeout_ms, 200000); assert.equal(capped.budget_ms, 300000);
+  assert.equal(capped.idle_timeout_ms, 600000);
+});
+
+test('legacy contracts reject null timers and activity controls without mutation', () => {
+  const legacy = state(), before = structuredClone(legacy);
+  assert.equal(budgetSummary(legacy).timeout_policy, 'legacy');
+  assert.equal(budgetSummary(legacy).idle_seconds, null);
+  assert.throws(() => extendBudget(legacy, { 'idle-timeout-seconds': 900, reason: 'Cannot migrate in place.' }, at), /Legacy/);
+  assert.deepEqual(legacy, before);
+  for (const key of ['timeout_ms', 'budget_ms']) {
+    const malformed = structuredClone(legacy); malformed[key] = null;
+    assert.throws(() => budgetSummary(malformed), /Invalid/);
+  }
+  const running = structuredClone(legacy); running.attempts = [{ status: 'running', timeout_ms: null }];
+  assert.throws(() => recoverInterruptedAttempts(running, at), /reserved timeout/);
+  assert.equal(running.attempts[0].status, 'running');
+});
+
+test('invalid activity limits and interrupted accounting fail atomically', () => {
+  for (const change of [{ timeout_policy: 'other' }, { idle_timeout_ms: null }, { idle_timeout_ms: 59000 }, { runtime_accounting_incomplete: 'yes' }]) {
+    assert.throws(() => budgetSummary({ ...activeState(), ...change }), /invalid/i);
+  }
+  const run = activeState();
+  run.attempts = [{ status: 'running', timeout_ms: 20000 }, { status: 'running', timeout_ms: null, elapsed_ms: -1 }];
+  const before = structuredClone(run);
+  assert.throws(() => recoverInterruptedAttempts(run, at), /known elapsed/);
+  assert.deepEqual(run, before);
+  const capped = activeState({ 'budget-seconds': 100 }); capped.runtime_accounting_incomplete = true;
+  assert.equal(budgetSummary(capped).peer_seconds_available, 0, 'Unknown prior runtime cannot bypass a finite cap');
 });

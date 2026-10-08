@@ -158,6 +158,86 @@ test('successful calls return stdout, stderr and exit status while streaming fil
   assert.equal(failed.stdout, 'before-exit');
 });
 
+const contentActivity = event => event.type === 'delta' && typeof event.text === 'string' && event.text.length > 0;
+
+test('substantive streamed activity keeps an idle-guarded worker alive beyond its idle interval', async () => {
+  const started = Date.now();
+  const result = await node(`let n=0;const emit=()=>console.log(JSON.stringify({type:'delta',text:'part '+(++n)}));emit();const timer=setInterval(()=>{emit();if(n===5)clearInterval(timer);},500);`, {
+    idleTimeoutMs: 1400, isActivity: contentActivity,
+  });
+  assert.equal(result.code, 0);
+  assert.ok(Date.now() - started > 1800, 'Worker must continue beyond one idle interval');
+  assert.equal(result.activity.idle_timeout_ms, 1400);
+  assert.equal(result.activity.observed_events, 5);
+  assert.ok(Number.isFinite(Date.parse(result.activity.last_activity_at)));
+  assert.equal(result.termination.treeRequested, false);
+});
+
+test('idle guard stops a silent worker and retains bounded cleanup diagnostics', async () => {
+  const error = await rejection(node('setTimeout(()=>{},10000);', { idleTimeoutMs: 500, isActivity: contentActivity }));
+  assert.equal(error.reason, 'idle_timeout');
+  assert.equal(error.activity.observed_events, 0);
+  assert.equal(error.activity.last_activity_at, null);
+  assert.equal(error.termination.treeRequested, true);
+  assert.equal(error.termination.directExitObserved, true);
+});
+
+test('stderr, malformed JSON, primitive values and no-op events cannot extend the idle guard', async () => {
+  let callbacks = 0;
+  const started = Date.now();
+  const error = await rejection(node(`setInterval(()=>{process.stdout.write('broken json\\n42\\n[]\\n{"type":"heartbeat"}\\n{"type":"delta","text":""}\\n');process.stderr.write('{"type":"delta","text":"diagnostic only"}\\n');},60);`, {
+    idleTimeoutMs: 700, isActivity: event => { callbacks++; return contentActivity(event); },
+  }));
+  assert.equal(error.reason, 'idle_timeout');
+  assert.equal(error.activity.observed_events, 0);
+  assert.ok(callbacks > 0, 'Complete stdout objects reach the classifier');
+  assert.ok(Date.now() - started < 5000, 'Diagnostic chatter must not keep the worker alive');
+  assert.match(error.stderr, /diagnostic only/);
+});
+
+test('activity framing handles split UTF-8 JSONL and ignores partial or oversized lines', async () => {
+  const observed = [];
+  const result = await node(`const line=Buffer.from(JSON.stringify({type:'delta',text:'café'})+'\\n');const at=line.indexOf(Buffer.from('é'));process.stdout.write(line.subarray(0,at+1));setTimeout(()=>{process.stdout.write(line.subarray(at+1));process.stdout.write('x'.repeat(1024*1024+1)+'\\n');process.stdout.write(JSON.stringify({type:'delta',text:'after large line'})+'\\n');process.stdout.write(JSON.stringify({type:'delta',text:'unfinished'}));},80);`, {
+    idleTimeoutMs: 1400, isActivity: event => { observed.push(event); return contentActivity(event); },
+  });
+  assert.equal(result.code, 0);
+  assert.deepEqual(observed.map(event => event.text), ['café', 'after large line']);
+  assert.equal(result.activity.observed_events, 2);
+});
+
+test('explicit hard deadline still stops a continuously active worker', async () => {
+  const error = await rejection(node(`setInterval(()=>console.log(JSON.stringify({type:'delta',text:'more'})),70);`, {
+    timeoutMs: 900, idleTimeoutMs: 1400, isActivity: contentActivity,
+  }));
+  assert.equal(error.reason, 'timeout');
+  assert.ok(error.activity.observed_events > 1);
+  assert.equal(error.termination.treeRequested, true);
+});
+
+test('activity observer failures stop safely and output limits still apply in idle mode', async () => {
+  const failure = new Error('Synthetic classifier failure');
+  const rejected = await rejection(node(`console.log('{"type":"delta","text":"content"}');setTimeout(()=>{},10000);`, {
+    idleTimeoutMs: 1400, isActivity: () => { throw failure; },
+  }));
+  assert.equal(rejected.reason, 'activity_observer_error');
+  assert.equal(rejected.cause, failure);
+  assert.equal(rejected.termination.treeRequested, true);
+  const oversized = await rejection(node(`process.stdout.write('x'.repeat(5*1024*1024));setTimeout(()=>{},10000);`, {
+    idleTimeoutMs: 1400, isActivity: contentActivity,
+  }));
+  assert.equal(oversized.reason, 'output_limit');
+  assert.equal(Buffer.byteLength(oversized.stdout), 4 * 1024 * 1024);
+  assert.equal(oversized.activity.observed_events, 0);
+});
+
+test('idle mode requires a valid guard and classifier and cannot silently remove every timeout', async () => {
+  for (const options of [{ idleTimeoutMs: 0, isActivity: contentActivity }, { idleTimeoutMs: 100 }, { timeoutMs: null }]) {
+    const error = await rejection(node('process.exit(0);', options));
+    assert.equal(error.reason, 'spawn_error');
+    assert.equal(error.termination.treeRequested, false);
+  }
+});
+
 test('timeout retains emitted diagnostics and logs are visible before settlement', async () => {
   const stdoutPath = path.join(root, 'timeout-stdout.txt');
   const stderrPath = path.join(root, 'timeout-stderr.txt');

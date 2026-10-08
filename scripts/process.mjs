@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 
 const OUTPUT_LIMIT = 4 * 1024 * 1024;
 const PIPE_DRAIN_MS = 250;
 const TERMINATION_GRACE_MS = 2000;
+const ACTIVITY_LINE_LIMIT = 1024 * 1024;
 
 // Only signal the process/group created by this invocation. A Windows taskkill
 // failure falls back to the owned direct handle, which cannot guarantee that
@@ -96,11 +98,15 @@ export function processEnvironment(inheritedEnv, { peer = false, platform = proc
  * be streamed to caller-selected files (opened with write/truncate semantics).
  * Nonzero process exits are returned to the caller. Transport failures reject
  * with stdout, stderr, code, signal, reason, outputFiles and termination details.
+ * idleTimeoutMs uses a caller-owned classifier of bounded complete stdout JSONL
+ * objects. Only true resets its clock; stderr and incomplete lines never do.
+ * timeoutMs remains a separate hard cap. Omitting it in idle mode removes only
+ * that cap; calls without idle mode retain the legacy 30-second default.
  * A timeout/abort can settle after forced pipe closure; this does not establish
  * that every descendant was killed. Detached descendants may escape the group.
  */
 export function runProcess(executable, args, {
-  prompt = '', cwd, timeoutMs = 30000, peer = false,
+  prompt = '', cwd, timeoutMs, idleTimeoutMs, isActivity, peer = false,
   stdoutPath, stderrPath, signal: abortSignal, env: inheritedEnv = process.env,
 } = {}) {
   return new Promise((resolve, reject) => {
@@ -112,8 +118,14 @@ export function runProcess(executable, args, {
       directKillRequested: false, directExitObserved: false, pipeClosureForced: false,
     };
     let bytes = 0, child, failure, settled = false, closed = false, outputTruncated = false;
-    let exitCode = null, exitSignal = null, deadline, drainTimer, settlementTimer;
+    let exitCode = null, exitSignal = null, deadline, idleDeadline, drainTimer, settlementTimer;
     let stopTerminator = () => {};
+    // Existing metadata calls retain their fixed default. Worker idle mode has
+    // no total deadline unless the caller explicitly supplies one.
+    const hardTimeoutMs = timeoutMs === undefined ? (idleTimeoutMs === undefined ? 30000 : null) : timeoutMs;
+    const activity = idleTimeoutMs === undefined ? null : { idle_timeout_ms: idleTimeoutMs, observed_events: 0, last_activity_at: null };
+    const decoder = new StringDecoder('utf8');
+    let activityLine = '', oversizedActivityLine = false;
 
     const failureFor = (message, reason, cause) => {
       const error = cause ? new Error(message, { cause }) : new Error(message);
@@ -129,7 +141,7 @@ export function runProcess(executable, args, {
     const finish = (forcePipes = false) => {
       if (settled) return;
       settled = true;
-      clearTimeout(deadline); clearTimeout(drainTimer); clearTimeout(settlementTimer);
+      clearTimeout(deadline); clearTimeout(idleDeadline); clearTimeout(drainTimer); clearTimeout(settlementTimer);
       process.removeListener('SIGINT', interrupt);
       process.removeListener('SIGTERM', interrupt);
       abortSignal?.removeEventListener('abort', abort);
@@ -147,7 +159,7 @@ export function runProcess(executable, args, {
         stdout: Buffer.concat(chunks.stdout).toString('utf8'),
         stderr: Buffer.concat(chunks.stderr).toString('utf8'),
         code: exitCode, signal: exitSignal,
-        outputFiles, termination: { ...termination },
+        outputFiles, termination: { ...termination }, ...(activity ? { activity: { ...activity } } : {}),
       };
       if (failure) {
         Object.assign(failure, result);
@@ -158,13 +170,45 @@ export function runProcess(executable, args, {
     const stop = error => {
       if (settled || failure) return;
       failure = error;
-      clearTimeout(deadline); clearTimeout(drainTimer);
+      clearTimeout(deadline); clearTimeout(idleDeadline); clearTimeout(drainTimer);
       if (!child?.pid) { finish(true); return; }
       stopTerminator = terminateOwned(child, termination, () => { if (closed) finish(); });
       settlementTimer = setTimeout(() => finish(true), TERMINATION_GRACE_MS);
     };
     function interrupt() { stop(failureFor('Peer invocation interrupted', 'aborted')); }
     function abort() { stop(failureFor('Peer invocation aborted', 'aborted')); }
+
+    const resetIdleDeadline = () => {
+      clearTimeout(idleDeadline);
+      if (child && (child.exitCode !== null || child.signalCode !== null)) return;
+      idleDeadline = setTimeout(() => stop(failureFor(
+        `Peer produced no recognized model activity for ${Math.ceil(idleTimeoutMs / 1000)} seconds`, 'idle_timeout')), idleTimeoutMs);
+    };
+    const observeActivityLine = line => {
+      let event;
+      try { event = JSON.parse(line); } catch { return; }
+      if (!event || typeof event !== 'object' || Array.isArray(event)) return;
+      let substantive;
+      try { substantive = isActivity(event) === true; }
+      catch (error) { stop(failureFor('Peer activity observer failed', 'activity_observer_error', error)); return; }
+      if (!substantive) return;
+      activity.observed_events++;
+      activity.last_activity_at = new Date().toISOString();
+      resetIdleDeadline();
+    };
+    const observeActivity = buffer => {
+      const text = decoder.write(buffer);
+      let start = 0, newline;
+      while (!failure && (newline = text.indexOf('\n', start)) !== -1) {
+        const part = text.slice(start, newline);
+        if (!oversizedActivityLine && activityLine.length + part.length <= ACTIVITY_LINE_LIMIT) observeActivityLine(activityLine + part);
+        activityLine = ''; oversizedActivityLine = false; start = newline + 1;
+      }
+      if (failure) { activityLine = ''; return; }
+      const tail = text.slice(start);
+      if (!oversizedActivityLine && activityLine.length + tail.length <= ACTIVITY_LINE_LIMIT) activityLine += tail;
+      else { activityLine = ''; oversizedActivityLine = true; }
+    };
 
     const capture = (name, raw) => {
       if (settled) return;
@@ -186,6 +230,7 @@ export function runProcess(executable, args, {
             }
           } catch (error) { stop(fileFailure(name, error)); }
         }
+        if (activity && name === 'stdout' && !failure) observeActivity(accepted);
       }
       if (buffer.length > remaining) {
         outputTruncated = true;
@@ -194,7 +239,9 @@ export function runProcess(executable, args, {
     };
 
     try {
-      if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('timeoutMs must be a positive finite number');
+      if (timeoutMs === null || hardTimeoutMs !== null && (!Number.isFinite(hardTimeoutMs) || hardTimeoutMs <= 0)) throw new Error('timeoutMs must be a positive finite number');
+      if (idleTimeoutMs !== undefined && (!Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0)) throw new Error('idleTimeoutMs must be a positive finite number');
+      if (idleTimeoutMs !== undefined && typeof isActivity !== 'function') throw new Error('idleTimeoutMs requires an isActivity callback');
       const normalizedPath = filename => process.platform === 'win32' ? path.resolve(filename).toLowerCase() : path.resolve(filename);
       if (stdoutPath && stderrPath && normalizedPath(stdoutPath) === normalizedPath(stderrPath)) {
         throw new Error('stdoutPath and stderrPath must name different files');
@@ -224,8 +271,9 @@ export function runProcess(executable, args, {
       process.once('SIGINT', interrupt);
       process.once('SIGTERM', interrupt);
       abortSignal?.addEventListener('abort', abort, { once: true });
-      deadline = setTimeout(() => stop(failureFor(
-        `Peer deadline exceeded (${Math.ceil(timeoutMs / 1000)} seconds)`, 'timeout')), timeoutMs);
+      if (hardTimeoutMs !== null) deadline = setTimeout(() => stop(failureFor(
+        `Peer deadline exceeded (${Math.ceil(hardTimeoutMs / 1000)} seconds)`, 'timeout')), hardTimeoutMs);
+      if (activity) resetIdleDeadline();
       child.stdout.on('data', data => capture('stdout', data));
       child.stderr.on('data', data => capture('stderr', data));
       child.stdout.on('error', error => stop(failureFor(`Peer stdout failed: ${error.message}`, 'stream_error', error)));
@@ -238,6 +286,7 @@ export function runProcess(executable, args, {
         if (settled) return;
         exitCode = code; exitSignal = signal;
         termination.directExitObserved = true;
+        clearTimeout(idleDeadline);
         if (!failure) drainTimer = setTimeout(() => stop(failureFor(
           'Peer exited but inherited output pipes remained open', 'retained_pipes')), PIPE_DRAIN_MS);
       });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readPeerProgress } from '../scripts/progress.mjs';
+import { createActivityObserver, readPeerProgress } from '../scripts/progress.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 const root = fs.mkdtempSync(path.join(parent, 'council-progress-tests-'));
@@ -106,7 +106,7 @@ test('timed-out activity preserves phase without claiming a response or ongoing 
 
 test('partial and malformed JSON cannot leak text or hide earlier activity', () => {
   const f = fixture('partial');
-  log(f, `not json ${secret}\n${JSON.stringify({ type: 'system', subtype: 'thinking_tokens' })}\n{"type":"assistant","message":"${secret}`);
+  log(f, `not json ${secret}\n${JSON.stringify({ type: 'system', subtype: 'thinking_tokens', estimated_tokens: 1 })}\n{"type":"assistant","message":"${secret}`);
   const status = readPeerProgress(f.dir, f.state, began + 2000);
   assert.equal(status.phase, 'model_working');
   assert.doesNotMatch(JSON.stringify(status), new RegExp(secret));
@@ -190,4 +190,142 @@ test('oversized and nonregular log files are skipped and symbolic links are not 
   assert.equal(status.stdout_log_state, 'unsafe');
   assert.equal(status.stdout_bytes, null);
   assert.doesNotMatch(JSON.stringify(status), new RegExp(secret));
+});
+
+test('activity waiting reports its idle allowance without a hard deadline or fake semantic clock', () => {
+  const f = fixture('activity', { timeout_ms: null, idle_timeout_ms: 300000, stage: 'verify-final' });
+  log(f, [{ type: 'system', subtype: 'api_retry', attempt: 2 }]);
+  const status = readPeerProgress(f.dir, f.state, began + 3 * 24 * 60 * 60 * 1000);
+  assert.equal(status.timeout_ms, null);
+  assert.equal(status.idle_timeout_ms, 300000);
+  assert.equal(status.deadline_at, null);
+  assert.equal(status.remaining_ms, null);
+  assert.equal(status.elapsed_ms, 3 * 24 * 60 * 60 * 1000);
+  assert.equal(status.stage, 'verify-final');
+  assert.equal(status.last_activity_source, 'log_mtime');
+  assert.equal(status.last_activity_at, status.last_output_at);
+  assert.equal(status.last_activity_age_ms, status.last_output_age_ms);
+  f.state.attempts[0].status = 'succeeded';
+  f.state.attempts[0].elapsed_ms = status.elapsed_ms;
+  f.state.stages['verify-final'] = { status: 'succeeded', attempt: 1 };
+  assert.equal(readPeerProgress(f.dir, f.state).report_validated, true);
+  assert.equal(readPeerProgress(f.dir, f.state).elapsed_ms, status.elapsed_ms);
+});
+
+test('explicit hard deadlines remain visible alongside an idle allowance', () => {
+  const f = fixture('fixed-and-idle', { timeout_ms: 600000, idle_timeout_ms: 300000 });
+  const status = readPeerProgress(f.dir, f.state, began + 1000);
+  assert.equal(status.timeout_ms, 600000);
+  assert.equal(status.idle_timeout_ms, 300000);
+  assert.equal(status.deadline_at, new Date(began + 600000).toISOString());
+  assert.equal(status.remaining_ms, 599000);
+  f.state.attempts[0].idle_timeout_ms = Infinity;
+  assert.equal(readPeerProgress(f.dir, f.state).idle_timeout_ms, null);
+});
+
+test('progress phase cannot mistake replayed reasoning or tool noise for new model work', () => {
+  const f = fixture('stale-phase');
+  log(f, [{ type: 'system', subtype: 'thinking_tokens', estimated_tokens: 50 },
+    { type: 'system', subtype: 'api_retry', attempt: 1 },
+    { type: 'system', subtype: 'thinking_tokens', estimated_tokens: 50, uuid: 'new-envelope' }]);
+  assert.equal(readPeerProgress(f.dir, f.state).phase, 'provider_retry');
+  f.state.peer = 'codex';
+  log(f, [{ type: 'thread.started' }, { type: 'turn.started' },
+    { type: 'item.updated', item: { type: 'command_execution', text: secret } }]);
+  assert.equal(readPeerProgress(f.dir, f.state).phase, 'initializing');
+});
+
+test('Claude thinking activity requires a strictly increasing safe counter, not fresh event IDs', () => {
+  const observe = createActivityObserver('claude');
+  const thinking = (tokens, uuid = 'event') => ({ type: 'system', subtype: 'thinking_tokens', session_id: 'session', uuid, estimated_tokens: tokens, estimated_tokens_delta: 99 });
+  for (const tokens of [undefined, null, -1, 0, 1.5, Infinity, '1', Number.MAX_SAFE_INTEGER + 1]) assert.equal(observe(thinking(tokens)), false);
+  assert.equal(observe(thinking(50)), true);
+  assert.equal(observe(thinking(50, 'fresh-but-stale')), false);
+  assert.equal(observe(thinking(40)), false);
+  assert.equal(observe(thinking(100)), true);
+  assert.equal(observe(thinking(50)), false);
+  assert.equal(createActivityObserver('claude')(thinking(50)), true);
+});
+
+test('Claude snapshots reject replayed text and track actual structured content instead of tool metadata', () => {
+  const observe = createActivityObserver('claude');
+  const assistant = content => ({ type: 'assistant', message: { id: 'message-1', content } });
+  const first = assistant([{ type: 'thinking', thinking: secret }]);
+  assert.equal(observe(first), true);
+  assert.equal(observe({ ...first, uuid: 'changed-envelope', timestamp: 'later' }), false);
+  assert.equal(observe(assistant([{ type: 'thinking', thinking: `${secret} continued` }])), true);
+  assert.equal(observe(first), false);
+  assert.equal(observe(assistant([{ type: 'tool_use', name: 'Bash', input: { command: secret } }])), false);
+  assert.equal(observe(assistant([{ type: 'tool_use', name: 'StructuredOutput', input: {} }])), false);
+  const report = assistant([{ type: 'tool_use', name: 'StructuredOutput', input: { summary: secret, verdict: 'ready' } }]);
+  assert.equal(observe(report), true);
+  assert.equal(observe(report), false);
+  assert.equal(observe(assistant([{ type: 'tool_use', name: 'StructuredOutput', input: { verdict: 'ready', summary: secret } }])), false);
+  assert.equal(observe(assistant([{ type: 'text', text: '   ' }])), false);
+});
+
+test('Claude streaming deltas require content and reject replayed IDs; tool JSON is not generic activity', () => {
+  const observe = createActivityObserver('claude');
+  const stream = (event, uuid) => ({ type: 'stream_event', uuid, session_id: 's', event });
+  assert.equal(observe(stream({ type: 'message_start', message: { id: 'm' } })), false);
+  assert.equal(observe(stream({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })), false);
+  const delta = stream({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: secret } }, 'unique-1');
+  assert.equal(observe(delta), true);
+  assert.equal(observe(delta), false);
+  assert.equal(observe({ ...delta, uuid: 'unique-2' }), true);
+  assert.equal(observe(stream({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '' } }, 'unique-3')), false);
+  const json = { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"summary":' } };
+  assert.equal(observe(stream(json)), false);
+  assert.equal(observe(stream({ type: 'content_block_start', index: 1, content_block: { type: 'tool_use', name: 'Bash', input: {} } })), false);
+  assert.equal(observe(stream(json)), false);
+  assert.equal(observe(stream({ type: 'content_block_start', index: 1, content_block: { type: 'tool_use', name: 'StructuredOutput', input: {} } })), false);
+  assert.equal(observe(stream(json)), true);
+  assert.equal(observe(stream(json)), false);
+  assert.equal(observe(stream({ type: 'message_delta', usage: { output_tokens: 8 } })), true);
+  assert.equal(observe(stream({ type: 'message_delta', usage: { output_tokens: 8 } })), false);
+});
+
+test('Codex activity follows model items and rejects tool output, status changes and stale snapshots', () => {
+  const observe = createActivityObserver('codex');
+  const item = (type, text, event = 'item.updated') => ({ type: event, item: { id: 'item-1', type, text } });
+  for (const kind of ['command_execution', 'mcp_tool_call', 'file_change', 'web_search', 'todo_list']) assert.equal(observe(item(kind, secret)), false);
+  assert.equal(observe(item('reasoning', '')), false);
+  assert.equal(observe(item('reasoning', secret, 'item.started')), true);
+  assert.equal(observe(item('reasoning', secret, 'item.completed')), false);
+  assert.equal(observe(item('reasoning', `${secret} more`)), true);
+  assert.equal(observe(item('reasoning', secret)), false);
+  assert.equal(observe(item('agent_message', secret)), true);
+  const structured = { type: 'item.completed', item: { id: 'item-2', type: 'structured_output', structured_output: { summary: secret } } };
+  assert.equal(observe(structured), true);
+  assert.equal(observe(structured), false);
+});
+
+test('Codex deltas use advancing sequence metadata and conservative content replay checks without it', () => {
+  const observe = createActivityObserver('codex');
+  const delta = { type: 'response.reasoning_text.delta', item_id: 'r', delta: secret, sequence_number: 0 };
+  assert.equal(observe(delta), true);
+  assert.equal(observe(delta), false);
+  assert.equal(observe({ ...delta, sequence_number: 1 }), true);
+  assert.equal(observe(delta), false);
+  assert.equal(observe({ ...delta, sequence_number: 2, delta: '' }), false);
+  assert.equal(observe({ ...delta, sequence_number: Number.MAX_SAFE_INTEGER }), false);
+  const unsequenced = { type: 'response.output_text.delta', item_id: 't', delta: secret };
+  assert.equal(observe(unsequenced), true);
+  assert.equal(observe(unsequenced), false);
+  assert.equal(observe({ ...unsequenced, delta: `${secret} more` }), true);
+});
+
+test('initialization, lifecycle markers, retries, errors and heartbeat noise never extend idle waiting', () => {
+  const noise = [null, [], 'text', 5, {}, { type: 'system', subtype: 'init', model: secret },
+    { type: 'system', subtype: 'api_retry', attempt: 2, estimated_tokens: 50 },
+    { type: 'system', subtype: 'heartbeat', estimated_tokens: 50 }, { type: 'thread.started' }, { type: 'turn.started' },
+    { type: 'turn.completed', usage: { output_tokens: 100 } }, { type: 'turn.failed', error: { message: secret } },
+    { type: 'error', message: secret }, { type: 'result', result: secret }, { type: 'ping' },
+    { type: 'assistant', is_error: true, message: { content: [{ type: 'text', text: secret }] } },
+    { type: 'item.updated', error: { message: secret }, item: { type: 'reasoning', text: secret } },
+    { type: 'stream_event', event: { type: 'ping' } }, { type: 'stream_event', event: { type: 'error', error: secret } }];
+  for (const provider of ['claude', 'codex', 'unknown']) {
+    const observe = createActivityObserver(provider);
+    for (const event of noise) assert.equal(observe(event), false, `${provider}: ${JSON.stringify(event)}`);
+  }
 });

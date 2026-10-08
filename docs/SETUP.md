@@ -17,14 +17,14 @@ Use this page when you need help with installation, updating, or a failed setup 
 With [Node.js 18+ and npm/npx](https://nodejs.org/en/download), run in PowerShell on Windows or Terminal on macOS/Linux:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz install
 ```
 
 This downloads the named C2C release and runs its setup helper. It needs no Git, npm account or global package installation. Both apps receive the skill for your current user; start a new chat afterward. It does not install the provider CLIs, create accounts or sign in. [Optional CLI setup](../README.md#1-prepare-your-tools) is separate.
 
 Append `--dry-run` to `install`, `update` or `uninstall` to inspect the selected paths and planned changes without changing skill installations. The surrounding `npx` command can still download files into npm's cache. `--target codex`, `--target claude` or `--target both` selects the apps; `both` is the default.
 
-The launcher is pinned to **v2.0.1**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
+The launcher is pinned to **v2.1.0**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
 
 <details>
 <summary>Install from a Git clone or downloaded ZIP</summary>
@@ -38,7 +38,7 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-Without Git, [download the v2.0.1 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
+Without Git, [download the v2.1.0 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
 
 `node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `check-update`, `update`, `uninstall`, `doctor`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
 
@@ -49,11 +49,11 @@ Without Git, [download the v2.0.1 ZIP](https://github.com/ZiadHassanein/C2C/arch
 The default installer adds the skill to both apps. To choose one, run **one** of these instead:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz install --target codex
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz install --target codex
 ```
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz install --target claude
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz install --target claude
 ```
 
 This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI, whether selected automatically or requested. Missing unused CLIs do not block a valid route. See [routing and provisional planning](../references/protocol.md#planning-with-unavailable-tools).
@@ -100,7 +100,7 @@ Store run folders on a local filesystem supporting hard links and atomic renames
 From any folder with npm/npx available:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz doctor
 ```
 
 Or open a terminal in your cloned/extracted C2C folder and run:
@@ -135,7 +135,7 @@ An inaccessible or expired login leaves that worker unavailable. C2C follows its
 **In chat:** say “Update C2C and keep this plan on its current version.” The AI checks the active run before updating. For a direct terminal update:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz update
 ```
 
 This discovers the latest stable tag in the official C2C repository. Append `--target codex` or `--target claude` for one app, or `--dry-run` to preview. During a prepared run, include `--run "/absolute/path/to/run"` so its retained runtime is checked first. Changed installations are protected. An identical installation needs no replacement. Start a new chat to use the updated instructions for a new plan.
@@ -212,7 +212,7 @@ Downloading updates alone does not update installed copies. Matching content, in
 **Finish or stop active C2C runs first.** Removing the skill does not stop a worker that is already running. Then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz uninstall
 ```
 
 The command moves unchanged managed C2C folders out of skill discovery into recoverable backups. It protects customized, unrecognized or linked files instead of deleting them. A missing target is a no-op. It leaves parent settings, other skills, apps, logins, and projects/plans saved elsewhere untouched. Start a new chat in each affected app; an existing chat may still contain previously loaded instructions.
@@ -220,7 +220,7 @@ The command moves unchanged managed C2C folders out of skill discovery into reco
 Preview first, without changing skill installations:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz uninstall --dry-run
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz uninstall --dry-run
 ```
 
 Add `--target codex` or `--target claude` to remove the skill from only one app. Keep the printed rollback command to restore it; rollback protects any installation added or changed afterward. For an interrupted operation, use its printed recovery guidance. [Transaction recovery](#update-the-skill) also applies to managed removal.
@@ -234,7 +234,7 @@ From a downloaded/cloned C2C folder:
 node scripts/setup.mjs uninstall
 ```
 
-This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.0.1 installed copy also contains the helper. For example, with default paths:
+This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.1.0 installed copy also contains the helper. For example, with default paths:
 
 PowerShell on Windows:
 
@@ -274,13 +274,13 @@ Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans
 If PowerShell blocks `npx.ps1`, use `npx.cmd` in the same command. No execution-policy change is needed:
 
 ```powershell
-npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz install
+npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz install
 ```
 
 If npm 12 rejects the remote package URL, permit it for this command only:
 
 ```sh
-npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz install
+npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz install
 ```
 
 This follows npm's [remote URL setting](https://docs.npmjs.com/cli/v12/using-npm/config/#allow-remote); do not change global npm policy. Keep the exact release URL and replace the final action with `update`, `uninstall` or `doctor` as needed. On Windows, the `npx.cmd` form can also include this option. If npm/npx is unavailable or your environment disallows remote packages, use the local Git/ZIP method instead.
@@ -322,17 +322,19 @@ Replace the path with the run folder. Run this between stages to refresh the dis
 
 Before planning, the AI checks the relevant project context and makes the goal, scope, success criteria, and next step explicit. It writes the assessment files for you. It may ask a focused question when an essential requirement is missing; unknown deployment details alone do not prevent a useful plan. Read `PROJECT_CONTEXT.md` for the evidence and limits. For an assessment without a peer discussion, ask for “assessment only.”
 
-The skill runs a short, bounded exchange through your existing provider accounts. Normal provider usage applies.
+The skill runs a staged exchange through your existing provider accounts. Normal provider usage applies.
 
 C2C reduces repeated instructions, report reads and review prose by default. The AI uses `--compact` for routine runner output; it preserves every JSON field while removing formatting whitespace. Manual commands remain formatted for readability unless you add that flag. This does not change models, review stages or limits; actual usage depends on the task and provider. See [token efficiency](../references/protocol.md#token-efficiency).
 
 | Allowance | Standard: bounded work | Project: large/deep plans |
 |---|---|---|
-| Time per peer call | 5 minutes | 10 minutes |
-| Combined peer runtime per run | 15 minutes | 40 minutes |
+| Inactivity guard | 10 minutes without recognized progress | 20 minutes without recognized progress |
+| Fixed call / total deadline by default | None | None |
 | Launch attempts, including failed calls | 4 | 5 |
 
-With the current chat as author, required stages use two successful calls for focused review or three for independent planning. A background author raises these to three and five respectively; its independent-planning route defaults to six attempts unless explicitly capped. The optional final-revision check adds at most one successful call. All author and peer calls share the run's allowance. The coordinator states the route and ceilings before starting; manual `prepare` defaults to `standard`, and explicit limit flags override defaults. These are runtime and attempt limits, **not spending or token caps**. [Bounded recovery](#when-a-peer-call-takes-longer) preserves successful stages and charged attempts; starting over cannot reset a failed run's budget.
+Recognized advancing model activity renews the guard; stderr, retries and heartbeats do not. A silent worker may still be thinking, so guard expiry reports missing observed progress rather than a proven hang. Explicit user time caps, provider failures/limits, cancellation and output bounds still apply. These controls are **not spending or token caps**.
+
+With the current chat as author, required stages use two successful calls for focused review or three for independent planning. A background author makes these three and five; its plan route defaults to six attempts unless explicitly capped. One final-revision check may use another attempt. The coordinator states the route, guard, attempts and any hard caps once. [Same-run recovery](#when-a-peer-call-takes-longer) preserves successful stages and every used attempt.
 
 Your current chat selects the brief and relevant context to send to the peer's provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
 
@@ -352,7 +354,7 @@ Every new council plan includes a security review and relevant test checks. The 
 |---|---|
 | `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `npx` is missing, PowerShell blocks it, or npm rejects the remote URL | Follow [npx and PowerShell help](#npx-and-powershell-help); local Node setup remains available without npm/npx. |
-| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.zip), extract it, and open a terminal in the folder containing `scripts`. |
+| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/setup.mjs` or `scripts/install.mjs` | You are in the wrong folder or using an older source copy. Open a terminal in the extracted or cloned current release, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise apply [available-provider routing](#choose-the-participants). If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
 | `doctor` reports signed out | Treat that worker as unavailable and apply [routing rules](#choose-the-participants). If you choose setup repair, check the environment/access row below before renewing the selected native login. |
@@ -375,17 +377,20 @@ For a damaged or stale run lock, ask the AI to inspect the saved state and follo
 
 ## When a peer call takes longer
 
-A signed-in peer can take longer than its deadline to return a complete structured plan. Opening another app or terminal does not fix that. C2C uses a larger allowance for large/deep project planning and shows safe activity while waiting: elapsed time, remaining allowance, and received-output size. Activity means the worker has emitted output; it does not mean a usable proposal or review is ready. The AI does not expose raw reasoning or treat a partial response as agreement.
+New C2C 2.1 runs keep waiting while recognized model activity advances. They do not apply a fixed call or total deadline by default. The inactivity guard is 10 minutes for standard work or 20 minutes for project planning. Some CLI versions emit little activity during computation; even with supported streaming events, silence cannot prove a hang. C2C preserves diagnostics without exposing raw reasoning or treating partial output as a valid review.
+
+Advanced `prepare` options: `--idle-timeout-seconds 60..3600` adjusts the activity guard. `--timeout-seconds 10..900` and `--budget-seconds 10..3600` set hard call/total caps that activity cannot override. Use actual numbers, not these range expressions. `--timeout-policy fixed` restores the older standard 5-minute call/15-minute total or project 10-minute call/40-minute total defaults. Older pinned runs keep their original policy; an update does not change them.
 
 For an existing incomplete run, ask:
 
 ```text
 Use C2C to inspect and resume this run. Preserve successful stages.
-If your original allowance was too small, extend this same run within
-the bounded recovery limits. Keep my model settings and explicit caps.
+If the inactivity guard or an existing time allowance was too small,
+adjust this same run within the recovery rules. Keep my model settings
+and explicit caps; do not repeat completed stages.
 ```
 
-C2C first checks the failure and remaining stages. If recovery is covered by your existing request, it can increase its own conservative allowance without another approval prompt. It records why the limits changed and keeps every used attempt, completed stage, and reviewed artifact. It must respect any time, attempt, or spending cap you set. Fixing a rejected login can still require your participation in the native sign-in flow.
+C2C checks the cause, cleanup state and remaining stages first. When your existing request covers recovery, it can increase a coordinator-selected guard or existing numeric allowance without another approval prompt. It records the change and preserves used attempts, completed stages and reviewed artifacts. It cannot remove a cap or change an existing run's fixed/activity policy. Your time, attempt and spending restrictions still apply. Login repair can require your participation in the native sign-in flow.
 
 Advanced users can check a pending call without repeating the project assessment/history or making a model call:
 
@@ -395,7 +400,7 @@ node scripts/council.mjs progress --run "/absolute/path/to/run" --compact
 
 Use `status` instead of `progress` for full budget and stage details before recovery or resumption.
 
-The [technical recovery command](../references/protocol.md#budgets-and-bounded-recovery) takes absolute totals, with hard ceilings of 15 minutes per call, 60 cumulative peer minutes, and six attempts. It never launches a peer itself or changes a running deadline. Exhausted ceilings leave an honest partial plan; successful stages are never replayed and a fresh run is not a way to bypass the cap.
+The [technical recovery command](../references/protocol.md#budgets-and-bounded-recovery) takes absolute values: at most 60 minutes for an activity guard, 15 minutes for an existing call cap, 60 minutes for an existing cumulative cap, and six attempts. It makes no worker call or change to a running timer. Interrupted uncapped runtime stays unknown with its known lower bound. Preserve that uncertainty and any finite whole-task cap; never start over solely to escape a timeout.
 
 ## When a participant hits a usage limit
 

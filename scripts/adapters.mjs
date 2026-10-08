@@ -235,7 +235,7 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     if (['cli_not_found', 'cli_override_unusable'].includes(error.reason)) throw error;
     throw providerSetupError(provider, 'cli_check_failed', `${provider} executable discovery could not complete.`);
   }
-  let executable, version, codexFeatures;
+  let executable, version, codexFeatures, claudePartialMessages = false;
   const candidateChecks = [];
   const check = async (args, label) => {
     let result;
@@ -251,10 +251,15 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     executable = candidate;
     version = undefined;
     codexFeatures = undefined;
+    claudePartialMessages = false;
     try {
       version = (await check(['--version'], 'version check')).stdout.trim();
       const help = await check(provider === 'codex' ? ['exec', '--help'] : ['--help'], 'help check');
       for (const flag of flags) if (!help.stdout.includes(flag)) throw providerSetupError(provider, 'cli_incompatible', `${provider} is missing required ${flag}; the worker safety controls cannot be relaxed.`);
+      // Optional progress support belongs to the selected binary, not a reason
+      // to skip an otherwise compatible installation or run another command.
+      const hasFlag = flag => new RegExp(`(?:^|\\s)${flag}(?=[\\s,=]|$)`).test(help.stdout);
+      if (provider === 'claude') claudePartialMessages = hasFlag('--include-partial-messages');
       if (provider === 'codex') codexFeatures = parseCodexFeatures((await check(['features', 'list'], 'feature discovery')).stdout);
       break;
     } catch (error) {
@@ -304,7 +309,7 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     ...(!authenticated ? { reason: 'login_unavailable', guidance: providerSetupGuidance(provider) } : {}),
     auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,
     auth_route: authRoute, route_environment_overrides: routeOverrides,
-    ...(provider === 'claude' ? { subscription_type: subscriptionType } : {}),
+    ...(provider === 'claude' ? { subscription_type: subscriptionType, claude_partial_messages: claudePartialMessages } : {}),
     authentication_note: 'CLI credential status does not validate token freshness, refresh success, or model access. No peer terminal or app needs to stay open.',
     billing_check: 'not_checked', included_allowance_verified: false,
     quota_status: 'unknown', overage_status: 'unknown',

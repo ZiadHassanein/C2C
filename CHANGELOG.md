@@ -2,7 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
-## 2.0.1 — Review launch diagnostics
+## 2.1.0 — Wait for active reviews and clarify launch checks
+
+- New format 7 runs use activity-based waiting: recognized advancing model output renews a 10-minute standard or 20-minute project inactivity guard. There is no fixed call/total deadline by default. Attempts, cancellation, provider failures/limits and output bounds remain enforced.
+- Explicit call/total time caps still apply during activity. `--timeout-policy fixed` keeps the earlier profile deadlines; pinned older runs keep their original code and policy. No silent migration or new run just to escape a timeout.
+- Supports idle-guard adjustments and audited increases to existing numeric limits on the same run. Interrupted uncapped runtime remains unknown with a known lower bound; finite reservations are charged conservatively. These are not spending controls or performance guarantees.
+- Recognizes substantive output/counters rather than stderr, retries, initialization, heartbeats or stale duplicates. Uses Claude partial-message events when supported. Quiet computation can still outlast the guard; missing observed activity is not proof of a hang.
 
 - Separates normal authorized subscription use, no-paid-limit recovery and explicit zero-extra-charge restrictions. Unknown quota metadata no longer implies a provider is unavailable; genuine strict billing limits remain enforced by the coordinating instructions.
 - Selects candidate models and host/worker roles before checking launch eligibility. Only required workers need account checks; strict limits use available supported read-only evidence before falling back.

@@ -14,11 +14,11 @@ import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRu
 import { renderDiscussion } from './discussion.mjs';
 import { participantsFromOptions, validateParticipants, participantLabel, participantSummary, validateReportedModels, requiredStages, stageWorker } from './participants.mjs';
 import { prepareBudget, budgetSummary, recoverInterruptedAttempts, extendBudget } from './budget.mjs';
-import { readPeerProgress } from './progress.mjs';
+import { readPeerProgress, createActivityObserver } from './progress.mjs';
 import { EVIDENCE_REQUEST_SCHEMA, validateEvidenceRequests, createEvidenceRecord, validateEvidenceLedger, evidenceForStage } from './evidence.mjs';
 import { packageRuntimeIdentity, pinRuntime, assertMatchingRuntime, routeRunCommand, routePrepareCommand, validateRunOutput } from './runtime.mjs';
 
-const VERSION = 6;
+const VERSION = 7;
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PACKAGE_RUNTIME = packageRuntimeIdentity(PACKAGE_ROOT);
@@ -26,6 +26,10 @@ const LIMIT = 1024 * 1024;
 const CONTEXT_LIMIT = 240000;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const now = () => new Date().toISOString();
+const secondsText = value => value === null || value === undefined ? 'not set' : `${value} seconds`;
+const runtimeUsedText = budget => budget.peer_seconds_used === null
+  ? `unknown total (at least ${budget.peer_seconds_used_known} recorded seconds)`
+  : `${budget.peer_seconds_used} seconds`;
 const required = (ok, message) => { if (!ok) throw new Error(message); };
 const obj = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
 const str = { type: 'string' };
@@ -168,7 +172,8 @@ function loadRun(run, { allowLegacy = false } = {}) {
   const dir = fs.realpathSync(path.resolve(run));
   const state = readRunState(dir);
   const runtime = assertMatchingRuntime(dir, PACKAGE_RUNTIME, { allowLegacy });
-  required([1, 2, 3, 4, 5, VERSION].includes(state.version) && ['codex', 'claude'].includes(state.peer), 'Unsupported run manifest');
+  required([1, 2, 3, 4, 5, 6, VERSION].includes(state.version) && ['codex', 'claude'].includes(state.peer), 'Unsupported run manifest');
+  if (state.version >= 7) required(['activity', 'fixed'].includes(state.timeout_policy), 'Format 7 requires an explicit timeout policy; preserve the prepared run');
   required(state.author_model ? state.version >= 5 : state.version !== 5, 'Background author routing requires format 5 or later; do not downgrade or remove the sealed author route');
   budgetSummary(state);
   for (const [file, hash] of Object.entries(state.seals)) {
@@ -295,9 +300,9 @@ function writeHandoff(dir, state) {
     ...(state.author_model ? ['Background planner: ' + participantLabel(state, 'author') + '. The current chat remains the coordinator.'] : []),
     participantSummary(state).identity_note,
     'Status: ' + state.status, 'Attempts: ' + state.attempts.length + '/' + state.max_attempts + '; successful responses: ' + state.attempts.filter(a => a.status === 'succeeded').length + '.',
-    'Peer runtime used: ' + Math.round(state.elapsed_ms / 1000) + ' / ' + Math.round(state.budget_ms / 1000) + ' seconds.', '',
-    `Budget profile: ${budget.profile}; per-call timeout: ${budget.timeout_seconds} seconds; recorded limit changes: ${budget.limit_changes}.`,
-    `Pending peer stages: ${budget.successful_calls_remaining}; attempts remaining: ${budget.attempts_remaining}; full-timeout headroom: ${budget.full_timeout_headroom ? 'available' : 'short'}.`,
+    'Peer runtime used: ' + runtimeUsedText(budget) + '; cumulative cap: ' + secondsText(budget.budget_seconds) + '.', '',
+    `Budget profile: ${budget.profile}; per-call timeout: ${secondsText(budget.timeout_seconds)}; inactivity guard: ${secondsText(budget.idle_seconds)}; recorded limit changes: ${budget.limit_changes}.`,
+    `Pending peer stages: ${budget.successful_calls_remaining}; attempts remaining: ${budget.attempts_remaining}; full-timeout headroom: ${budget.full_timeout_headroom === null ? 'not applicable without fixed caps' : budget.full_timeout_headroom ? 'available' : 'short'}.`,
     budget.note, '',
     ...stages.map(stage => '- ' + stage + ': ' + (state.stages[stage]?.status || 'pending')),
     '', 'Next: ' + (state.status === 'complete' ? 'Read RESULT.md and preserve unresolved findings and post-verification changes.' : providerAdvice ?? (!budget.attempts_sufficient && !budget.recorded_running_attempts.length ? 'The remaining attempts cannot cover the pending stages. Inspect the failure and use extend within authorized limits; preserve this run and all earlier attempts.' : next ? 'Prepare the required coordinator artifacts, inspect saved evidence, then request the ' + next + ' stage if authorized and within the remaining budget.' : 'Address verification findings, complete decisions.json, then run finish.')),
@@ -315,9 +320,10 @@ function seal(dir, state, file) {
 }
 const lock = acquireRunLock;
 
-export function buildPeerArgs(provider, { schemaPath, model, codexFeatures, schema = WORKER_REPORT_SCHEMA }) {
+export function buildPeerArgs(provider, { schemaPath, model, codexFeatures, claudePartialMessages = false, schema = WORKER_REPORT_SCHEMA }) {
   if (provider === 'claude') {
     const args = ['-p', '--safe-mode', '--tools', '', '--permission-mode', 'plan', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--disable-slash-commands', '--no-session-persistence', '--output-format', 'stream-json', '--verbose', '--json-schema', JSON.stringify(schema)];
+    if (claudePartialMessages) args.push('--include-partial-messages');
     if (model) args.push('--model', model);
     return args;
   }
@@ -638,8 +644,9 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
     if (recoverInterruptedAttempts(state, now())) saveRun(dir, state);
     const providerAdvice = providerFailureAdvice(state);
     required(state.attempts.length < state.max_attempts, providerAdvice ?? 'Attempt budget exhausted; preserve this run and inspect whether an authorized extend can provide the remaining allowance');
-    const remaining = state.budget_ms - state.elapsed_ms;
-    required(remaining >= 1000, providerAdvice ?? 'Peer runtime budget exhausted; preserve this run and inspect whether an authorized extend can provide the remaining allowance');
+    const remaining = state.budget_ms === null ? null : state.budget_ms - state.elapsed_ms;
+    required(remaining === null || remaining >= 1000, providerAdvice ?? 'Peer runtime budget exhausted; preserve this run and inspect whether an authorized extend can provide the remaining allowance');
+    required(remaining === null || !state.runtime_accounting_incomplete, 'Cumulative runtime is unknown after an interrupted uncapped attempt; preserve the run instead of assuming unused time under a fixed budget');
     const budget = budgetSummary(state);
     required(budget.attempts_sufficient, providerAdvice ?? `Attempt allowance cannot cover ${budget.successful_calls_remaining} pending peer stages: ${budget.attempts_remaining} attempts remain. Inspect this run and use extend with authorized absolute limits; do not restart or discard failed attempts.`);
     const { prompt, reviewedHashes, securityText, decisionText } = stagePrompt(dir, state, stage);
@@ -659,8 +666,11 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
       if (!info.authenticated) throw providerSetupError(worker.provider, 'login_unavailable', `${worker.provider} CLI did not report an accessible login. Local credential status may be signed out, unreadable or unrecognized; it does not establish request authentication or billing eligibility.`);
       executable = info.executable;
     }
-    const args = buildPeerArgs(worker.provider, { schemaPath, model: worker.model, codexFeatures: info?.codex_features, schema: workerSchema });
-    const attempt = { number: state.attempts.length + 1, stage, ...(state.author_model ? { provider: worker.provider, role: worker.role } : {}), status: 'running', started_at: now(), timeout_ms: Math.min(state.timeout_ms, remaining), input_sha256: sha(prompt), version: info?.version || 'injected-test', requested_model: worker.model, reported_models: [], model_identity_status: 'unreported' };
+    const args = buildPeerArgs(worker.provider, { schemaPath, model: worker.model, codexFeatures: info?.codex_features, claudePartialMessages: info?.claude_partial_messages, schema: workerSchema });
+    const caps = [state.timeout_ms, remaining].filter(value => value !== null);
+    const attempt = { number: state.attempts.length + 1, stage, ...(state.author_model ? { provider: worker.provider, role: worker.role } : {}), status: 'running', started_at: now(), timeout_ms: caps.length ? Math.min(...caps) : null,
+      ...(state.timeout_policy ? { timeout_policy: state.timeout_policy, idle_timeout_ms: state.idle_timeout_ms } : {}),
+      input_sha256: sha(prompt), version: info?.version || 'injected-test', requested_model: worker.model, reported_models: [], model_identity_status: 'unreported' };
     state.attempts.push(attempt); state.status = 'running';
     const promptFile = `attempt-${attempt.number}-${stage}-input.txt`;
     write(path.join(dir, promptFile), prompt);
@@ -685,10 +695,12 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
     const stderrPath = path.join(dir, `attempt-${attempt.number}-stderr.txt`);
     try {
       const result = injectedInvoker
-        ? await injectedInvoker({ provider: worker.provider, args, prompt, cwd: scratch, timeoutMs: attempt.timeout_ms })
-        : await runProcess(executable, args, { prompt, cwd: scratch, timeoutMs: attempt.timeout_ms, peer: true, stdoutPath, stderrPath });
+        ? await injectedInvoker({ provider: worker.provider, args, prompt, cwd: scratch, timeoutMs: attempt.timeout_ms, idleTimeoutMs: attempt.idle_timeout_ms ?? null })
+        : await runProcess(executable, args, { prompt, cwd: scratch, timeoutMs: attempt.timeout_ms ?? undefined,
+          idleTimeoutMs: attempt.idle_timeout_ms ?? undefined, isActivity: attempt.idle_timeout_ms ? createActivityObserver(worker.provider) : undefined,
+          peer: true, stdoutPath, stderrPath });
       if (injectedInvoker) { write(stdoutPath, result.stdout || ''); write(stderrPath, result.stderr || ''); }
-      for (const key of ['code', 'signal', 'outputFiles', 'termination']) if (result[key] !== undefined) attempt[key] = result[key];
+      for (const key of ['code', 'signal', 'outputFiles', 'termination', 'activity']) if (result[key] !== undefined) attempt[key] = result[key];
       // An explicit usage/payment block takes precedence over incidental login
       // advice: repairing authentication is not evidence of restored allowance.
       const providerFailure = peerUsageLimitFailure(worker.provider, result) ?? peerAuthenticationFailure(worker.provider, result);
@@ -726,13 +738,13 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
         if (!fs.existsSync(stdoutPath)) write(stdoutPath, typeof error.stdout === 'string' ? error.stdout : '');
         if (!fs.existsSync(stderrPath)) write(stderrPath, typeof error.stderr === 'string' ? error.stderr : '');
       } catch (logError) { attempt.log_error = logError.message; }
-      for (const key of ['reason', 'code', 'signal', 'systemCode', 'outputTruncated', 'outputFiles', 'termination']) {
+      for (const key of ['reason', 'code', 'signal', 'systemCode', 'outputTruncated', 'outputFiles', 'termination', 'activity']) {
         if (error[key] !== undefined) attempt[key] = error[key];
       }
       const diagnosticState = { ...state, attempts: [...state.attempts.slice(0, -1), { ...attempt, elapsed_ms: Date.now() - started, ended_at: now() }] };
       attempt.progress = readPeerProgress(dir, diagnosticState);
       error.progress = attempt.progress;
-      if (error.reason === 'timeout' && attempt.progress) {
+      if (['timeout', 'idle_timeout'].includes(error.reason) && attempt.progress) {
         error.message += ` Last observed phase: ${attempt.progress.phase}; stdout: ${attempt.progress.stdout_bytes ?? 'unknown'} bytes; stderr: ${attempt.progress.stderr_bytes ?? 'unknown'} bytes. No validated report was recorded. Inspect the preserved logs before an authorized same-run retry.`;
         attempt.error = error.message;
       }
@@ -881,7 +893,7 @@ export function finish(options) {
     const lines = ["# C2C — result", '', `${participantLabel(state, 'coordinator')} → ${participantLabel(state, 'peer')}. Pairing: ${state.pairing || 'cross'}.`,
       ...(state.author_model ? [`Background planner: ${participantLabel(state, 'author')}.` , `Successful worker calls: ${completion.successful_worker_calls} (including ${completion.successful_peer_calls} peer calls).`,
         `Author model metadata: ${completion.worker_model_reports.filter(item => item.role === 'author' && item.reported.length).map(item => `attempt ${item.attempt}: ${item.reported.map(modelMetadataMarkdown).join(', ')} (${item.status})`).join('; ') || 'not reported by the CLI; requested identity is unverified'}.`] : []),
-      participantSummary(state).identity_note, `Peer model metadata: ${completion.peer_model_reports.filter(item => item.reported.length).map(item => `attempt ${item.attempt}: ${item.reported.map(modelMetadataMarkdown).join(', ')} (${item.status})`).join('; ') || 'not reported by the CLI; distinct runtime identities are unverified'}.`, `Outcome: ${completion.outcome}.`, `Successful peer calls: ${completion.successful_peer_calls}; attempts: ${state.attempts.length}; runtime: ${Math.round(state.elapsed_ms / 1000)} seconds.`, `Final allowance: ${completion.budget.timeout_seconds} seconds/call, ${completion.budget.budget_seconds} cumulative seconds, ${completion.budget.max_attempts} attempts. Recorded limit changes: ${completion.budget.limit_changes}; earlier attempts and runtime remain charged.`, '',
+      participantSummary(state).identity_note, `Peer model metadata: ${completion.peer_model_reports.filter(item => item.reported.length).map(item => `attempt ${item.attempt}: ${item.reported.map(modelMetadataMarkdown).join(', ')} (${item.status})`).join('; ') || 'not reported by the CLI; distinct runtime identities are unverified'}.`, `Outcome: ${completion.outcome}.`, `Successful peer calls: ${completion.successful_peer_calls}; attempts: ${state.attempts.length}; runtime: ${runtimeUsedText(completion.budget)}.`, `Final allowance: per-call cap ${secondsText(completion.budget.timeout_seconds)}, cumulative cap ${secondsText(completion.budget.budget_seconds)}, inactivity guard ${secondsText(completion.budget.idle_seconds)}, ${completion.budget.max_attempts} attempts. Recorded limit changes: ${completion.budget.limit_changes}; earlier attempts and runtime remain charged.`, '',
       changes.includes('final-plan.md') ? 'The final plan was revised after peer verification. See the recorded hashes and finding dispositions; the delivered revision has not had another peer review.' : 'The delivered plan matches the version used for the final peer review.',
       changes.includes('decisions.json') ? 'The decision record was updated after peer verification.' : '',
       changes.includes('security-review.json') ? 'The security review was updated by the coordinator after peer verification; this revision has not been peer-reviewed.' : '',
@@ -907,7 +919,7 @@ function parseArgs(argv) {
   const [rawCommand = 'help', ...args] = argv;
   const command = rawCommand === '--version' ? 'version' : rawCommand === '--help' ? 'help' : rawCommand;
   const options = {};
-  const allowed = { evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'budget-profile', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
+  const allowed = { evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'budget-profile', 'timeout-policy', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
   required(Object.hasOwn(allowed, command), `Unknown command: ${command}`);
   let compact = false;
   for (let i = 0; i < args.length; i++) {
@@ -922,7 +934,7 @@ function parseArgs(argv) {
   }
   return { command, options, compact };
 }
-const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--budget-profile standard|project]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nStandard budget: 300 seconds/call, 900 total seconds, 4 attempts (default).\nProject budget: 600 seconds/call, 2400 total seconds, 5 attempts. Explicit values override profile defaults.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nCeilings: 900 seconds/call, 3600 total seconds, 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
 function isMainModule() {
   try { return process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); }

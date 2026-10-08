@@ -7,7 +7,7 @@ C2C is an open-source skill for collaborative planning between Codex and Claude 
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -29,7 +29,7 @@ C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.0.1.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
@@ -106,7 +106,7 @@ C2C sends explicitly selected, frozen context and relevant review artifacts. The
 
 ## How much does a planning exchange cost?
 
-Worker calls use your provider account and usage limits. With your chat as author, focused review needs two successful calls and independent planning needs three. A background author makes these three and five. Standard allowances are four attempts, 5 minutes per call, and 15 cumulative worker minutes; large/deep plans use five attempts, 10 minutes per call, and 40 cumulative minutes. Background-author plan mode defaults to six attempts unless explicitly capped. Failures also count. These are ceilings, not spending caps, duration estimates, or a fixed price per plan. C2C states its route and honors explicit limits.
+Worker calls use your provider account and usage limits. With your chat as author, focused review needs two successful calls and independent planning needs three. A background author makes these three and five. Standard work allows four attempts and a 10-minute inactivity guard; project work allows five and a 20-minute guard. Background-author plan mode defaults to six attempts. Failures count. New runs have no fixed call/total deadline by default, while explicit caps remain enforced. These controls are not spending caps, duration estimates or a fixed price per plan.
 
 Consequential changes after verification may use one additional successful revision check within that same allowance. An unchanged plan does not need it. If no allowance remains, C2C records an explicitly provisional revision instead of silently claiming it was reviewed. [Final-revision rules](../references/protocol.md#final-revision-check).
 
@@ -126,9 +126,9 @@ No. Runtime tests validate the controller, and offline benchmarks measure synthe
 
 ## Why did a signed-in Claude or Codex time out?
 
-Authentication and response completion are separate. The peer may be generating output without having returned a valid report before the deadline. C2C shows safe activity and elapsed/remaining time, preserving diagnostics without displaying raw reasoning. Activity does not establish a successful review. Opening the other app or terminal does not extend a deadline.
+New 2.1 runs renew an inactivity guard when meaningful model activity advances. They have no fixed call/total deadline unless one is explicitly set. A guard can still expire if the CLI emits no recognized progress; silent computation is possible, so this is not proof of a hang or a quota problem. Retries, stderr and heartbeats do not renew it. Partial output is not a successful review. Older pinned runs retain their original fixed deadlines.
 
-C2C can increase a coordinator-selected allowance on the same run when your existing request covers bounded recovery, preserving successful stages and every used attempt. It does not ask for repeated approval just to adjust its own default; explicit user caps still require existing permission or your decision before an increase. Hard ceilings are 15 minutes per call, 60 cumulative peer minutes, and six attempts. No stage is skipped, no successful call is repeated, and no model or reasoning setting is lowered automatically. See [resuming a timed-out call](SETUP.md#when-a-peer-call-takes-longer).
+C2C can increase its chosen inactivity guard or existing numeric caps on the same run when your request authorizes recovery. It preserves successful stages and every attempt; explicit user caps still need authority before an increase. It cannot remove caps or switch the run's timeout policy. Guard maximum: 60 minutes; existing hard caps: 15 minutes per call and 60 total; attempts: six. No model/effort downgrade, skipped stage or fresh run merely to escape a timeout. See [timeout settings and resumption](SETUP.md#when-a-peer-call-takes-longer).
 
 ## What happens when one AI hits its usage limit?
 

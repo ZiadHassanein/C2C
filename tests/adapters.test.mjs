@@ -567,6 +567,38 @@ test('Claude preflight validates flags and successful authentication status with
   await assert.rejects(() => probeProvider('claude', root, fakeProbe({ ...options, help: claudeHelp.replace('--safe-mode', '') })), /required --safe-mode/);
 });
 
+test('optional Claude partial streaming is detected from exact help flags without extra commands', async () => {
+  for (const [extra, expected] of [
+    ['', false], ['\n  --include-partial-messages  Include partial streaming events', true],
+    [' --include-partial-messages,', true], [' --include-partial-messages-unsupported', false],
+    [' --no-include-partial-messages', false],
+  ]) {
+    const fixture = fakeProbe({ provider: 'claude', help: claudeHelp + extra, auth: '{"loggedIn":true}' });
+    const result = await probeProvider('claude', root, fixture);
+    assert.equal(result.claude_partial_messages, expected, extra);
+    assert.equal(result.setup_status, 'ready');
+    assert.deepEqual(fixture.calls, [['--version'], ['--help'], ['auth', 'status']]);
+  }
+  const codex = await probeProvider('codex', root, fakeProbe({ help: `${codexHelp} --include-partial-messages` }));
+  assert.equal(Object.hasOwn(codex, 'claude_partial_messages'), false);
+});
+
+test('partial streaming capability comes only from the selected compatible Claude candidate', async () => {
+  const candidates = [
+    { executable: '/fixture/claude/old', version: 'old', help: `${claudeHelp.replace('--safe-mode', '')} --include-partial-messages` },
+    { executable: '/fixture/claude/selected', version: 'selected', help: claudeHelp },
+    { executable: '/fixture/claude/later', version: 'later', help: `${claudeHelp} --include-partial-messages` },
+  ];
+  const fixture = candidateProbe('claude', candidates);
+  const result = await probeProvider('claude', root, fixture);
+  assert.equal(result.executable, candidates[1].executable);
+  assert.equal(result.claude_partial_messages, false, 'Missing optional support does not select a different binary');
+  assert.deepEqual(fixture.calls, [
+    ...candidateCalls(candidates[0].executable, metadataCommands('claude')),
+    ...candidateCalls(candidates[1].executable, [...metadataCommands('claude'), authCommand('claude')]),
+  ]);
+});
+
 test('authentication metadata distinguishes local credential status from request validation and excludes private fields', async () => {
   for (const method of ['claude.ai', 'oauth_token', 'api_key', 'api_key_helper', 'third_party', 'unsupported-private-value']) {
     const fixture = fakeProbe({ provider: 'claude', help: claudeHelp, auth: JSON.stringify({

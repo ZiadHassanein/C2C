@@ -36,6 +36,10 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Installation transparency: visible uninstall instructions
+
+The README now shows an uninstall note before installation and links it from the top navigation. Setup documents removal through the file manager on Windows, macOS and Linux, including custom configuration roots, stopping active runs, preserving files placed inside the installed folder and starting a fresh chat. It distinguishes installed skill folders from downloaded source and retained backups; projects/plans saved elsewhere, other tools and logins remain in place. The FAQ links to the same steps. This documentation-only change adds no uninstall command and changes no packaged skill files or version. Documented destinations were checked against installer source; all 186 local documentation targets and the whitespace check pass. No real installation was removed and no provider call was made.
+
 ### Version 1.1.1: focus single-provider review on material decisions
 
 The user clarified that the goal is more accurate and efficient plans than ordinary planning, not discussion volume or impersonating another provider. Same-provider worker stages now use complementary attention within the existing calls: the author connects outcomes/constraints to minimal design and decisive assumptions; an independent peer draft starts from interfaces, state and failure paths; the author's critique checks outcomes and unnecessary scope; the coding critic traces consequential claims and remedies to evidence and failure cases. Verification still challenges accepted and rejected decisions and actual counterarguments. Both roles retain security/test/unknown coverage. Cross-provider prompt branches, stages and allowances are unchanged.

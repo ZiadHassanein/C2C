@@ -15,9 +15,11 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 
 [**Version 1.1.1**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
-[Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Help](#need-help)
+[Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](docs/SETUP.md#uninstall) · [Help](#need-help)
 
 ## Install
+
+**Easy to remove.** After stopping active C2C runs, move the installed `C2C` folders to the Recycle Bin/Trash and start a new chat. Your projects and plans saved elsewhere stay in place. [See the folders and uninstall steps](docs/SETUP.md#uninstall).
 
 ### 1. Prepare your tools
 
@@ -235,7 +237,7 @@ Start a new chat afterward. The updater retains backups and prints a rollback co
 
 | Guide | Purpose |
 |---|---|
-| [Setup and troubleshooting](docs/SETUP.md) | Installation options, platform requirements, updates and recovery. |
+| [Setup and troubleshooting](docs/SETUP.md) | Install, update, roll back or uninstall; platform requirements and recovery. |
 | [FAQ](docs/FAQ.md) | Models, costs, security, discussion and planning behavior. |
 | [Evaluation methods](docs/BENCHMARKS.md) | How to measure inputs, planning quality and resource use. |
 | [Visual guide — historical v0.7 PDF](docs/C2C-LinkedIn-Guide.pdf) | Illustrated cross-provider setup; use this README for current features. |

@@ -10,6 +10,10 @@ Install C2C and start a new project chat. In Codex, ask `Use $C2C to plan…`. I
 
 Only for an exchange that uses background workers from both providers. When your current chat supplies the author's work, only the other provider's CLI is required. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. Each also needs two eligible distinct models and authorized allowance. A missing unused CLI is ignored. Node.js 18 or newer runs the installer/council scripts, with no npm dependencies. The installer does not install CLIs or sign you in.
 
+## Can I uninstall C2C easily?
+
+Yes. Stop active C2C runs, move only its installed `C2C` folder from one or both apps to the Recycle Bin/Trash, then start a new chat. Your apps, logins, and projects/plans saved elsewhere remain in place. See [exact folders, custom paths and optional cleanup](SETUP.md#uninstall).
+
 ## What if one tool is not installed or ready?
 
 C2C checks the existing setup before calls. If the other provider is missing or unusable, it automatically selects a planning author and distinct coding-focused critic from the current provider when that provider's CLI, exact models and allowance are eligible. It announces the selected roles and records actual responses. This works symmetrically from Codex or Claude Code.

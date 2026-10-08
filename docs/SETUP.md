@@ -128,7 +128,20 @@ Downloading updates alone does not update installed copies. Matching content, in
 
 ## Uninstall
 
-Remove only the `C2C` folder from the installed locations above, then start a new chat. Your separately saved plans and run folders remain available.
+No uninstall command is needed. You can remove C2C from one app or both using your file manager:
+
+1. Finish or stop active C2C runs. Removing the skill folder does not stop a worker that is already running.
+2. Locate the relevant folder below. Preserve any files you added inside it, then move **only the `C2C` folder** to the Recycle Bin/Trash, or to a backup location outside all skill folders.
+3. Start a new chat in each affected app. Existing chats may still contain previously loaded C2C instructions.
+
+| App | Windows: paste into File Explorer's address bar | macOS / Linux |
+|---|---|---|
+| Codex | `%USERPROFILE%\.codex\skills\C2C` | `~/.codex/skills/C2C` |
+| Claude Code | `%USERPROFILE%\.claude\skills\C2C` | `~/.claude/skills/C2C` |
+
+`~` means your home folder. If you installed with `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, use `skills/C2C` inside that configured root instead. The installer's `Installed:` or `Updated:` output shows the exact destination. Keep the parent configuration and `skills` folders; they can contain other settings and skills.
+
+Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans saved elsewhere in place. The downloaded repository/ZIP and retained installer backups also stay on disk. You can keep those, or remove them separately after preserving any work stored there; deleting backups gives up their rollback option. Deleting the downloaded repository alone does not uninstall the skill.
 
 ## Choose the participants
 

@@ -1,6 +1,6 @@
 <picture>
-  <source media="(max-width: 640px)" srcset="docs/assets/cover-mobile.svg">
-  <img src="docs/assets/cover.svg" alt="C2C — Plan, review, refine. Codex, Claude Code, or both." width="1120">
+  <source media="(max-width: 800px)" srcset="docs/assets/cover-mobile.svg">
+  <img src="docs/assets/cover.svg" alt="C2C — They plan for you. Codex and Claude Code point into a shared plan covering scope, security, tests and a clear first step. From small features to full projects; use either tool or both." width="1120">
 </picture>
 
 # C2C — planning with Codex and Claude Code
@@ -378,4 +378,4 @@ Moves unchanged managed skill folders into recoverable backups. Your projects, a
 
 ---
 
-Built for Codex and Claude Code. Distributed under the [MIT license](LICENSE).
+Built for Codex and Claude Code. Distributed under the [MIT license](LICENSE); third-party marks retain their own rights. [Logo credits](docs/assets/ATTRIBUTION.md).

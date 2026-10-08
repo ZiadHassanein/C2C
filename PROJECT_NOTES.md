@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README banner: match the demonstration video
+
+The user approved the video and requested the same visual idea for the README banner. The desktop cover pairs the existing C2C wordmark and paper/ink/red typography with authentic Codex and Claude symbols, curved arrows into a shared plan, and “From small features to full projects.” The mobile cover stacks that composition for a narrow reading width. Both retain “Codex, Claude Code, or both,” and the plan card lists scope/architecture, security/tests and a clear first step without asserting that implementation checks have run.
+
+The provider paths/colors are preserved from the video assets; [logo credits](docs/assets/ATTRIBUTION.md) separate third-party marks from the repository license. Accessible SVG titles/descriptions and the README alternative text describe the new composition. The stacked cover applies through an 800px viewport to keep narrow-window text readable. Scope is the two cover assets, their description and attribution; installation, planning instructions and version remain unchanged.
+
+Validation: rendered previews at 900px and 358px were visually inspected; independent review confirmed readability and exact provider path/fill fidelity. Both cover files parse as XML, all 213 local documentation targets pass, and the design detector reports no findings. These are static rendering/source checks, not physical-device or runtime tests; no model calls were made.
+
 ### Version 1.3.0: one-command setup and recoverable removal
 
 The user requested easier installation and uninstallation. A small `c2c` executable maps readable setup commands onto the existing installer and doctor. The quick start runs a pinned GitHub release archive through npx, avoiding a Git clone, working-directory changes, global package installation or an npm account. Local Git/ZIP and installed-copy helpers remain available for offline use. The package has no lifecycle hooks or runtime npm dependencies; npx may retain its downloaded package in its cache. npm 12 remote-source policy and Windows PowerShell launcher troubleshooting are documented as command-scoped alternatives, without changing global settings.

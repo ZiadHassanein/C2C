@@ -9,9 +9,9 @@
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
-[**Version 1.2.1**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+[**Version 1.3.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
-[Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](docs/SETUP.md#uninstall) · [Help](#need-help)
+[Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
 
 <details>
 <summary>What C2C does and who coordinates</summary>
@@ -26,29 +26,28 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 
 ## Install
 
-**Requires Node.js 18+.** [No Git? Download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip). Easy to remove: [uninstall instructions](docs/SETUP.md#uninstall).
+**One command. No Git or global installation.** Requires [Node.js 18+ with npm/npx](https://nodejs.org/en/download).
 
-Run in **PowerShell on Windows** or **Terminal on macOS/Linux**, with Git installed:
+Run in **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
-git clone https://github.com/ZiadHassanein/C2C.git
-cd C2C
-node scripts/install.mjs
-node scripts/council.mjs doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install
 ```
+
+Installs the skill for your current user in both apps. Start a new chat afterward. [One app only](docs/SETUP.md#install-for-one-app-only) · [Easy to uninstall](#uninstall).
 
 <!-- Keep existing section links on the visible disclosure. -->
 <a name="1-prepare-your-tools"></a>
 <a name="2-install-and-check"></a>
 
 <details>
-<summary>Setup requirements, sign-in, readiness checks and installation options</summary>
+<summary>Setup checks, optional CLI sign-in, Git/ZIP installation and help</summary>
 
-**Easy to remove.** After stopping active C2C runs, move the installed `C2C` folders to the Recycle Bin/Trash and start a new chat. Your projects and plans saved elsewhere stay in place. [See the folders and uninstall steps](docs/SETUP.md#uninstall).
+**Easy to remove.** Finish or stop active C2C runs, then use the [uninstall command](#uninstall). It moves unchanged managed skill folders into recoverable backups. Customized or unrecognized folders are protected; [manual removal](docs/SETUP.md#manual-removal) remains available. Your projects and plans saved elsewhere stay in place.
 
 **1. Prepare your tools**
 
-[Node.js 18 or newer](https://nodejs.org/en/download) runs the installer and council scripts. C2C uses existing compatible, authenticated command-line tools (CLIs) for independent review. If you want to add one, these are the optional setup instructions:
+[Node.js 18 or newer](https://nodejs.org/en/download) runs the setup and council scripts; the quick command also needs npm/npx. No npm account is needed. C2C uses existing compatible, authenticated command-line tools (CLIs) for independent review. If you want to add one, these are the optional setup instructions:
 
 | Tool | Official installation guide | Sign in if needed |
 |---|---|---|
@@ -66,8 +65,22 @@ For a cross-provider exchange, only the peer's CLI is needed when your chat is t
 
 **2. Install and check**
 
+Prefer a local copy? With Git installed:
 
-This installs C2C for your current user in both apps. No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, and run the two `node` commands from the folder containing `scripts`.
+```sh
+git clone https://github.com/ZiadHassanein/C2C.git
+cd C2C
+node scripts/setup.mjs install
+node scripts/setup.mjs doctor
+```
+
+No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
+
+For the quick-install route, check setup from any folder:
+
+```sh
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz doctor
+```
 
 For the default setup with both CLIs, look for:
 
@@ -78,7 +91,7 @@ For the default setup with both CLIs, look for:
 }
 ```
 
-`doctor` checks CLI availability, compatibility and locally visible authentication without making a model request. It also reports `codex_only_ready` and `claude_only_ready` for same-provider workers. Model eligibility and remaining allowance are separate checks; readiness alone cannot prove them or that the provider will accept your login. [Optional setup help](docs/SETUP.md#troubleshooting) · [Install for one app](docs/SETUP.md#install-for-one-app-only)
+`doctor` checks CLI availability, compatibility and locally visible authentication without making a model request. It also reports `codex_only_ready` and `claude_only_ready` for same-provider workers. Model eligibility and remaining allowance are separate checks; readiness alone cannot prove them or that the provider will accept your login. [npx / PowerShell help](docs/SETUP.md#npx-and-powershell-help) · [Optional setup help](docs/SETUP.md#troubleshooting) · [Install for one app](docs/SETUP.md#install-for-one-app-only)
 
 </details>
 
@@ -315,14 +328,23 @@ C2C does not buy credits or switch to paid billing when a provider limit blocks 
 
 ## Update
 
-From your existing Git clone:
+Finish or stop active C2C runs, then run:
 
 ```sh
-git pull --ff-only
-node scripts/install.mjs --update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz update
 ```
 
-Start a new chat afterward. The updater retains backups and prints a rollback command; changed installations are protected. [ZIP updates, one-app updates and recovery](docs/SETUP.md#update-the-skill).
+Start a new chat afterward. Changed installations are protected; backups and a rollback command are retained. [Git/ZIP updates, one-app updates and recovery](docs/SETUP.md#update-the-skill).
+
+## Uninstall
+
+Finish or stop active C2C runs, then run:
+
+```sh
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz uninstall
+```
+
+Moves unchanged managed skill folders into recoverable backups. Your projects, apps and logins stay in place. Start a new chat afterward. Add `--dry-run` to preview, or `--target codex` / `--target claude` for one app. [Restore, offline or manual removal](docs/SETUP.md#uninstall).
 
 ## Need help?
 

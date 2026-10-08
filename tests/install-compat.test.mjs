@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const packageFiles = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'package.json', 'LICENSE'];
+const packageFiles = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'package.json', 'LICENSE'];
 const temporaryParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(temporaryParent, 'council-install-compat-'));
 after(async () => {
@@ -22,7 +22,7 @@ async function fixture(label) {
   const root = await fs.mkdtemp(path.join(testRoot, `${label}-`));
   const source = path.join(root, 'package');
   // Exercise the current package's actual installer from a simulated LF clone.
-  for (const file of [...packageFiles, 'scripts/install.mjs', 'scripts/install-baselines.json']) {
+  for (const file of packageFiles) {
     const output = path.join(source, file);
     await fs.mkdir(path.dirname(output), { recursive: true });
     const contents = await fs.readFile(path.join(packageRoot, file), 'utf8');
@@ -494,4 +494,237 @@ test('distinct linked skills directories under one physical parent keep separate
   const id = backupId(install(f, ['--update']));
   const rollback = install(f, ['--rollback', id]);
   assert.equal(rollback.status, 0, rollback.stderr);
+});
+
+test('uninstall retains exact originals outside discovery, preserves other files and supports undo', async () => {
+  const f = await fixture('uninstall-undo');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  const unrelated = [];
+  for (const home of [f.codexHome, f.claudeHome]) {
+    for (const relative of ['settings.json', 'projects/plan.md', 'skills/Other/SKILL.md']) {
+      const file = path.join(home, relative);
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(file, `User-owned ${relative}\n`);
+      unrelated.push([file, await fs.readFile(file)]);
+    }
+  }
+  const removed = install(f, ['--uninstall']);
+  const id = backupId(removed);
+  assert.match(removed.stdout, new RegExp(`Undo: node scripts/install\\.mjs --rollback ${id} --target both`));
+  for (const [index, home, skill] of [[0, f.codexHome, f.codexSkill], [1, f.claudeHome, f.claudeSkill]]) {
+    await assert.rejects(fs.access(skill));
+    const backup = path.join(home, 'c2c-install-backups', id);
+    assert.deepEqual(await contentsAndTimes(path.join(backup, 'original')), original[index]);
+    const record = JSON.parse(await fs.readFile(path.join(backup, 'transaction.json'), 'utf8'));
+    assert.equal(record.operation, 'uninstall');
+    assert.equal(record.after, null);
+    assert.equal(record.status, 'committed');
+    assert.deepEqual(await fs.readdir(path.join(home, 'skills')), ['Other']);
+  }
+  const repeated = install(f, ['--uninstall']);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal((repeated.stdout.match(/Already uninstalled:/g) || []).length, 2);
+  assert.doesNotMatch(repeated.stdout, /Backup ID:/);
+  const undo = install(f, ['--rollback', id]);
+  assert.equal(undo.status, 0, undo.stderr);
+  assert.match(undo.stdout, /Rolled back:/);
+  for (const [index, skill] of [f.codexSkill, f.claudeSkill].entries()) {
+    for (const { file, bytes } of original[index]) assert.deepEqual(await fs.readFile(path.join(skill, file)), bytes);
+  }
+  for (const [file, bytes] of unrelated) assert.deepEqual(await fs.readFile(file), bytes);
+});
+
+test('uninstall handles one installed provider and isolates explicit provider selection', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = await fixture(`uninstall-${provider}`);
+    assert.equal(install(f, ['--target', provider]).status, 0);
+    const result = install(f, ['--uninstall']);
+    const id = backupId(result);
+    assert.match(result.stdout, new RegExp(`Undo: .* --target ${provider}`));
+    assert.equal(install(f, ['--rollback', id, '--target', provider]).status, 0);
+    assert.equal(install(f).status, 0);
+    const otherSkill = provider === 'codex' ? f.claudeSkill : f.codexSkill;
+    const untouched = await contentsAndTimes(otherSkill);
+    backupId(install(f, ['--uninstall', '--target', provider]));
+    assert.deepEqual(await contentsAndTimes(otherSkill), untouched);
+  }
+});
+
+test('uninstall refuses custom or unknown entries in all targets before removing either', async () => {
+  for (const kind of ['edit', 'missing', 'extra', 'empty-directory', 'receipt']) {
+    const f = await fixture(`uninstall-refuses-${kind}`);
+    assert.equal(install(f).status, 0);
+    const untouched = await contentsAndTimes(f.codexSkill);
+    if (kind === 'edit') await fs.appendFile(path.join(f.claudeSkill, 'SKILL.md'), '\nPrivate customization.');
+    if (kind === 'missing') await fs.unlink(path.join(f.claudeSkill, 'LICENSE'));
+    if (kind === 'extra') await fs.writeFile(path.join(f.claudeSkill, 'notes.md'), 'Private notes.');
+    if (kind === 'empty-directory') await fs.mkdir(path.join(f.claudeSkill, 'notes'));
+    if (kind === 'receipt') await fs.writeFile(path.join(f.claudeSkill, '.c2c-install.json'), '{broken');
+    const result = install(f, ['--uninstall']);
+    assert.notEqual(result.status, 0, kind);
+    assert.match(result.stderr, /different installation exists/);
+    assert.deepEqual(await contentsAndTimes(f.codexSkill), untouched);
+    await fs.access(f.claudeSkill);
+    if (kind === 'edit') assert.match(await fs.readFile(path.join(f.claudeSkill, 'SKILL.md'), 'utf8'), /Private customization/);
+    if (kind === 'extra') assert.equal(await fs.readFile(path.join(f.claudeSkill, 'notes.md'), 'utf8'), 'Private notes.');
+    if (kind === 'empty-directory') assert.deepEqual(await fs.readdir(path.join(f.claudeSkill, 'notes')), []);
+  }
+});
+
+test('uninstall undo protects reinstalls and checks all retained backups before restoring', async () => {
+  const f = await fixture('uninstall-undo-protection');
+  assert.equal(install(f).status, 0);
+  const id = backupId(install(f, ['--uninstall']));
+  assert.equal(install(f, ['--target', 'claude']).status, 0);
+  const reinstalled = await contentsAndTimes(f.claudeSkill);
+  const refused = install(f, ['--rollback', id]);
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /appeared after uninstall/);
+  await assert.rejects(fs.access(f.codexSkill));
+  assert.deepEqual(await contentsAndTimes(f.claudeSkill), reinstalled);
+  backupId(install(f, ['--uninstall', '--target', 'claude']));
+  await fs.appendFile(path.join(f.claudeHome, 'c2c-install-backups', id, 'original', 'SKILL.md'), 'Damaged backup.');
+  const corrupt = install(f, ['--rollback', id]);
+  assert.notEqual(corrupt.status, 0);
+  assert.match(corrupt.stderr, /backup changed/);
+  await assert.rejects(fs.access(f.codexSkill));
+  await assert.rejects(fs.access(f.claudeSkill));
+});
+
+test('ordinary uninstall failure after the first removal restores both providers', async () => {
+  const f = await fixture('uninstall-second-failure');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  const injected = await injector(f, `const rename=fs.renameSync;let failed=false;fs.renameSync=function(from,to){
+    if(!failed&&from===path.join(process.env.CLAUDE_CONFIG_DIR,'skills','C2C')&&path.basename(to)==='original'){
+      failed=true;throw new Error('Injected second uninstall failure');
+    }return rename.apply(this,arguments);
+  };`);
+  const result = install(f, ['--uninstall'], injected);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Original installations restored/);
+  assert.deepEqual(await snapshots(f), original);
+  backupId(install(f, ['--uninstall']));
+});
+
+test('interrupted uninstall blocks retries, protects new files and recovers both providers', async () => {
+  const f = await fixture('uninstall-interrupted');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  const injected = await injector(f, `const rename=fs.renameSync;fs.renameSync=function(from,to){
+    const result=rename.apply(this,arguments);
+    if(from===path.join(process.env.CODEX_HOME,'skills','C2C')&&path.basename(to)==='original')process.exit(73);
+    return result;
+  };`);
+  assert.equal(install(f, ['--uninstall'], injected).status, 73);
+  const retry = install(f, ['--uninstall']);
+  assert.notEqual(retry.status, 0);
+  const id = retry.stderr.match(/Interrupted installation (\d{17}-[a-f0-9]{12})/)?.[1];
+  assert.ok(id, retry.stderr);
+  await assert.rejects(fs.access(f.codexSkill));
+  await fs.mkdir(f.codexSkill);
+  const userFile = path.join(f.codexSkill, 'private.txt');
+  await fs.writeFile(userFile, 'Created after interruption.');
+  const refused = install(f, ['--recover', id]);
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /recovery refused/);
+  assert.equal(await fs.readFile(userFile, 'utf8'), 'Created after interruption.');
+  assert.deepEqual(await contentsAndTimes(f.claudeSkill), original[1]);
+  await fs.rename(f.codexSkill, path.join(f.root, 'saved-user-files'));
+  const recovered = install(f, ['--recover', id]);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.deepEqual(await snapshots(f), original);
+  backupId(install(f, ['--uninstall']));
+});
+
+test('uninstall refuses linked installations and linked backup stores', async () => {
+  const f = await fixture('uninstall-links');
+  assert.equal(install(f, ['--target', 'codex']).status, 0);
+  const actual = path.join(f.root, 'actual-installation');
+  await fs.rename(f.codexSkill, actual);
+  await fs.symlink(actual, f.codexSkill, process.platform === 'win32' ? 'junction' : 'dir');
+  const original = await contentsAndTimes(actual);
+  const linked = install(f, ['--uninstall', '--target', 'codex']);
+  assert.notEqual(linked.status, 0);
+  assert.match(linked.stderr, /Linked or non-directory/);
+  assert.deepEqual(await contentsAndTimes(actual), original);
+  await fs.unlink(f.codexSkill);
+  await fs.rename(actual, f.codexSkill);
+  const backups = path.join(f.codexHome, 'c2c-install-backups');
+  const moved = path.join(f.root, 'actual-backups');
+  await fs.rename(backups, moved);
+  await fs.symlink(moved, backups, process.platform === 'win32' ? 'junction' : 'dir');
+  const linkedBackup = install(f, ['--uninstall', '--target', 'codex']);
+  assert.notEqual(linkedBackup.status, 0);
+  assert.match(linkedBackup.stderr, /must not be linked/);
+  assert.deepEqual(await contentsAndTimes(f.codexSkill), original);
+});
+
+test('interrupted undo of uninstall recovers to the absent state and keeps the original undo usable', async () => {
+  const f = await fixture('uninstall-undo-interrupted');
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  const removedId = backupId(install(f, ['--uninstall']));
+  const injected = await injector(f, `const rename=fs.renameSync;fs.renameSync=function(from,to){
+    const result=rename.apply(this,arguments);
+    if(path.basename(from)==='replacement'&&to===path.join(process.env.CODEX_HOME,'skills','C2C'))process.exit(73);
+    return result;
+  };`);
+  assert.equal(install(f, ['--rollback', removedId], injected).status, 73);
+  const retry = install(f, ['--rollback', removedId]);
+  const interruptedId = retry.stderr.match(/Interrupted installation (\d{17}-[a-f0-9]{12})/)?.[1];
+  assert.ok(interruptedId, retry.stderr);
+  assert.notEqual(interruptedId, removedId);
+  const recovered = install(f, ['--recover', interruptedId]);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  await assert.rejects(fs.access(f.codexSkill));
+  await assert.rejects(fs.access(f.claudeSkill));
+  const undo = install(f, ['--rollback', removedId]);
+  assert.equal(undo.status, 0, undo.stderr);
+  for (const [index, skill] of [f.codexSkill, f.claudeSkill].entries()) {
+    for (const { file, bytes } of original[index]) assert.deepEqual(await fs.readFile(path.join(skill, file)), bytes);
+  }
+});
+
+test('dry-run previews install, update and uninstall without filesystem changes', async () => {
+  const f = await fixture('dry-run');
+  const fresh = install(f, ['--dry-run']);
+  assert.equal(fresh.status, 0, fresh.stderr);
+  assert.equal((fresh.stdout.match(/Would install:/g) || []).length, 2);
+  await assert.rejects(fs.access(f.codexHome));
+  await assert.rejects(fs.access(f.claudeHome));
+  assert.equal(install(f).status, 0);
+  const original = await snapshots(f);
+  const backups = await Promise.all([f.codexHome, f.claudeHome].map(home => fs.readdir(path.join(home, 'c2c-install-backups'))));
+  await advance(f);
+  for (const mode of ['--update', '--uninstall']) {
+    const result = install(f, [mode, '--dry-run']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal((result.stdout.match(new RegExp(`Would ${mode.slice(2)}:`, 'g')) || []).length, 2);
+    assert.deepEqual(await snapshots(f), original);
+    assert.deepEqual(await Promise.all([f.codexHome, f.claudeHome].map(home => fs.readdir(path.join(home, 'c2c-install-backups')))), backups);
+  }
+  await fs.appendFile(path.join(f.claudeSkill, 'SKILL.md'), '\nCustom file.');
+  const changed = await snapshots(f);
+  const blocked = install(f, ['--uninstall', '--dry-run']);
+  assert.notEqual(blocked.status, 0);
+  assert.match(blocked.stderr, /different installation exists/);
+  assert.deepEqual(await snapshots(f), changed);
+});
+
+test('uninstall and dry-run options reject ambiguous modes and print wrapper undo commands', async () => {
+  const f = await fixture('uninstall-options');
+  const id = '20261008123456000-123456789abc';
+  for (const args of [['--uninstall', '--update'], ['--uninstall', '--uninstall'], ['--dry-run', '--dry-run'], ['--rollback', id, '--dry-run'], ['--recover', id, '--dry-run']]) {
+    const result = install(f, args);
+    assert.notEqual(result.status, 0, JSON.stringify(args));
+  }
+  await assert.rejects(fs.access(f.codexHome));
+  await assert.rejects(fs.access(f.claudeHome));
+  assert.equal(install(f, ['--target', 'codex']).status, 0);
+  const launcher = 'npx --yes https://example.invalid/c2c.tar.gz';
+  const removed = install(f, ['--uninstall'], { C2C_SETUP_LAUNCHER: launcher });
+  const removedId = backupId(removed);
+  assert.ok(removed.stdout.includes(`Undo: ${launcher} rollback ${removedId} --target codex`));
 });

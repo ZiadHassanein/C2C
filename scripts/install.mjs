@@ -8,12 +8,13 @@ import { atomicWriteFile, acquireRunLock } from './state.mjs';
 
 const source = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const receiptName = '.c2c-install.json';
-const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'package.json', 'LICENSE'];
+const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'package.json', 'LICENSE'];
 const requireThat = (condition, message) => { if (!condition) throw new Error(message); };
 const exists = file => { try { fs.lstatSync(file); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; } };
 const hash = bytes => crypto.createHash('sha256').update(bytes.toString('latin1').replace(/\r\n/g, '\n'), 'latin1').digest('hex');
 const transactionId = id => typeof id === 'string' && /^\d{17}-[a-f0-9]{12}$/.test(id);
 const contained = (parent, child) => { const relative = path.relative(parent, child); return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)); };
+const maintenanceCommand = (mode, id, target) => `${process.env.C2C_SETUP_LAUNCHER ? `${process.env.C2C_SETUP_LAUNCHER} ${mode}` : `node scripts/install.mjs --${mode}`} ${id} --target ${target}`;
 
 // Resolve linked configuration roots, but never follow links inside a managed
 // installation or backup. Unknown user-owned files must not disappear in a swap.
@@ -51,6 +52,9 @@ function inventory(directory) {
 function equal(a, b) {
   const keys = Object.keys(a).sort();
   return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key]);
+}
+function sameState(actual, expected) {
+  return actual === null || expected === null ? actual === expected : equal(actual, expected);
 }
 function validManifest(value) {
   requireThat(value?.schema === 1 && typeof value.version === 'string' && value.version.length < 80 && value.files && typeof value.files === 'object' && !Array.isArray(value.files), 'Invalid managed installation receipt');
@@ -105,7 +109,7 @@ function recordAt(target, id) {
     requireThat(typeof snapshot === 'object' && !Array.isArray(snapshot) && Object.keys(snapshot).length <= 201, 'Invalid backup snapshot');
     for (const [file, digest] of Object.entries(snapshot)) requireThat(/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(file) && !file.split('/').some(part => part === '.' || part === '..') && /^[a-f0-9]{64}$/.test(digest), 'Invalid backup snapshot entry');
   }
-  requireThat(record.after && Object.keys(record.after).length > 0, 'Missing installed snapshot');
+  requireThat(record.after && Object.keys(record.after).length > 0 || record.operation === 'uninstall' && record.after === null && record.before && Object.keys(record.before).length > 0, 'Missing installed snapshot');
   return { ...target, directory, recordFile, record };
 }
 function recoveryState(part) {
@@ -115,14 +119,14 @@ function recoveryState(part) {
   if (exists(original)) {
     requireThat(record.before, 'Unexpected original backup');
     assertSnapshot(original, record.before);
-    requireThat(current === null || equal(current, record.after), `Current installation changed; recovery refused: ${dest}`);
+    requireThat(current === null || sameState(current, record.after), `Current installation changed; recovery refused: ${dest}`);
     return 'restore';
   }
   if (record.before) {
     requireThat(current && equal(current, record.before), `Missing original backup; recovery refused: ${dest}`);
     return 'untouched';
   }
-  requireThat(current === null || equal(current, record.after), `Current installation changed; recovery refused: ${dest}`);
+  requireThat(current === null || sameState(current, record.after), `Current installation changed; recovery refused: ${dest}`);
   return current ? 'remove-new' : 'untouched';
 }
 function restore(part) {
@@ -152,20 +156,22 @@ function parse(argv) {
     const flag = argv[index];
     requireThat(!seen.has(flag), `Repeated option: ${flag}`); seen.add(flag);
     if (flag === '--target') options.target = argv[++index];
-    else if (flag === '--update' || flag === '--rollback' || flag === '--recover') {
-      requireThat(options.mode === 'install', 'Choose only one of --update, --rollback ID or --recover ID');
+    else if (flag === '--dry-run') options.dryRun = true;
+    else if (flag === '--update' || flag === '--uninstall' || flag === '--rollback' || flag === '--recover') {
+      requireThat(options.mode === 'install', 'Choose only one of --update, --uninstall, --rollback ID or --recover ID');
       options.mode = flag.slice(2);
-      if (flag !== '--update') { options.id = argv[++index]; requireThat(transactionId(options.id), `${flag} requires the exact backup ID printed by the installer`); }
+      if (flag === '--rollback' || flag === '--recover') { options.id = argv[++index]; requireThat(transactionId(options.id), `${flag} requires the exact backup ID printed by the installer`); }
     } else throw new Error(`Unknown option: ${flag}. Run --help.`);
   }
   requireThat(['both', 'codex', 'claude'].includes(options.target), 'Use --target both|codex|claude');
+  requireThat(!options.dryRun || !['rollback', 'recover'].includes(options.mode), '--dry-run supports install, --update and --uninstall only');
   return options;
 }
 
 const releases = [];
 try {
   if (process.argv.slice(2).includes('--help')) {
-    console.log('node scripts/install.mjs [--target both|codex|claude] [--update | --rollback ID | --recover ID]\nInstall C2C, safely update a clean managed installation, restore a retained original backup, or recover an interrupted transaction. Backups are kept in c2c-install-backups beside skills. Modified/unknown files are never overwritten. Receipt-less v0.11.3 installs are recognized by release hashes. Move legacy codex-claude-council folders outside skill roots first. Start a new chat after changing versions.');
+    console.log('node scripts/install.mjs [--target both|codex|claude] [--update | --uninstall | --rollback ID | --recover ID] [--dry-run]\nInstall C2C, safely update or uninstall a clean managed installation, restore a retained original backup, or recover an interrupted transaction. Preview install/update/uninstall with --dry-run without writing files. Uninstall moves the skill to a retained backup; missing installs are already uninstalled. Backups are kept in c2c-install-backups beside skills. Modified/unknown files are never overwritten or removed. Receipt-less v0.11.3 installs are recognized by release hashes. Move legacy codex-claude-council folders outside skill roots first. Close active C2C runs before changing an installation, then start a new chat.');
   } else {
     const options = parse(process.argv.slice(2));
     const release = packaged();
@@ -188,11 +194,13 @@ try {
     // Locks serialize installers only; close active C2C runs before replacement.
     // Key locks to physical destinations, including when different configured
     // homes have linked skills roots pointing to one shared installation.
-    for (const lockRoot of [...new Set(targets.map(target => target.lockRoot))].sort()) {
-      fs.mkdirSync(lockRoot, { recursive: true });
-      releases.push(acquireRunLock(lockRoot));
+    if (!options.dryRun) {
+      for (const lockRoot of [...new Set(targets.map(target => target.lockRoot))].sort()) {
+        fs.mkdirSync(lockRoot, { recursive: true });
+        releases.push(acquireRunLock(lockRoot));
+      }
+      for (const target of targets) fs.mkdirSync(target.backups, { recursive: true });
     }
-    for (const target of targets) fs.mkdirSync(target.backups, { recursive: true });
     if (options.mode === 'recover') {
       const parts = targets.filter(target => exists(path.join(target.backups, options.id, 'transaction.json'))).map(target => recordAt(target, options.id));
       requireThat(parts.some(part => ['prepared', 'recovering'].includes(part.record.status)), 'No interrupted selected transaction found for this ID');
@@ -200,22 +208,26 @@ try {
       for (const part of parts.reverse()) restore(part);
       console.log(`Recovered original installations: ${options.id}`);
     } else {
-      for (const target of targets) for (const id of fs.readdirSync(target.backups).filter(transactionId)) {
+      for (const target of targets) for (const id of (exists(target.backups) ? fs.readdirSync(target.backups) : []).filter(transactionId)) {
         if (!exists(path.join(target.backups, id, 'transaction.json'))) continue;
         const part = recordAt(target, id);
-        requireThat(!['prepared', 'recovering'].includes(part.record.status), `Interrupted installation ${id}. Run node scripts/install.mjs --recover ${id} --target ${options.target} before retrying.`);
+        requireThat(!['prepared', 'recovering'].includes(part.record.status), `Interrupted installation ${id}. Run ${maintenanceCommand('recover', id, options.target)} before retrying.`);
       }
       const operations = [];
       for (const target of targets) {
         const current = exists(target.dest) ? installed(target.dest, release) : null;
         requireThat(options.mode !== 'update' || current, `No installed skill to update: ${target.dest}. Install first, or select only an installed provider with --target codex|claude.`);
         if (options.mode === 'rollback') {
-          requireThat(current, `No installed skill to roll back: ${target.dest}`);
           const backup = recordAt(target, options.id);
           requireThat(backup.record.status === 'committed' && backup.record.before, `No retained original installation in backup ${options.id}`);
+          if (backup.record.after === null) requireThat(!current, `An installation appeared after uninstall: ${target.dest}. Preserve or uninstall it before restoring this backup.`);
+          else requireThat(current, `No installed skill to roll back: ${target.dest}`);
           const original = path.join(backup.directory, 'original');
           assertSnapshot(original, backup.record.before);
-          operations.push({ ...target, before: current.snapshot, after: backup.record.before, copyFrom: original, version: backup.record.previousVersion });
+          operations.push({ ...target, before: current?.snapshot ?? null, after: backup.record.before, copyFrom: original, version: backup.record.previousVersion });
+        } else if (options.mode === 'uninstall') {
+          if (current) operations.push({ ...target, before: current.snapshot, after: null, version: null, previousVersion: current.manifest.version });
+          else console.log(`Already uninstalled: ${target.dest}`);
         } else if (current && equal(current.manifest.files, release.files)) console.log(`Already installed: ${target.dest}`);
         else {
           requireThat(!current || options.mode === 'update', `A different installation exists at ${target.dest}. Run node scripts/install.mjs --update to upgrade a clean managed installation.`);
@@ -223,7 +235,14 @@ try {
           operations.push({ ...target, before: current?.snapshot ?? null, after: { ...release.files, [receiptName]: hash(Buffer.from(receipt)) }, receipt, version: release.version, previousVersion: current?.manifest.version ?? null });
         }
       }
-      if (operations.length) {
+      if (options.dryRun) {
+        for (const operation of operations) {
+          console.log(`Would ${options.mode === 'uninstall' ? 'uninstall' : operation.before ? 'update' : 'install'}: ${operation.dest}`);
+          if (operation.before) console.log(`Would retain original backup outside skill discovery: ${operation.backups}`);
+        }
+        console.log('Preview complete. No files changed; run without --dry-run to apply.');
+      }
+      if (operations.length && !options.dryRun) {
         const id = new Date().toISOString().replace(/\D/g, '') + '-' + crypto.randomBytes(6).toString('hex');
         const parts = [];
         try {
@@ -232,11 +251,11 @@ try {
             fs.mkdirSync(directory);
             const replacement = path.join(directory, 'replacement');
             if (operation.copyFrom) copySnapshot(operation.copyFrom, replacement, operation.after);
-            else {
+            else if (operation.after) {
               copySnapshot(source, replacement, release.files);
               fs.writeFileSync(path.join(replacement, receiptName), operation.receipt, { flag: 'wx' });
             }
-            assertSnapshot(replacement, operation.after);
+            if (operation.after) assertSnapshot(replacement, operation.after);
             const record = { schema: 1, id, dest: operation.dest, status: 'prepared', operation: options.mode, previousVersion: operation.previousVersion ?? (operation.before ? json(path.join(operation.dest, 'package.json')).version : null), version: operation.version, before: operation.before, after: operation.after };
             const part = { ...operation, directory, recordFile: path.join(directory, 'transaction.json'), record };
             atomicWriteFile(part.recordFile, record);
@@ -253,25 +272,27 @@ try {
               fs.renameSync(part.dest, path.join(part.directory, 'original'));
               assertSnapshot(path.join(part.directory, 'original'), part.before);
             } else requireThat(!exists(part.dest), `Installation appeared during staging: ${part.dest}`);
-            fs.renameSync(path.join(part.directory, 'replacement'), part.dest);
-            assertSnapshot(part.dest, part.after);
+            if (part.after) {
+              fs.renameSync(path.join(part.directory, 'replacement'), part.dest);
+              assertSnapshot(part.dest, part.after);
+            } else requireThat(!exists(part.dest), `Installation appeared during uninstall: ${part.dest}`);
           }
           for (const part of parts) { part.record.status = 'committed'; atomicWriteFile(part.recordFile, part.record); }
         } catch (error) {
           try { beginRecovery(parts); for (const part of [...parts].reverse()) restore(part); }
-          catch (recoveryError) { throw new Error(`${error.message}. Recovery requires inspection: ${recoveryError.message}. Preserve backups and run --recover ${id} --target ${options.target}.`); }
+          catch (recoveryError) { throw new Error(`${error.message}. Recovery requires inspection: ${recoveryError.message}. Preserve backups and run ${maintenanceCommand('recover', id, options.target)}.`); }
           throw new Error(`${error.message}. Original installations restored; staged files retained under backup ID ${id}.`);
         }
         for (const part of parts) {
-          console.log(`${part.before ? options.mode === 'rollback' ? 'Rolled back' : 'Updated' : 'Installed'}: ${part.dest} (${part.version})`);
+          console.log(`${options.mode === 'uninstall' ? 'Uninstalled' : options.mode === 'rollback' ? 'Rolled back' : part.before ? 'Updated' : 'Installed'}: ${part.dest}${part.version ? ` (${part.version})` : ''}`);
           if (part.before) console.log(`Backup: ${part.directory}`);
         }
         if (parts.some(part => part.before)) {
           const undoTarget = parts.length === targets.length ? options.target : parts[0].dest === path.join(allSkillRoots[0], 'C2C') ? 'codex' : 'claude';
-          console.log(`Backup ID: ${id}\nUndo: node scripts/install.mjs --rollback ${id} --target ${undoTarget}`);
+          console.log(`Backup ID: ${id}\nUndo: ${maintenanceCommand('rollback', id, undoTarget)}`);
         }
       }
-      console.log('Start a new Codex or Claude Code chat to discover the skill. Run the council runner doctor command to check peer CLI readiness.');
+      if (!options.dryRun) console.log(options.mode === 'uninstall' ? 'Start a new Codex or Claude Code chat to stop discovering the removed skill. Projects, other settings and retained backups are unchanged.' : 'Start a new Codex or Claude Code chat to discover the skill. Run the council runner doctor command to check peer CLI readiness.');
     }
   }
 } catch (error) {

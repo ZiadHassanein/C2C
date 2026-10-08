@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 1.3.0: one-command setup and recoverable removal
+
+The user requested easier installation and uninstallation. A small `c2c` executable maps readable setup commands onto the existing installer and doctor. The quick start runs a pinned GitHub release archive through npx, avoiding a Git clone, working-directory changes, global package installation or an npm account. Local Git/ZIP and installed-copy helpers remain available for offline use. The package has no lifecycle hooks or runtime npm dependencies; npx may retain its downloaded package in its cache. npm 12 remote-source policy and Windows PowerShell launcher troubleshooting are documented as command-scoped alternatives, without changing global settings.
+
+Managed uninstall preflights all selected installations, preserves verified folders under existing backup stores, and represents the absent installation explicitly in transaction records. Undo refuses to overwrite an installation that appeared after removal. Recovery preserves new or changed files and restores the original group after an interrupted removal. Modified, unknown and linked content is refused rather than forced; manual removal remains documented. Install/update/uninstall support a read-only preview, which does not acquire locks or write installer files. Active C2C runs still need finishing or stopping before maintenance; installer locks serialize maintenance, not workers.
+
+The installed file set now includes the installer, trusted legacy baselines and setup helper. No planning instruction, provider adapter, model call or billing behavior changes. Validation covers the existing installer regressions, removal/undo/crash/customization/link boundaries, and a packaged executable used with npm exec in isolated homes. Release validation results are recorded after the complete suite and platform CI finish.
+
 ### Visual README: concise by default, complete on demand
 
 The user requested less homepage text without losing information. Installation, both first-use prompts, primary output files and updates remain visible; detailed setup, examples, routing, execution advice, discussion, features, limits and guides are grouped into fifteen flat expandable sections. All original substantive text lines, ten fenced examples/commands and seventeen original section titles and anchors are preserved; the first-use step's obsolete numeric prefix is removed. Existing links to collapsed sections land on visible disclosure controls through custom anchors; the corresponding inner titles use bold text to avoid duplicate anchors. No information is removed to shorten the default view.

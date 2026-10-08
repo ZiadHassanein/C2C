@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.3.0 — Simpler setup and recoverable uninstall
+
+- Adds one-command installation from a versioned GitHub archive using Node and npx, without Git, a global package, or an npm account. The local download-and-run option remains available.
+- Adds readable `install`, `update`, `uninstall`, `rollback`, `recover`, `doctor` and `version` commands. Use `--target` to choose one app and `--dry-run` to preview installation, update or removal.
+- Uninstall moves verified C2C folders into retained backups and prints a restore command. Customized or unknown files, other skills, settings and projects remain protected. Interrupted removals use the existing transaction recovery mechanism.
+- Includes setup helpers in installed copies for offline maintenance. Planning behavior, provider selection and spending limits are unchanged.
+
 ## 1.2.1 — Explain execution choices before savings
 
 - Execution advice leads with concrete task fit, evidence, comparison with the alternative, tradeoffs and acceptance checks that could change the choice.

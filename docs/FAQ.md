@@ -2,6 +2,16 @@
 
 C2C is an open-source skill for collaborative planning between Codex and Claude Code, or distinct models within one provider. Either app can start and coordinate the work. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers historical cross-provider setup and usage.
 
+## Can I install without cloning the repository?
+
+Yes. With Node.js 18+ and npm/npx, run:
+
+```sh
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install
+```
+
+It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
+
 ## How do I make Codex and Claude Code work together?
 
 Install C2C and start a new project chat. In Codex, ask `Use $C2C to plan…`. In Claude Code, use `/C2C Plan…`. The initiating chat coordinates; there is no permanent main provider. It prefers an eligible exchange with the other provider, then distinct models from its own provider if the other is unavailable before calls. If neither route qualifies, it delivers a provisional plan with structured self-critique. See [copyable prompts](../README.md#use-it) and [optional setup help](SETUP.md#troubleshooting).
@@ -12,7 +22,13 @@ Only for an exchange that uses background workers from both providers. When your
 
 ## Can I uninstall C2C easily?
 
-Yes. Stop active C2C runs, move only its installed `C2C` folder from one or both apps to the Recycle Bin/Trash, then start a new chat. Your apps, logins, and projects/plans saved elsewhere remain in place. See [exact folders, custom paths and optional cleanup](SETUP.md#uninstall).
+Yes. Finish or stop active C2C runs, then run:
+
+```sh
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz uninstall
+```
+
+Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
 
 ## What if one tool is not installed or ready?
 
@@ -136,4 +152,4 @@ Saved Markdown plans, a generated handoff, and structured run state support resu
 
 ## Where should I start?
 
-Use the [four-step quick start](../README.md#install), then ask for one focused feature. Read the [setup guide](SETUP.md) for upgrades or troubleshooting and the [technical protocol](../references/protocol.md) for commands, schemas, and saved evidence.
+Use the [one-command quick start](../README.md#install), then ask for one focused feature. Read the [setup guide](SETUP.md) for upgrades or troubleshooting and the [technical protocol](../references/protocol.md) for commands, schemas, and saved evidence.

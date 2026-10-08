@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="1193" viewBox="0 0 480 1193" role="img" aria-labelledby="title desc">
+<title id="title">Recover without resetting the task limits</title>
+<desc id="desc">When the opposite provider is blocked during a run, inspect the cause and preserve successful reports, original participant identities and spent allowance. If distinct eligible models in the current provider and known authorized residual limits fit the full requested workflow, permit one linked same-provider run; completion is not guaranteed. Otherwise deliver a provisional plan with self-critique, or checkpoint if the chat cannot continue. Explicit wait or both-required requests, and exhausted overall allowance, require a checkpoint. No paid bypass, allowance reset or chained transition. A timeout alone is not proof of exhausted quota.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto-start-reverse"><path d="M1 1L6 4L1 7" fill="none" stroke="#b63827" stroke-width="1.5"/></marker></defs>
+<rect width="480" height="1193" fill="#f7f4ed"/>
+<g font-family="Segoe UI, Arial, sans-serif" fill="#202820">
+<text x="24" y="52" font-size="28" font-weight="600" fill="#202820" text-anchor="start">Other provider blocked mid-run</text>
+<text x="24" y="92" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">Timeout alone does not prove</text>
+<text x="24" y="125" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">a usage limit. Confirm the cause.</text>
+<rect x="24" y="154" width="432" height="115" rx="6" fill="#eae5da"/>
+<text x="44" y="192" font-size="25" font-weight="600" fill="#202820" text-anchor="start">Pause calls. Keep progress.</text>
+<text x="44" y="226" font-size="22" font-weight="400" fill="#202820" text-anchor="start">Reports + identities</text>
+<text x="44" y="253" font-size="22" font-weight="400" fill="#202820" text-anchor="start">+ consumed allowance</text>
+<path d="M240 269V305" fill="none" stroke="#b63827" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="24" y="318" width="432" height="173" rx="6" fill="none" stroke="#202820" stroke-width="1.5"/>
+<text x="44" y="355" font-size="25" font-weight="600" fill="#202820" text-anchor="start">Current provider:</text>
+<text x="44" y="390" font-size="23" font-weight="400" fill="#202820" text-anchor="start">Distinct eligible models?</text>
+<text x="44" y="426" font-size="23" font-weight="400" fill="#202820" text-anchor="start">Full workflow fits authorized</text>
+<text x="44" y="460" font-size="23" font-weight="400" fill="#202820" text-anchor="start">remaining task limits?</text>
+<path d="M48 491V805" fill="none" stroke="#b63827" stroke-width="2"/>
+<path d="M48 574H75" fill="none" stroke="#b63827" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="88" y="534" font-size="22" font-weight="600" fill="#b63827" text-anchor="start">YES TO BOTH</text>
+<rect x="88" y="551" width="368" height="146" rx="6" fill="none" stroke="#202820" stroke-width="1.5"/>
+<text x="108" y="589" font-size="25" font-weight="600" fill="#202820" text-anchor="start">One linked run</text>
+<text x="108" y="624" font-size="23" font-weight="400" fill="#202820" text-anchor="start">Same provider, distinct models</text>
+<text x="108" y="657" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">Critique + verification requested</text>
+<text x="108" y="682" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">Remaining budget only</text>
+<path d="M48 805H75" fill="none" stroke="#b63827" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="88" y="759" font-size="22" font-weight="600" fill="#b63827" text-anchor="start">NO / UNKNOWN</text>
+<rect x="88" y="776" width="368" height="174" rx="6" fill="#eae5da"/>
+<text x="108" y="814" font-size="25" font-weight="600" fill="#202820" text-anchor="start">Provisional plan</text>
+<text x="108" y="849" font-size="23" font-weight="400" fill="#202820" text-anchor="start">+ current-chat self-critique</text>
+<text x="108" y="882" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">Missing review stays explicit.</text>
+<text x="108" y="915" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">Cannot continue?</text>
+<text x="108" y="940" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">Save a checkpoint.</text>
+<path d="M24 981H456" stroke="#d4cebf"/>
+<text x="24" y="1018" font-size="22" font-weight="600" fill="#202820" text-anchor="start">Wait / both required</text>
+<text x="24" y="1051" font-size="22" font-weight="600">or overall allowance exhausted</text>
+<path d="M24 1085H60" fill="none" stroke="#b63827" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="81" y="1093" font-size="24" font-weight="600" fill="#202820" text-anchor="start">Save a checkpoint</text>
+<text x="24" y="1139" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">No paid bypass · No budget reset</text>
+<text x="24" y="1169" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">No chained transitions</text>
+</g>
+</svg>
+

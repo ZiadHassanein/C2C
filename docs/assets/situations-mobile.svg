@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="1044" viewBox="0 0 480 1044" role="img" aria-labelledby="title desc">
+<title id="title">Choose an eligible planning route</title>
+<desc id="desc">Before worker calls, the starting chat coordinates. Prefer eligible Codex and Claude models. If the other provider is unavailable, use a planner and distinct coding critic in the current provider. Without an eligible pair, deliver a provisional plan with one-model self-critique, not independent review. Check required tools, model access and authorized allowance. Explicit participant, model, advice-only and wait requests override automatic routing.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto-start-reverse"><path d="M1 1L6 4L1 7" fill="none" stroke="#b63827" stroke-width="1.5"/></marker></defs>
+<rect width="480" height="1044" fill="#f7f4ed"/>
+<g font-family="Segoe UI, Arial, sans-serif" fill="#202820">
+<text x="24" y="52" font-size="31" font-weight="600" fill="#202820" text-anchor="start">Use what is available</text>
+<text x="24" y="91" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">Either starting chat coordinates.</text>
+<rect x="24" y="116" width="432" height="92" rx="6" fill="#eae5da"/>
+<text x="44" y="153" font-size="22" font-weight="400" fill="#202820" text-anchor="start">Required CLI · Model access</text>
+<text x="44" y="186" font-size="22" font-weight="400" fill="#202820" text-anchor="start">Known authorized allowance</text>
+<text x="24" y="260" font-size="22" font-weight="600" fill="#b63827" text-anchor="start">01</text>
+<text x="67" y="260" font-size="27" font-weight="600" fill="#202820" text-anchor="start">Both eligible</text>
+<rect x="24" y="287" width="179" height="64" rx="6" fill="none" stroke="#202820" stroke-width="1.5"/>
+<rect x="277" y="287" width="179" height="64" rx="6" fill="none" stroke="#202820" stroke-width="1.5"/>
+<text x="113" y="329" font-size="25" font-weight="600" fill="#202820" text-anchor="middle">Codex</text>
+<text x="366" y="329" font-size="24" font-weight="600" fill="#202820" text-anchor="middle">Claude Code</text>
+<path d="M222 319H258" fill="none" stroke="#b63827" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="24" y="389" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">Planning author + planning reviewer</text>
+<path d="M24 421H456" stroke="#d4cebf"/>
+<text x="24" y="473" font-size="22" font-weight="600" fill="#b63827" text-anchor="start">02</text>
+<text x="67" y="473" font-size="27" font-weight="600" fill="#202820" text-anchor="start">Other unavailable</text>
+<rect x="24" y="500" width="179" height="91" rx="6" fill="none" stroke="#202820" stroke-width="1.5"/>
+<rect x="277" y="500" width="179" height="91" rx="6" fill="none" stroke="#202820" stroke-width="1.5"/>
+<text x="113" y="538" font-size="25" font-weight="600" fill="#202820" text-anchor="middle">Planner</text>
+<text x="113" y="569" font-size="24" font-weight="400" fill="#202820" text-anchor="middle">model</text>
+<text x="366" y="538" font-size="25" font-weight="600" fill="#202820" text-anchor="middle">Coding</text>
+<text x="366" y="569" font-size="24" font-weight="400" fill="#202820" text-anchor="middle">critic</text>
+<path d="M222 545H258" fill="none" stroke="#b63827" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<text x="24" y="628" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">Current provider · Distinct models</text>
+<path d="M24 660H456" stroke="#d4cebf"/>
+<text x="24" y="712" font-size="22" font-weight="600" fill="#b63827" text-anchor="start">03</text>
+<text x="67" y="712" font-size="27" font-weight="600" fill="#202820" text-anchor="start">No eligible pair</text>
+<rect x="24" y="739" width="432" height="129" rx="6" fill="#eae5da"/>
+<text x="44" y="778" font-size="27" font-weight="600" fill="#202820" text-anchor="start">Provisional plan</text>
+<text x="44" y="813" font-size="24" font-weight="400" fill="#202820" text-anchor="start">+ current-chat self-critique</text>
+<text x="44" y="846" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">No independent review</text>
+<text x="24" y="925" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">Explicit choices override routing.</text>
+<text x="24" y="961" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">“Wait for both”</text>
+<path d="M182 954H219" fill="none" stroke="#b63827" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="239" y="961" font-size="22" font-weight="400" fill="#5d554d" text-anchor="start">Checkpoint</text>
+<text x="24" y="1004" font-size="21" font-weight="400" fill="#5d554d" text-anchor="start">No forced setup or paid bypass.</text>
+</g>
+</svg>

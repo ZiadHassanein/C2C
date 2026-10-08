@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Visual README: concise by default, complete on demand
+
+The user requested less homepage text without losing information. Installation, both first-use prompts, primary output files and updates remain visible; detailed setup, examples, routing, execution advice, discussion, features, limits and guides are grouped into fifteen flat expandable sections. All original substantive text lines, ten fenced examples/commands and seventeen original headings are preserved; the first-use step's obsolete numeric prefix is removed. Existing section links remain valid, including headings inside expandable sections. No information is removed to shorten the default view.
+
+Two new responsive diagram pairs explain pre-call routing (eligible cross-provider pair, distinct models within one provider, or provisional self-critique) and bounded recovery when the other provider becomes unavailable during a run. They distinguish timeout diagnosis from provider limits, preserve actual progress and remaining allowance, and retain explicit wait/required-participant overrides, checkpoints and no paid bypass. The full existing planning workflow remains available in an expandable section. Diagrams use accessible SVG descriptions, meaningful alternative text and the current paper/ink/red identity.
+
+Validation: all 200 local documentation targets pass; the original-content comparison reports no missing substantive lines and preserves all commands/examples/headings. All eight SVGs are checked for accessible metadata and inactive local content. Independent content review corrected an overly broad failure-recovery label and approved preservation. Local desktop/mobile rendering, disclosure opening, automatic opening from an existing fragment link, mobile picture selection and horizontal overflow were checked. These are documentation checks, not runtime, model or performance tests. Version, installed skill and execution behavior remain unchanged.
+
 ### README header: a simpler introduction
 
 Replaced the generic rounded teal banner with a custom geometric C2C wordmark, warm paper surface and restrained red emphasis. The user requested a simpler, clearer idea: both desktop and mobile assets now show only the brand, the sequence “Plan → Review → Refine,” and “Codex, Claude Code, or both.” Provider roles are not fixed; equal entry points and eligible same-provider/solo routing remain in native README text. The searchable title is shorter, with the skill description retained in the introduction.

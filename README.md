@@ -37,12 +37,16 @@ node scripts/install.mjs
 node scripts/council.mjs doctor
 ```
 
+<!-- Keep existing section links on the visible disclosure. -->
+<a name="1-prepare-your-tools"></a>
+<a name="2-install-and-check"></a>
+
 <details>
 <summary>Setup requirements, sign-in, readiness checks and installation options</summary>
 
 **Easy to remove.** After stopping active C2C runs, move the installed `C2C` folders to the Recycle Bin/Trash and start a new chat. Your projects and plans saved elsewhere stay in place. [See the folders and uninstall steps](docs/SETUP.md#uninstall).
 
-### 1. Prepare your tools
+**1. Prepare your tools**
 
 [Node.js 18 or newer](https://nodejs.org/en/download) runs the installer and council scripts. C2C uses existing compatible, authenticated command-line tools (CLIs) for independent review. If you want to add one, these are the optional setup instructions:
 
@@ -60,7 +64,7 @@ Yes. A Codex-only exchange needs a ready Codex CLI and two eligible, distinct mo
 For a cross-provider exchange, only the peer's CLI is needed when your chat is the selected author; a background author requires both CLIs. If no eligible two-participant route exists, the chat delivers a provisional plan with a clearly labeled self-critique, security, proposed tests and an execution entry point. [Choose the participants](docs/SETUP.md#choose-the-participants).
 
 
-### 2. Install and check
+**2. Install and check**
 
 
 This installs C2C for your current user in both apps. No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/heads/main.zip), extract it, and run the two `node` commands from the folder containing `scripts`.
@@ -140,10 +144,13 @@ Replace the path with your plan. In Claude Code, start with `/C2C`.
 
 </details>
 
+<!-- Keep existing section links on the visible disclosure. -->
+<a name="with-codex-only-or-claude-only"></a>
+
 <details>
 <summary>With Codex only or Claude only</summary>
 
-### With Codex only or Claude only
+**With Codex only or Claude only**
 
 ```text
 Use $C2C with Codex only to plan this feature.
@@ -186,10 +193,13 @@ The goal is better decisions for the work spent. Review can cost more than ordin
 
 </details>
 
+<!-- Keep existing section links on the visible disclosure. -->
+<a name="before-planning"></a>
+
 <details>
 <summary>What C2C checks before planning</summary>
 
-### Before planning
+**Before planning**
 
 C2C checks what exists, whether the project is in production, what readiness evidence is available, and whether the goal and first useful action are clear. Missing evidence stays unknown. Small features get a focused assessment; project roadmaps get MVP boundaries and dependent milestones. [Assessment details](references/project-assessment.md).
 
@@ -207,10 +217,13 @@ A timeout or login failure is not proof of exhausted quota. Inspect the cause fi
 
 </details>
 
+<!-- Keep existing section links on the visible disclosure. -->
+<a name="follow-the-discussion"></a>
+
 <details>
 <summary>Follow the discussion: proposals, critiques and decisions</summary>
 
-### Follow the discussion
+**Follow the discussion**
 
 Open `DISCUSSION.md` to follow saved proposals, challenges, and responses. Chat stays focused on questions, blockers and the final brief. To receive chat summaries too, ask: “Show me the main disagreements and plan changes as you go.”
 
@@ -257,10 +270,13 @@ Project evidence, model choices and resumable progress remain in `PROJECT_CONTEX
 
 </details>
 
+<!-- Keep existing section links on the visible disclosure. -->
+<a name="which-model-should-execute-the-plan"></a>
+
 <details>
 <summary>Execution models: recommendations, reasons and savings evidence</summary>
 
-### Which model should execute the plan?
+**Which model should execute the plan?**
 
 C2C recommends a model for the first implementation task, with a lower-cost alternative when justified, a reason to reconsider it, and dated sources. It reuses current official research and checks relevant firsthand community reports. Small edits and risky migrations can need different choices; there is no permanent best model. Recommendations do not switch your model or start coding.
 

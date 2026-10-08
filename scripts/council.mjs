@@ -16,9 +16,12 @@ import { participantsFromOptions, validateParticipants, participantLabel, partic
 import { prepareBudget, budgetSummary, recoverInterruptedAttempts, extendBudget } from './budget.mjs';
 import { readPeerProgress } from './progress.mjs';
 import { EVIDENCE_REQUEST_SCHEMA, validateEvidenceRequests, createEvidenceRecord, validateEvidenceLedger, evidenceForStage } from './evidence.mjs';
+import { packageRuntimeIdentity, pinRuntime, assertMatchingRuntime, routeRunCommand, routePrepareCommand, validateRunOutput } from './runtime.mjs';
 
 const VERSION = 6;
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const PACKAGE_RUNTIME = packageRuntimeIdentity(PACKAGE_ROOT);
 const LIMIT = 1024 * 1024;
 const CONTEXT_LIMIT = 240000;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -133,7 +136,6 @@ export function prepare(options) {
   const inputs = [source(options.brief, 'brief'), assessmentInput, ...contextInputs];
   required(inputs[0].content.trim(), 'Brief cannot be empty');
   required(inputs.reduce((n, f) => n + f.bytes, 0) <= CONTEXT_LIMIT, `Selected context exceeds ${CONTEXT_LIMIT} bytes; summarize it first`);
-  const snapshot = { project, inputs, project_assessment: assessment, participants, run_format: VERSION };
   const out = path.resolve(options.out);
   const state = {
     version: VERSION, id: crypto.randomUUID(), created_at: now(), ...participants, mode, project,
@@ -142,7 +144,12 @@ export function prepare(options) {
   };
   if (participants.author_model) required(budgetSummary(state).attempts_sufficient, `Selected worker route requires ${requiredStages(state).length} successful calls; max-attempts cannot cover it. Preserve explicit user limits and select an authorized allowance before preparation.`);
   required(!fs.existsSync(out), `Output directory already exists; choose a fresh run directory: ${out}`);
-  fs.mkdirSync(out, { recursive: true });
+  validateRunOutput(out, PACKAGE_ROOT);
+  const runtime = pinRuntime(PACKAGE_ROOT, PACKAGE_RUNTIME);
+  state.runtime = runtime.pin;
+  const snapshot = { project, inputs, project_assessment: assessment, participants, run_format: VERSION, runtime: runtime.pin };
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.mkdirSync(out);
   write(path.join(out, 'snapshot.json'), snapshot);
   state.seals['snapshot.json'] = sha(readText(path.join(out, 'snapshot.json')));
   write(path.join(out, 'project-assessment.json'), assessment);
@@ -153,13 +160,14 @@ export function prepare(options) {
   write(path.join(out, 'report.schema.json'), REPORT_SCHEMA);
   write(path.join(out, 'decisions.schema.json'), DECISIONS_SCHEMA);
   saveRun(out, state);
-  return { run: out, coordinator, peer: state.peer, participants: participantSummary(state), mode, budget: budgetSummary(state), discussion: availableDiscussion(out), context: inputs.map(({ content, ...f }) => f), next: state.author_model ? 'Call ask --stage author-draft to obtain the selected planner proposal, then follow SKILL.md.' : 'Write coordinator-draft.json using report.schema.json, then follow SKILL.md.' };
+  return { run: out, runtime: { pinned: true, version: runtime.version, digest: runtime.digest, runner: runtime.runner, instructions: runtime.instructions }, coordinator, peer: state.peer, participants: participantSummary(state), mode, budget: budgetSummary(state), discussion: availableDiscussion(out), context: inputs.map(({ content, ...f }) => f), next: state.author_model ? 'Use runtime.runner and runtime.instructions for this plan. Call ask --stage author-draft to obtain the selected planner proposal.' : 'Use runtime.runner and runtime.instructions for this plan. Write coordinator-draft.json using report.schema.json.' };
 }
 
-function loadRun(run) {
+function loadRun(run, { allowLegacy = false } = {}) {
   required(run, '--run is required');
   const dir = fs.realpathSync(path.resolve(run));
   const state = readRunState(dir);
+  const runtime = assertMatchingRuntime(dir, PACKAGE_RUNTIME, { allowLegacy });
   required([1, 2, 3, 4, 5, VERSION].includes(state.version) && ['codex', 'claude'].includes(state.peer), 'Unsupported run manifest');
   required(state.author_model ? state.version >= 5 : state.version !== 5, 'Background author routing requires format 5 or later; do not downgrade or remove the sealed author route');
   budgetSummary(state);
@@ -183,7 +191,7 @@ function loadRun(run) {
     required(JSON.stringify(snapshot.project_assessment) === JSON.stringify(assessment), 'Project assessment does not match the frozen snapshot');
   }
   evidenceLedger(dir, state);
-  return { dir, state };
+  return { dir, state, runtime };
 }
 
 function evidenceLedger(dir, state) {
@@ -283,6 +291,7 @@ function writeHandoff(dir, state) {
   const providerAdvice = providerFailureAdvice(state);
   const lines = ['# C2C run progress', '', 'Generated by the runner; use NOTES.md for additional coordinator context. Confirm current state with the status command before continuing.', '',
     'Run: ' + state.id, participantLabel(state, 'coordinator') + ' → ' + participantLabel(state, 'peer') + '. Pairing: ' + (state.pairing || 'cross') + '. Mode: ' + state.mode + '.',
+    ...(state.runtime ? ['Pinned C2C version: ' + state.runtime.version + '. Resume with this run\'s runtime and instructions reported by status; an installed update applies to new plans.'] : ['Legacy run: preserve the original installation until this plan finishes.']),
     ...(state.author_model ? ['Background planner: ' + participantLabel(state, 'author') + '. The current chat remains the coordinator.'] : []),
     participantSummary(state).identity_note,
     'Status: ' + state.status, 'Attempts: ' + state.attempts.length + '/' + state.max_attempts + '; successful responses: ' + state.attempts.filter(a => a.status === 'succeeded').length + '.',
@@ -705,7 +714,7 @@ function assessmentSummary(dir, state) {
 }
 
 export function status(options) {
-  const { dir, state } = loadRun(options.run);
+  const { dir, state, runtime } = loadRun(options.run, { allowLegacy: true });
   const snapshot = readJSON(path.join(dir, 'snapshot.json'));
   const changed = [], unavailable = [];
   for (const input of snapshot.inputs) {
@@ -713,13 +722,13 @@ export function status(options) {
     catch (error) { unavailable.push({ path: input.path, reason: error.code === 'ENOENT' ? 'missing' : 'unreadable' }); }
   }
   const budget = budgetSummary(state);
-  return { run: dir, coordinator: state.coordinator, peer: state.peer, participants: participantSummary(state), provider_limit: providerLimitNotice(state), reported_peer_models: [...new Set(state.attempts.filter(a => a.role !== 'author').flatMap(attempt => attempt.reported_models || []))],
+  return { run: dir, runtime, coordinator: state.coordinator, peer: state.peer, participants: participantSummary(state), provider_limit: providerLimitNotice(state), reported_peer_models: [...new Set(state.attempts.filter(a => a.role !== 'author').flatMap(attempt => attempt.reported_models || []))],
     ...(state.author_model ? { reported_author_models: [...new Set(state.attempts.filter(a => a.role === 'author').flatMap(a => a.reported_models || []))], successful_worker_calls: state.attempts.filter(a => a.status === 'succeeded').length } : {}),
     mode: state.mode, status: state.status, stages: state.stages, attempts_used: state.attempts.length, successful_peer_calls: state.attempts.filter(a => a.status === 'succeeded' && a.role !== 'author').length, attempts_remaining: budget.attempts_remaining, peer_seconds_used: budget.peer_seconds_used, peer_seconds_remaining: budget.peer_seconds_available, budget, limit_history: state.limit_history ?? [], peer_progress: readPeerProgress(dir, state), changed_source_files: changed, unavailable_source_files: unavailable, evidence_requests: evidenceRequests(dir,state), project_assessment: assessmentSummary(dir, state), completion: state.completion || null };
 }
 
 export function progress(options) {
-  const { dir, state } = loadRun(options.run);
+  const { dir, state } = loadRun(options.run, { allowLegacy: true });
   return { run: dir, status: state.status, peer: state.peer, provider_limit: providerLimitNotice(state), peer_progress: readPeerProgress(dir, state) };
 }
 
@@ -881,11 +890,17 @@ function isMainModule() {
 }
 if (isMainModule()) {
   try {
-    const { command, options, compact } = parseArgs(process.argv.slice(2));
-    const handlers = { evidence, prepare, ask, status, progress, extend, finish, doctor, discussion, decisions: syncDecisions, 'recover-lock': recoverLock };
-    if (command === 'help') process.stdout.write(HELP);
-    else if (command === 'version') process.stdout.write(JSON.stringify({ name: 'C2C', version: PACKAGE_VERSION, run_format: VERSION }) + '\n');
-    else process.stdout.write(JSON.stringify(await handlers[command](options), null, compact ? undefined : 2) + '\n');
+    const argv = process.argv.slice(2);
+    // Let the retained version parse its own command vocabulary and options.
+    if (argv[0] !== 'prepare' && argv.includes('--run') && routeRunCommand(argv, fileURLToPath(import.meta.url))) { /* Pinned runner owns stdout and status. */ }
+    else {
+      const { command, options, compact } = parseArgs(argv);
+      const handlers = { evidence, prepare, ask, status, progress, extend, finish, doctor, discussion, decisions: syncDecisions, 'recover-lock': recoverLock };
+      if (command === 'prepare' && routePrepareCommand(argv, PACKAGE_ROOT, PACKAGE_RUNTIME, options.out)) { /* Prepare from the immutable bundle. */ }
+      else if (command === 'help') process.stdout.write(HELP);
+      else if (command === 'version') process.stdout.write(JSON.stringify({ name: 'C2C', version: PACKAGE_VERSION, run_format: VERSION }) + '\n');
+      else process.stdout.write(JSON.stringify(await handlers[command](options), null, compact ? undefined : 2) + '\n');
+    }
   } catch (error) {
     process.stderr.write(`Council: ${error.message}\n`); process.exitCode = 1;
   }

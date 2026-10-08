@@ -7,7 +7,7 @@ C2C is an open-source skill for collaborative planning between Codex and Claude 
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -20,12 +20,16 @@ Install C2C and start a new project chat. In Codex, ask `Use $C2C to plan…`. I
 
 Only for an exchange that uses background workers from both providers. When your current chat supplies the author's work, only the other provider's CLI is required. Codex-only discussion needs Codex CLI; Claude-only discussion needs Claude Code CLI. Each also needs two eligible distinct models and authorized allowance. A missing unused CLI is ignored. Node.js 18 or newer runs the installer/council scripts, with no npm dependencies. The installer does not install CLIs or sign you in.
 
+## Will I know when there is an update?
+
+C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a short chat notice. Say “Update C2C and keep this plan on its current version.” Prepared 1.4+ runs retain their original C2C code and instructions; start a fresh chat for new-version plans. There is no background service, automatic installation or extra model call. Older/provisional plans should finish or stop before updating. See [notification settings and update continuity](SETUP.md#update-notifications).
+
 ## Can I uninstall C2C easily?
 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).

@@ -5,10 +5,11 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomicWriteFile, acquireRunLock } from './state.mjs';
+import { compareVersions } from './updates.mjs';
 
 const source = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const receiptName = '.c2c-install.json';
-const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'package.json', 'LICENSE'];
+const files = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'scripts/runtime.mjs', 'scripts/updates.mjs', 'package.json', 'LICENSE'];
 const requireThat = (condition, message) => { if (!condition) throw new Error(message); };
 const exists = file => { try { fs.lstatSync(file); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; } };
 const hash = bytes => crypto.createHash('sha256').update(bytes.toString('latin1').replace(/\r\n/g, '\n'), 'latin1').digest('hex');
@@ -157,6 +158,7 @@ function parse(argv) {
     requireThat(!seen.has(flag), `Repeated option: ${flag}`); seen.add(flag);
     if (flag === '--target') options.target = argv[++index];
     else if (flag === '--dry-run') options.dryRun = true;
+    else if (flag === '--no-downgrade') options.noDowngrade = true;
     else if (flag === '--update' || flag === '--uninstall' || flag === '--rollback' || flag === '--recover') {
       requireThat(options.mode === 'install', 'Choose only one of --update, --uninstall, --rollback ID or --recover ID');
       options.mode = flag.slice(2);
@@ -165,13 +167,14 @@ function parse(argv) {
   }
   requireThat(['both', 'codex', 'claude'].includes(options.target), 'Use --target both|codex|claude');
   requireThat(!options.dryRun || !['rollback', 'recover'].includes(options.mode), '--dry-run supports install, --update and --uninstall only');
+  requireThat(!options.noDowngrade || options.mode === 'update', '--no-downgrade requires --update');
   return options;
 }
 
 const releases = [];
 try {
   if (process.argv.slice(2).includes('--help')) {
-    console.log('node scripts/install.mjs [--target both|codex|claude] [--update | --uninstall | --rollback ID | --recover ID] [--dry-run]\nInstall C2C, safely update or uninstall a clean managed installation, restore a retained original backup, or recover an interrupted transaction. Preview install/update/uninstall with --dry-run without writing files. Uninstall moves the skill to a retained backup; missing installs are already uninstalled. Backups are kept in c2c-install-backups beside skills. Modified/unknown files are never overwritten or removed. Receipt-less v0.11.3 installs are recognized by release hashes. Move legacy codex-claude-council folders outside skill roots first. Close active C2C runs before changing an installation, then start a new chat.');
+    console.log('node scripts/install.mjs [--target both|codex|claude] [--update | --uninstall | --rollback ID | --recover ID] [--dry-run]\nInstall C2C, safely update or uninstall a clean managed installation, restore a retained original backup, or recover an interrupted transaction. Preview install/update/uninstall with --dry-run without writing files. Uninstall moves the skill to a retained backup; missing installs are already uninstalled. Backups are kept in c2c-install-backups beside skills. Modified/unknown files are never overwritten or removed. Receipt-less v0.11.3 installs are recognized by release hashes. Move legacy codex-claude-council folders outside skill roots first. Finish unpinned active plans before updates; use setup.mjs update --run RUN to retain a pinned plan. Stop active workers before uninstall. Start a new chat for the changed skill.');
   } else {
     const options = parse(process.argv.slice(2));
     const release = packaged();
@@ -217,6 +220,9 @@ try {
       for (const target of targets) {
         const current = exists(target.dest) ? installed(target.dest, release) : null;
         requireThat(options.mode !== 'update' || current, `No installed skill to update: ${target.dest}. Install first, or select only an installed provider with --target codex|claude.`);
+        // Latest-version downloads may finish after another installer has placed
+        // a newer release. Recheck all selected targets while holding their locks.
+        if (options.noDowngrade && current) requireThat(compareVersions(current.manifest.version, release.version) <= 0, `Installed C2C ${current.manifest.version} is newer than downloaded C2C ${release.version}; refusing to downgrade ${target.dest}.`);
         if (options.mode === 'rollback') {
           const backup = recordAt(target, options.id);
           requireThat(backup.record.status === 'committed' && backup.record.before, `No retained original installation in backup ${options.id}`);

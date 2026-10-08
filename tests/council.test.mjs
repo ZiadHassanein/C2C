@@ -17,6 +17,7 @@ import { probeProvider, resolveExecutable, CODEX_DISABLED_FEATURES } from '../sc
 
 const tempParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(tempParent, 'council-test-'));
+process.env.C2C_RUNTIME_HOME = path.join(testRoot, 'trusted-runtimes');
 after(async () => {
   const resolved = await fs.realpath(testRoot);
   assert.equal(path.dirname(resolved), tempParent, 'Refusing cleanup outside the test temporary directory');
@@ -1450,7 +1451,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','scripts/evidence.mjs','scripts/runtime.mjs','scripts/updates.mjs','scripts/install.mjs','scripts/install-baselines.json','scripts/setup.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');

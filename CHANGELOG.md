@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.4.0 — Update notices and stable active plans
+
+- Adds a lightweight release check with a daily cache, chat notice and opt-out. Offline checks do not block planning; no background service or model call is needed.
+- `update` finds the latest stable release; `--source` preserves offline updates from a downloaded package. Managed backups and local-edit protection remain in place.
+- Newly prepared runs pin C2C runtime code and instructions outside the installed skill. Updating during a chat keeps the current plan on its original version, with reviews, participants and limits intact; new chats use the installed release.
+- Active older runs without a pin require completion or an explicit stop before updating. No silent migration or paid provider recovery is introduced.
+
 ## 1.3.0 — Simpler setup and recoverable uninstall
 
 - Adds one-command installation from a versioned GitHub archive using Node and npx, without Git, a global package, or an npm account. The local download-and-run option remains available.

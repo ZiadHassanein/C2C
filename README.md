@@ -31,7 +31,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 Run in **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz install
 ```
 
 Installs the skill for your current user in both apps. Start a new chat afterward. [One app only](docs/SETUP.md#install-for-one-app-only) · [Easy to uninstall](#uninstall).
@@ -74,12 +74,12 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
+No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
 
 For the quick-install route, check setup from any folder:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz doctor
 ```
 
 For the default setup with both CLIs, look for:
@@ -316,7 +316,7 @@ You can ask: “Recommend an execution model for each milestone within my includ
 | **Available-provider routing** | Prefers eligible cross-provider review, then distinct models in the starting provider before calls. If no route qualifies, delivers a provisional plan with self-critique. |
 | **Usage-limit recovery** | Preserves actual reports and used allowance; follows bounded recovery or finishes provisionally. No paid credits or account/billing changes. |
 | **Saved progress** | Preserves completed stages and attempts so an interrupted exchange can resume within its allowance. |
-| **Managed updates** | Protects local edits and retains backups for rollback and interrupted-update recovery. |
+| **Update notices and stable plans** | Announces new releases, updates on request and retains the active run's C2C version and instructions. Protects local edits and keeps rollback backups. |
 
 Worker calls use your provider account and usage limits. Only selected context is sent; exclude secrets and unrelated private material. Attempt/time ceilings are **not spending caps**. A completed exchange may retain unresolved issues or an explicitly unreviewed final revision; missing required stages leave it incomplete. [Usage, limits and privacy](docs/SETUP.md#usage-and-privacy).
 
@@ -328,20 +328,35 @@ C2C does not buy credits or switch to paid billing when a provider limit blocks 
 
 ## Update
 
-Finish or stop active C2C runs, then run:
+When you use C2C, it checks for new releases at most daily and gives a short chat notice. Say **“Update C2C and keep this plan on its current version.”** Or run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz update
 ```
 
-Start a new chat afterward. Changed installations are protected; backups and a rollback command are retained. [Git/ZIP updates, one-app updates and recovery](docs/SETUP.md#update-the-skill).
+The updater installs the latest stable release. Plans prepared with 1.4+ keep their original runtime and instructions; start a new chat for new-version plans. Older or provisional plans should finish or stop first. [Checks, offline updates and rollback](docs/SETUP.md#update-the-skill).
+
+<details>
+<summary>What happens to a plan during an update?</summary>
+
+```mermaid
+flowchart LR
+    A[New release] --> B[Short chat notice]
+    B --> C[You request update]
+    C --> D[Active plan keeps its version]
+    C --> E[New chat uses latest version]
+```
+
+No automatic installation or extra model call. Completed reviews, decisions and usage limits stay with the current run. Checks can be disabled; updates retain recoverable backups and protect local edits.
+
+</details>
 
 ## Uninstall
 
 Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz uninstall
 ```
 
 Moves unchanged managed skill folders into recoverable backups. Your projects, apps and logins stay in place. Start a new chat afterward. Add `--dry-run` to preview, or `--target codex` / `--target claude` for one app. [Restore, offline or manual removal](docs/SETUP.md#uninstall).

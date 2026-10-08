@@ -17,14 +17,14 @@ Use this page when you need help with installation, updating, or a failed setup 
 With [Node.js 18+ and npm/npx](https://nodejs.org/en/download), run in PowerShell on Windows or Terminal on macOS/Linux:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz install
 ```
 
 This downloads the named C2C release and runs its setup helper. It needs no Git, npm account or global package installation. Both apps receive the skill for your current user; start a new chat afterward. It does not install the provider CLIs, create accounts or sign in. [Optional CLI setup](../README.md#1-prepare-your-tools) is separate.
 
 Append `--dry-run` to `install`, `update` or `uninstall` to inspect the selected paths and planned changes without changing skill installations. The surrounding `npx` command can still download files into npm's cache. `--target codex`, `--target claude` or `--target both` selects the apps; `both` is the default.
 
-The command is pinned to **v1.3.0**. For a future release, copy its current command from the [README](../README.md#install); this URL does not silently change to the newest version.
+The launcher is pinned to **v1.4.0**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
 
 <details>
 <summary>Install from a Git clone or downloaded ZIP</summary>
@@ -38,9 +38,9 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-Without Git, [download the v1.3.0 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, update, uninstall and help.
+Without Git, [download the v1.4.0 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
 
-`node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `update`, `uninstall`, `doctor`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
+`node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `check-update`, `update`, `uninstall`, `doctor`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
 
 </details>
 
@@ -49,11 +49,11 @@ Without Git, [download the v1.3.0 ZIP](https://github.com/ZiadHassanein/C2C/arch
 The default installer adds the skill to both apps. To choose one, run **one** of these instead:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install --target codex
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz install --target codex
 ```
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install --target claude
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz install --target claude
 ```
 
 This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI, whether selected automatically or requested. Missing unused CLIs do not block a valid route. See [routing and provisional planning](../references/protocol.md#planning-with-unavailable-tools).
@@ -100,7 +100,7 @@ Store run folders on a local filesystem supporting hard links and atomic renames
 From any folder with npm/npx available:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz doctor
 ```
 
 Or open a terminal in your cloned/extracted C2C folder and run:
@@ -130,13 +130,39 @@ An inaccessible or expired login leaves that worker unavailable. C2C follows its
 
 ## Update the skill
 
-Finish or stop active C2C runs. To update both installed copies to the documented release:
+**In chat:** say “Update C2C and keep this plan on its current version.” The AI checks the active run before updating. For a direct terminal update:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz update
 ```
 
-Append `--target codex` or `--target claude` for one app, or `--dry-run` to preview. Start a new chat afterward. If this exact release is already installed unchanged, the command makes no replacement.
+This discovers the latest stable tag in the official C2C repository. Append `--target codex` or `--target claude` for one app, or `--dry-run` to preview. During a prepared run, include `--run "/absolute/path/to/run"` so its retained runtime is checked first. Changed installations are protected. An identical installation needs no replacement. Start a new chat to use the updated instructions for a new plan.
+
+### Update notifications
+
+At C2C startup or resume, the AI runs `check-update --auto` and gives one short notice for a newer version. Automatic checks reuse a local result for 24 hours; they do not run in the background between chats. No project text, prompts, credentials or model requests are sent: only public GitHub release metadata is requested. GitHub receives normal network metadata such as your IP address. Offline, rate-limited or unsuccessful checks do not interrupt planning, and no update is installed automatically.
+
+From a downloaded folder, check immediately with:
+
+```sh
+node scripts/setup.mjs check-update
+```
+
+Or ask the chat: “Check whether C2C has an update.” To turn automatic checks off, set `C2C_UPDATE_CHECK=off` in the environment that starts your app. You can still request a manual check or update. Environments that prohibit network access skip automatic checking; no network permission exception is needed just for a notice.
+
+### Keep the current plan stable
+
+| Situation | What C2C does |
+|---|---|
+| Prepared with 1.4 or newer | Uses the run's saved runtime and instructions after the installation updates. |
+| New plan after an update | Starts in a fresh chat using the new installation. |
+| Older run without a pin | Finishes with its original runner, or is explicitly stopped before updating. |
+| Provisional planning without a run | Keeps loaded instructions; update after finishing or explicitly stopping. |
+| Retained runtime missing or changed | Stops continuation; never substitutes the new version silently. |
+
+Pinning keeps C2C rules, stages, prior reviews, decisions and allowance accounting consistent. It does not freeze provider CLI versions, hosted models, authentication or the chat app. In-chat updating happens between worker calls and never restarts successful stages. The `--run` guard covers the run you supply; the updater cannot discover every plan in other chats, so finish/stop any older unpinned work before replacing its installation.
+
+Runtime bundles contain C2C code and instructions only, and stay outside skill discovery at `~/.c2c/runtimes` (`C2C_RUNTIME_HOME` can select another location). They are retained across updates and uninstall so saved runs can still reference them. Keep the same location while resuming a plan; deleting it gives up that continuity. Plan data remains in the selected run folder. File hashes detect accidental changes; this is not protection against an attacker who controls the same user account.
 
 <details>
 <summary>Update from a Git clone or ZIP</summary>
@@ -151,11 +177,11 @@ From a Git clone:
 
 ```sh
 git pull --ff-only
-node scripts/setup.mjs update
+node scripts/setup.mjs update --source
 node scripts/setup.mjs doctor
 ```
 
-For ZIP installs, extract the desired release ZIP and run the same Node commands there. Use `--target codex` or `--target claude` for one app. The original `node scripts/install.mjs --update` command remains supported.
+For ZIP installs, extract the desired release ZIP and run the same Node commands there. `--source` uses these downloaded files without checking GitHub. Use `--target codex` or `--target claude` for one app; add `--run RUN` when keeping a prepared plan active. The original `node scripts/install.mjs --update` remains an offline source update but lacks the chat/run guard; prefer the setup helper during a chat.
 
 </details>
 
@@ -184,7 +210,7 @@ Downloading updates alone does not update installed copies. Matching content, in
 **Finish or stop active C2C runs first.** Removing the skill does not stop a worker that is already running. Then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz uninstall
 ```
 
 The command moves unchanged managed C2C folders out of skill discovery into recoverable backups. It protects customized, unrecognized or linked files instead of deleting them. A missing target is a no-op. It leaves parent settings, other skills, apps, logins, and projects/plans saved elsewhere untouched. Start a new chat in each affected app; an existing chat may still contain previously loaded instructions.
@@ -192,7 +218,7 @@ The command moves unchanged managed C2C folders out of skill discovery into reco
 Preview first, without changing skill installations:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz uninstall --dry-run
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz uninstall --dry-run
 ```
 
 Add `--target codex` or `--target claude` to remove the skill from only one app. Keep the printed rollback command to restore it; rollback protects any installation added or changed afterward. For an interrupted operation, use its printed recovery guidance. [Transaction recovery](#update-the-skill) also applies to managed removal.
@@ -206,7 +232,7 @@ From a downloaded/cloned C2C folder:
 node scripts/setup.mjs uninstall
 ```
 
-This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v1.3.0 installed copy also contains the helper. For example, with default paths:
+This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v1.4.0 installed copy also contains the helper. For example, with default paths:
 
 PowerShell on Windows:
 
@@ -239,20 +265,20 @@ For an older, customized or unrecognized installation, you can use your file man
 
 `~` means your home folder. If you installed with `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, use `skills/C2C` inside that configured root instead. The installer's `Installed:` or `Updated:` output shows the exact destination. Keep the parent configuration and `skills` folders; they can contain other settings and skills.
 
-Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans saved elsewhere in place. The downloaded repository/ZIP, npm cache and retained installer backups also stay on disk; uninstall does not delete its source package. You can keep those, or remove them separately after preserving any work stored there; deleting backups gives up their rollback option. Deleting the downloaded repository alone does not uninstall the skill.
+Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans saved elsewhere in place. The downloaded repository/ZIP, npm cache, update-check metadata, retained runtime bundles and installer backups also stay on disk; uninstall does not delete its source package. You can keep those, or remove them separately after preserving any work stored there. Deleting backups gives up rollback; deleting runtime bundles prevents their saved plans from resuming. Deleting the downloaded repository alone does not uninstall the skill.
 
 ## npx and PowerShell help
 
 If PowerShell blocks `npx.ps1`, use `npx.cmd` in the same command. No execution-policy change is needed:
 
 ```powershell
-npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install
+npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz install
 ```
 
 If npm 12 rejects the remote package URL, permit it for this command only:
 
 ```sh
-npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.tar.gz install
+npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.tar.gz install
 ```
 
 This follows npm's [remote URL setting](https://docs.npmjs.com/cli/v12/using-npm/config/#allow-remote); do not change global npm policy. Keep the exact release URL and replace the final action with `update`, `uninstall` or `doctor` as needed. On Windows, the `npx.cmd` form can also include this option. If npm/npx is unavailable or your environment disallows remote packages, use the local Git/ZIP method instead.
@@ -322,7 +348,7 @@ Every new council plan includes a security review and relevant test checks. The 
 |---|---|
 | `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `npx` is missing, PowerShell blocks it, or npm rejects the remote URL | Follow [npx and PowerShell help](#npx-and-powershell-help); local Node setup remains available without npm/npx. |
-| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.3.0.zip), extract it, and open a terminal in the folder containing `scripts`. |
+| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v1.4.0.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/setup.mjs` or `scripts/install.mjs` | You are in the wrong folder or using an older source copy. Open a terminal in the extracted or cloned current release, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise apply [available-provider routing](#choose-the-participants). If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
 | `doctor` reports signed out | Treat that worker as unavailable and apply [routing rules](#choose-the-participants). If you choose setup repair, check the environment/access row below before renewing the selected native login. |

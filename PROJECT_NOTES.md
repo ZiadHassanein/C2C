@@ -36,6 +36,18 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 1.4.0: release notices and update continuity
+
+The user requested new-version notices, easy updates from either coordinating chat, and stable planning in the chat performing an update. A bounded public GitHub stable-tag check supports a daily automatic cache, manual refresh and `C2C_UPDATE_CHECK=off`. The skill shows one short notice per newer version per chat. Offline checks do not block the task; there is no background monitor, automatic installation, provider request or paid limit bypass.
+
+The setup helper resolves the latest stable tag to a commit, stages the fixed repository's package with bounded downloads and Git blob checks, then uses the managed installer. Source/offline updates, target selection, preview, protected local modifications, backup/rollback and recovery remain available. Tag discovery also supports releases published only as Git tags. HTTPS and content verification are not signed release attestations.
+
+New runs retain C2C runtime files and planning references in a per-user content-addressed store outside the installed skill and project run. The run seals a version/digest, never an arbitrary executable path. CLI commands resolve that trusted bundle; imported APIs reject a mismatch. Updates preserve completed stages, identities, evidence and allowance accounting. The coordinator uses pinned instructions for the current run and starts new-version planning in a fresh chat. Runtime bundles contain no private plan inputs and survive uninstall. Provider binaries/models and host instruction caches are not frozen.
+
+Legacy runs lack historical runtime identity and cannot be silently migrated; their active update guard refuses continuation under new code. They finish with the original installation or are explicitly stopped before update. Provisional no-run plans follow the same instruction boundary. Missing/tampered bundles stop continuation.
+
+Regression coverage includes cached/offline notices, opt-out, bounded tag discovery, archive/commit validation, protected managed updates and rollback, and a concurrent newer installation during download. The latter rechecks version ordering under installer locks. Runtime fixtures continue a synthetic review through verification/completion after installation changes, preserving failed attempts, successful stages, reports, identities and used allowance. Independent review also checked trusted-store boundaries, output containment and preparation from retained code. These are local fixture tests, not live provider performance measurements; native CI runs the full suite before release. Public tag/archive discovery and content verification were exercised without touching a user installation.
+
 ### README banner: match the demonstration video
 
 The user approved the video and requested the same visual idea for the README banner. The desktop cover pairs the existing C2C wordmark and paper/ink/red typography with authentic Codex and Claude symbols, curved arrows into a shared plan, and “From small features to full projects.” The mobile cover stacks that composition for a narrow reading width. Both retain “Codex, Claude Code, or both,” and the plan card lists scope/architecture, security/tests and a clear first step without asserting that implementation checks have run.

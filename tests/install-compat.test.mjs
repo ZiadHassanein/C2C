@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const packageFiles = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'package.json', 'LICENSE'];
+const packageFiles = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'scripts/runtime.mjs', 'scripts/updates.mjs', 'package.json', 'LICENSE'];
 const temporaryParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(temporaryParent, 'council-install-compat-'));
 after(async () => {
@@ -58,6 +58,27 @@ test('fresh installation through paths with spaces includes package version and 
     assert.equal(loaded.status, 0, loaded.stderr);
     assert.match(loaded.stdout, /C2C/);
   }
+});
+
+test('latest-update guard checks all selected versions under installer locks and leaves explicit source changes available', async () => {
+  const f = await fixture('locked-version-check');
+  for (const args of [['--no-downgrade'], ['--uninstall', '--no-downgrade']]) {
+    const invalid = install(f, args);
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /requires --update/);
+  }
+  assert.equal(install(f).status, 0);
+  const manifestPath = path.join(f.source, 'package.json');
+  const original = await fs.readFile(manifestPath, 'utf8');
+  await fs.writeFile(manifestPath, JSON.stringify({ ...JSON.parse(original), version: '99.1.0' }));
+  assert.equal(install(f, ['--update', '--target', 'claude']).status, 0);
+  await fs.writeFile(manifestPath, original);
+  const before = await Promise.all([f.codexSkill, f.claudeSkill].map(contentsAndTimes));
+  const refused = install(f, ['--update', '--no-downgrade']);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /Installed C2C 99\.1\.0 is newer/);
+  assert.deepEqual(await Promise.all([f.codexSkill, f.claudeSkill].map(contentsAndTimes)), before);
+  assert.equal(install(f, ['--update', '--target', 'claude']).status, 0, 'explicit local source update remains available');
 });
 
 test('POSIX installation follows linked configuration roots and runs readable scripts through Node', { skip: process.platform === 'win32' }, async () => {

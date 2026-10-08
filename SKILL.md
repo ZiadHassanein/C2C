@@ -1,6 +1,6 @@
 ---
 name: C2C
-description: Plan and review features or projects from Codex or Claude Code. Use both eligible providers, or a planner and distinct critic within the available provider. If a real pair is unavailable, deliver a provisional plan with an honest self-critique. Includes assessment, security, tests and an execution entry point.
+description: Plan and review features or projects from Codex or Claude Code. Use both eligible providers, or a planner and distinct critic within the available provider. If a real pair is unavailable, deliver a provisional plan with an honest self-critique. Includes assessment, security, tests and an execution entry point. Check for C2C updates and preserve active plans during requested updates.
 ---
 
 # C2C
@@ -8,6 +8,12 @@ description: Plan and review features or projects from Codex or Claude Code. Use
 Either app can start C2C; the initiating chat coordinates, synthesizes and owns decisions. Neither provider is the permanent lead. Prefer an eligible Codex–Claude pair; if the other provider is unavailable, automatically use a planning author and a distinct coding-focused critic within the current provider, subject to model access and existing limits. These are separate real contributions, not the chat pretending to be two models. If no eligible pair exists, deliver a provisional plan with an explicit solo self-critique. Never force agreement or invent objections.
 
 Require an explicit C2C or Codex–Claude exchange request before sharing context or spending quota; reuse existing authorization. Assessment-only requests receive advice and relevant security risks without preparing a run or calling workers. Read linked sections when needed and reuse this task's evidence instead of repeatedly loading full references.
+
+## Version and update continuity
+
+When C2C starts or resumes in a chat, run `node SETUP check-update --auto` once, resolving `SETUP` to the installed skill's absolute `scripts/setup.mjs` path from the app's skill catalog, not a run's retained bundle. Skip if Node or network policy prevents it. Mention an available update in one sentence once per version in this chat; do not repeat during stages or let a failed check delay planning. Checks use a daily cache and honor `C2C_UPDATE_CHECK=off`; they never install anything or call a model.
+
+When the user requests an update, follow [updates during a chat](references/protocol.md#updates-during-a-chat) and target existing C2C installations; do not install an absent app's skill just to update. A prepared run keeps its pinned runner **and instructions** until completion; use the paths returned by `prepare`/`status` and resolve its reference links from that bundle. Do not mix newly installed instructions into that run, repeat completed stages or reset allowances. Start a fresh chat for new plans after updating. A pre-1.4 or provisional plan has no runtime pin: keep its current instructions and defer updating until the plan is finished or explicitly stopped.
 
 ## Establish context and direction
 
@@ -85,7 +91,7 @@ Default chat to necessary decisions, material blockers/failures, stale-view warn
 
 ## Resume and recover within limits
 
-Read `HANDOFF.md`, fallback/context in `NOTES.md`, allowance provenance/user caps in `TASK_ASSESSMENT.md`, and `status`; reconcile state, seals and source changes, then inspect relevant artifacts. Preserve generated progress and legacy handwritten handoffs; use `NOTES.md` for extra context. See [handoff details](references/protocol.md#handoff-note).
+Read `HANDOFF.md`, fallback/context in `NOTES.md`, allowance provenance/user caps in `TASK_ASSESSMENT.md`, and `status`; reconcile the pinned runtime/instructions, state, seals and source changes, then inspect relevant artifacts. Preserve generated progress and legacy handwritten handoffs; use `NOTES.md` for extra context. See [handoff details](references/protocol.md#handoff-note).
 
 Never repeat successful stages, erase failures or restart to escape limits. After failure, inspect remaining stages/capacity and cleanup uncertainty. Follow [bounded recovery](references/protocol.md#budgets-and-bounded-recovery): when existing authority covers an insufficient coordinator-selected allowance, use audited `extend` on the same run with a reason and resume the failed stage, without ritual approval. Unknown limit provenance is not permission. Honor user caps; stop worker calls at hard ceilings. A materially changed task/evidence can justify a linked new run, never a budget reset.
 

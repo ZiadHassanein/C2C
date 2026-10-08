@@ -69,6 +69,28 @@ function terminateOwned(child, details, onTreeSettled) {
   };
 }
 
+const PEER_CONTROLS = Object.freeze({
+  CODEX_CLAUDE_COUNCIL_PEER: '1', CLAUDE_CODE_DISABLE_FAST_MODE: '1',
+  CLAUDE_CODE_DISABLE_TERMINAL_TITLE: '1', DISABLE_AUTOUPDATER: '1',
+});
+
+/** Child-only controls; Windows environment names are case-insensitive. */
+export function processEnvironment(inheritedEnv, { peer = false, platform = process.platform } = {}) {
+  const env = { ...inheritedEnv };
+  if (!peer) return env;
+  if (platform === 'win32') {
+    // Node may receive a plain env object containing several spellings of one
+    // Windows key. Remove all controlled spellings before adding canonical ones.
+    for (const key of Object.keys(env)) {
+      const canonical = key.toUpperCase();
+      if (canonical === 'CLAUDECODE' || Object.hasOwn(PEER_CONTROLS, canonical)) delete env[key];
+    }
+  } else delete env.CLAUDECODE;
+  // Preserve authentication, selected model and reasoning configuration. These
+  // per-process controls are not a general provider spending cap.
+  return Object.assign(env, PEER_CONTROLS);
+}
+
 /**
  * Run one owned process. Output is retained up to a combined 4 MiB and can also
  * be streamed to caller-selected files (opened with write/truncate semantics).
@@ -194,16 +216,7 @@ export function runProcess(executable, args, {
           return;
         }
       }
-      const env = { ...inheritedEnv };
-      if (peer) {
-        env.CODEX_CLAUDE_COUNCIL_PEER = '1';
-        // Per-process controls only: preserve authentication, selected model and
-        // reasoning settings. These are not a general provider spending cap.
-        env.CLAUDE_CODE_DISABLE_FAST_MODE = '1';
-        env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
-        env.DISABLE_AUTOUPDATER = '1';
-        delete env.CLAUDECODE;
-      }
+      const env = processEnvironment(inheritedEnv, { peer });
       child = spawn(executable, args, {
         cwd, env, shell: false, windowsHide: true,
         detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'],

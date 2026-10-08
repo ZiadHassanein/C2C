@@ -5,7 +5,7 @@ import syncFs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { runProcess } from '../scripts/process.mjs';
+import { processEnvironment, runProcess } from '../scripts/process.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-process-tests-'));
@@ -86,6 +86,57 @@ test('peer controls disable credit-only fast mode and unrelated background work 
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
   }
+});
+
+function mixedCaseEnvironment() {
+  return {
+    CLAUDECODE: 'parent-session', claudecode: 'lower-session', ClaudeCode: 'mixed-session',
+    CODEX_CLAUDE_COUNCIL_PEER: '0', codex_claude_council_peer: 'lower-peer',
+    CLAUDE_CODE_DISABLE_FAST_MODE: '0', claude_code_disable_fast_mode: '0', Claude_Code_Disable_Fast_Mode: '0',
+    CLAUDE_CODE_DISABLE_TERMINAL_TITLE: '0', claude_code_disable_terminal_title: '0',
+    DISABLE_AUTOUPDATER: '0', disable_autoupdater: '0', Disable_Autoupdater: '0',
+    ANTHROPIC_API_KEY: 'synthetic-key', OPENAI_API_KEY: 'synthetic-key', CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-token',
+    CLAUDE_MODEL: 'selected-model', CLAUDE_CODE_EFFORT_LEVEL: 'high',
+    CODEX_HOME: 'selected-codex-home', CLAUDE_CONFIG_DIR: 'selected-claude-home', HTTPS_PROXY: 'selected-proxy',
+  };
+}
+const controlledNames = ['CODEX_CLAUDE_COUNCIL_PEER', 'CLAUDE_CODE_DISABLE_FAST_MODE', 'CLAUDE_CODE_DISABLE_TERMINAL_TITLE', 'DISABLE_AUTOUPDATER'];
+
+test('Windows peer environment removes every session spelling and canonicalizes only safety controls', () => {
+  const inherited = mixedCaseEnvironment(), before = { ...inherited };
+  const result = processEnvironment(inherited, { peer: true, platform: 'win32' });
+  assert.equal(Object.keys(result).some(key => key.toUpperCase() === 'CLAUDECODE'), false);
+  for (const key of controlledNames) {
+    assert.deepEqual(Object.keys(result).filter(name => name.toUpperCase() === key), [key]);
+    assert.equal(result[key], '1');
+  }
+  for (const [key, value] of Object.entries(inherited)) {
+    if (key.toUpperCase() !== 'CLAUDECODE' && !controlledNames.includes(key.toUpperCase())) assert.equal(result[key], value);
+  }
+  assert.deepEqual(inherited, before);
+  assert.deepEqual(processEnvironment(inherited, { platform: 'win32' }), before, 'ordinary subprocesses do not normalize or change inherited keys');
+});
+
+test('POSIX peer environment keeps differently cased names distinct', () => {
+  const inherited = mixedCaseEnvironment(), before = { ...inherited };
+  for (const platform of ['linux', 'darwin']) {
+    const result = processEnvironment(inherited, { peer: true, platform });
+    assert.equal(Object.hasOwn(result, 'CLAUDECODE'), false);
+    for (const [key, value] of Object.entries(inherited)) {
+      if (key !== 'CLAUDECODE' && !controlledNames.includes(key)) assert.equal(result[key], value);
+    }
+    for (const key of controlledNames) assert.equal(result[key], '1');
+  }
+  assert.deepEqual(inherited, before);
+});
+
+test('native Windows child receives no nested-session key or duplicate control spelling', { skip: process.platform !== 'win32' }, async () => {
+  const inherited = { ...process.env, ...mixedCaseEnvironment() }, before = { ...inherited };
+  const source = `const names=${JSON.stringify(['CLAUDECODE', ...controlledNames])};console.log(JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([key])=>names.includes(key.toUpperCase())))));`;
+  const result = await node(source, { peer: true, env: inherited });
+  assert.equal(result.code, 0);
+  assert.deepEqual(JSON.parse(result.stdout), Object.fromEntries(controlledNames.map(key => [key, '1'])));
+  assert.deepEqual(inherited, before);
 });
 
 test('successful calls return stdout, stderr and exit status while streaming files', async () => {

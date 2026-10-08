@@ -13,7 +13,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
-[**Version 1.1.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+[**Version 1.1.1**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
 [Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Help](#need-help)
 
@@ -137,9 +137,13 @@ Choose a planning author and a different coding-focused critic within my limits.
 
 C2C can also select this route automatically when the other provider is unavailable before calls. It researches current official model guidance on each new task using workers, honors exact model choices, and does not change your chat model or global settings. Different model IDs and separate calls do not prove independent reasoning. [Model selection](references/model-selection.md).
 
+The planner connects goals, constraints and tradeoffs to a minimal design. The critic tests buildability, failure paths and proposed fixes against evidence. In independent plan mode, each first develops its own proposal. The coordinator resolves findings and the reviewer verifies those decisions. This uses the existing stages and call allowance; it does not imitate another provider or add debate for its own sake. [Single-provider perspectives](references/protocol.md#single-provider-planning-perspectives).
+
 </details>
 
 For recommendations without worker calls, ask: **“Assess the task and recommend models; advice only.”**
+
+The goal is better decisions for the work spent. Review can cost more than ordinary planning; accuracy, time and token improvements require a [matched comparison](docs/BENCHMARKS.md#what-counts-as-improvement), not a longer discussion.
 
 ## What you receive
 

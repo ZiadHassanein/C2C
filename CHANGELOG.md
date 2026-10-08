@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.1.1 — Focus single-provider planning on consequential decisions
+
+- Gives same-provider author, independent draft and critique stages complementary planning and implementation perspectives. Reviews prioritize supported errors, minimal remedies and unresolved risks; no added worker stage or call is required.
+- Strengthens honest solo self-critique with a compact decision/evidence/failure/check trace. Neither route impersonates an absent provider or claims its capabilities.
+- Keeps cross-provider prompts, stage order, security/identity controls and allowances unchanged. Documents quality and whole-task resource criteria for comparison with ordinary planning; no accuracy or saving is claimed without matched evidence.
+
 ## 1.1.0 — Equal starting points and available-provider review
 
 - Codex and Claude Code are equal entry points: the initiating chat coordinates. Examples and workflow diagrams use symmetric routes and planner/reviewer roles.

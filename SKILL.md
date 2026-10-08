@@ -25,6 +25,8 @@ For **every new planning task that can use workers**, search current official gu
 
 Automatically select eligible workers within user limits unless advice-only, reserved-selection or pinned-model instructions override. Cross-provider roles use a planning model from each; same-provider roles use a planner and distinct coding-focused critic. Never lower capability, effort or review depth to save tokens or fit a timeout; change no global configuration or billing source. The runner has no effort flag.
 
+For one-provider work, use [complementary planning perspectives](references/protocol.md#single-provider-planning-perspectives) within the existing stages. Aim to catch consequential errors and improve decisions, not produce more debate. Different models are not independent evidence and cannot impersonate or acquire another provider's capabilities.
+
 **No paid limit recovery:** never buy credits, enable extra usage/auto-reload, raise spend limits, upgrade plans or switch to API/cloud billing to bypass a limit. A request to continue C2C is not spending authorization. Respect included-usage-only constraints before calls; see [billing boundaries](references/protocol.md#no-paid-limit-recovery).
 
 Record size, complexity, risk, uncertainty, dated sources, planning/coding recommendations for the requested providers, actual roles/IDs/access evidence, route and allowance provenance/user caps in local `TASK_ASSESSMENT.md`. Record unavailable selections as skipped. Keep it out of peer packets and summarize choices in the plan. Use the [sizing rubric](references/protocol.md#task-size-and-model-advice) as needed; preserve unknowns honestly.

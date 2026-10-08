@@ -2329,6 +2329,32 @@ const authorModels = (provider, pairing = 'same') => ({
   'peer-model': pairing === 'same' ? sameModels(provider)['peer-model'] : provider === 'codex' ? 'claude-opus-4-6' : 'gpt-5.4',
 });
 
+function assertStagePerspective(packet) {
+  const instruction = packet.stage_instruction;
+  if (packet.participants.pairing === 'cross') {
+    assert.doesNotMatch(instruction, /planning perspective|independent implementation proposal|coding-focused implementation critic/);
+  } else if (packet.stage.startsWith('author-')) {
+    assert.match(instruction, /planning perspective/);
+    assert.doesNotMatch(instruction, /independent implementation proposal|coding-focused implementation critic/);
+    if (packet.stage === 'author-draft') {
+      assert.match(instruction, /user outcomes and constraints/);
+      assert.match(instruction, /assumptions.*material decision.*evidence/);
+    } else {
+      assert.match(instruction, /required outcomes.*constraints.*dependencies/);
+      assert.match(instruction, /unjustified scope/);
+    }
+  } else if (packet.stage === 'draft') {
+    assert.match(instruction, /independent implementation proposal.*interfaces.*failure paths/);
+    assert.match(instruction, /end-to-end slice.*acceptance check/);
+    assert.doesNotMatch(instruction, /planning perspective|coding-focused implementation critic/);
+  } else {
+    assert.match(instruction, /coding-focused implementation critic.*buildability.*testability/);
+    assert.match(instruction, /material decisions to supplied evidence.*minimal adequate remedy/);
+    assert.match(instruction, /changed decisions and unresolved risks/);
+    assert.doesNotMatch(instruction, /planning perspective|independent implementation proposal/);
+  }
+}
+
 const workerReportStages = [
   ['author-draft', 'coordinator-draft.json', 'C-D'],
   ['draft', 'peer-draft.json', 'P-D'],
@@ -2436,11 +2462,10 @@ test('all worker stages reject wrong-prefix and mixed malformed IDs while preser
   }
 });
 
-test('selected background planners and critics complete both provider routes with truthful provenance', async () => {
-  for (const coordinator of ['codex', 'claude']) for (const pairing of ['same', 'cross']) {
-    const mode = pairing === 'same' ? 'review' : 'plan';
+test('selected background planners and critics complete both modes and provider routes with truthful provenance', async () => {
+  for (const coordinator of ['codex', 'claude']) for (const pairing of ['same', 'cross']) for (const mode of ['plan', 'review']) {
     const models = authorModels(coordinator, pairing);
-    const f = await fixture(`author-${coordinator}-${pairing}`, { coordinator, pairing, mode, ...models });
+    const f = await fixture(`author-${coordinator}-${pairing}-${mode}`, { coordinator, pairing, mode, ...models });
     const prepared = status({ run: f.out });
     assert.equal((await read(path.join(f.out, 'run.json'))).version, 6);
     assert.equal(prepared.participants.coordinator_model, null, 'The unknown host model must not be replaced by the selected planner');
@@ -2470,8 +2495,7 @@ test('selected background planners and critics complete both provider routes wit
         assert.ok(request.args.includes('read-only'));
         assert.ok(request.args.includes('never'));
       }
-      if (pairing === 'same' && !author) assert.match(packet.stage_instruction, /coding-focused implementation critic.*buildability.*testability/);
-      if (pairing === 'cross') assert.doesNotMatch(packet.stage_instruction, /coding-focused implementation critic/);
+      assertStagePerspective(packet);
       requestRecords.push({ stage: packet.stage, provider: request.provider });
       const id = { 'author-draft': 'C-D1', draft: 'P-D1', 'author-review': 'C-R1', review: 'P-R1' }[packet.stage];
       return invocationWithModels(report(packet.stage === 'verify' ? [] : [id], `REPORT_${packet.stage}`), [expectedModel])(request);
@@ -2510,11 +2534,21 @@ test('selected background planners and critics complete both provider routes wit
     const ids = ['C-D1', 'C-R1', 'P-R1', ...(mode === 'plan' ? ['P-D1'] : [])];
     await write(path.join(f.out, 'final-plan.md'), '# Coordinator synthesis\nPreserve requirements, implement safe escaping and verify acceptance gates.');
     await write(path.join(f.out, 'decisions.json'), ids.map(finding_id => ({ finding_id, disposition: 'accepted', rationale: 'Covered by the final acceptance gates and implementation steps.' })));
+    const callsBeforeSecurity = requestRecords.length;
     await assert.rejects(() => ask({ run: f.out, stage: 'verify' }, worker), /security-review/);
+    assert.equal(requestRecords.length, callsBeforeSecurity, 'Missing security review must block before a worker call');
     await write(path.join(f.out, 'security-review.json'), report([], 'Actual host security review; tests are proposed.'));
     await ask({ run: f.out, stage: 'verify' }, worker);
+    const verification = packets.get('verify');
+    assert.equal(verification.coordinator_review.summary, mode === 'plan' ? 'REPORT_author-review' : 'Actual host independent check');
+    assert.equal(verification.peer_review.summary, 'REPORT_review');
+    assert.equal(verification.security_review.summary, 'Actual host security review; tests are proposed.');
+    assert.deepEqual(verification.decisions.map(item => item.finding_id), ids);
+    const expectedStages = mode === 'plan' ? ['author-draft', 'draft', 'author-review', 'review', 'verify'] : ['author-draft', 'review', 'verify'];
+    assert.deepEqual(requestRecords, expectedStages.map(stage => ({ stage, provider: stage.startsWith('author-') ? coordinator : prepared.peer })));
     const result = finish({ run: f.out });
     assert.equal(result.successful_worker_calls, mode === 'plan' ? 5 : 3);
+    assert.equal(result.attempts_used, expectedStages.length, 'Perspective changes must not add worker calls or attempts');
     assert.equal(result.successful_peer_calls, mode === 'plan' ? 3 : 2);
     assert.equal(result.worker_model_reports.filter(item => item.role === 'author').length, mode === 'plan' ? 2 : 1);
     assert.ok(result.worker_model_reports.every(item => item.identity_status === 'cli_reported'));
@@ -2752,8 +2786,7 @@ test('same-provider plan and review workflows use distinct requested models and 
       assert.equal(packet.participants.peer_model,ids['peer-model']);
       assert.match(request.prompt,/strongest practical alternative|Challenge unsupported assumptions/);
       assert.match(request.prompt,/Never force criticism or agreement/);
-      if (packet.stage === 'draft') assert.doesNotMatch(packet.stage_instruction, /coding-focused implementation critic/);
-      else assert.match(packet.stage_instruction, /coding-focused implementation critic.*buildability.*testability/);
+      assertStagePerspective(packet);
       return invocationWithModels(report(),[ids['peer-model']])(request);
     };
     await hostDraft(f,[],'PRIVATE_COORDINATOR_PROPOSAL');

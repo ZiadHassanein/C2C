@@ -1,6 +1,6 @@
 {
   "name": "c2c",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "C2C: independent planning and mutual review across Codex and Claude Code, or different models within either tool.",
   "private": true,
   "type": "module",

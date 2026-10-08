@@ -30,6 +30,12 @@ Yes. This is selected automatically when the other provider is unavailable befor
 
 Different model IDs do not prove independent reasoning or guarantee that a provider honored a request. The runner records declared/requested identities, uses reported identity when available, and keeps unknowns visible. It does not switch the current chat or simulate a debate.
 
+## Does one provider gain the other provider's abilities?
+
+No. A Claude-only pair remains Claude models; a Codex-only pair remains Codex models. C2C gives them complementary questions: the planner connects outcomes, constraints and tradeoffs, while the critic traces implementation choices through evidence and failure cases. It cannot grant another model's capabilities or guarantee equivalent judgment. When only one eligible model remains, it uses a labeled self-critique instead of pretending a second model participated. [Planning perspectives](../references/protocol.md#single-provider-planning-perspectives).
+
+The target is fewer material mistakes and clearer next steps for the resources used. Existing stages, review depth and call ceilings stay intact; reviews focus on changes and unresolved risks. More discussion is not a success metric. [How improvement is evaluated](BENCHMARKS.md#what-counts-as-improvement).
+
 ## Can I use it for small features and large projects?
 
 Yes. A bounded feature can use focused review with implementation steps, edge cases, and acceptance checks. A project roadmap covers MVP boundaries, architecture, dependent milestones, and a concrete first milestone. Planning depth follows scope, risk, and uncertainty. Later milestones do not automatically start additional councils.

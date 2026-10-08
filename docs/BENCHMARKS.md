@@ -25,6 +25,14 @@ The [outcome harness](../evals/README.md) supports frozen tasks, selected compar
 
 The live outcome comparison remains incomplete. Software validation is recorded in [project notes](../PROJECT_NOTES.md) and [CI runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml); those checks do not certify security, production readiness or planning quality.
 
+## What counts as improvement
+
+Compare C2C with ordinary planning on the same frozen task, evidence, available model pool and whole-task limits. Use independent blind review and repeat across a bounded feature and a project with consequential uncertainty; a single successful fixture is acceptance evidence, not general superiority.
+
+Judge missed requirements, unsupported assumptions, security gaps, harmful accepted remedies and whether the first implementation step is executable. Credit justified corrections and useful restraint; award nothing for verbosity, agreement or disagreement counts. Predefine material errors and acceptable alternatives before viewing outputs.
+
+Report whole-task input/output usage, calls, retries and elapsed time separately from quality, including coordinator work and research. Missing usage remains unknown. Better quality at comparable effort, or equivalent quality at lower effort, supports the efficiency goal. Better quality with higher cost is a tradeoff; lower cost with material regressions is not a win. Do not publish an improvement claim until matched evidence supports it.
+
 ## Controls for repeated work
 
 C2C deduplicates repeated context paths, reuses returned reports and task research, offers compact runner output, and records discussion in Markdown. These are specific workflow behaviors. They do not guarantee lower total token use or faster planning.

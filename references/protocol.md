@@ -123,7 +123,7 @@ Describe observed readiness precisely: executable not found by C2C, incompatible
 
 Use the existing [provisional-plan record procedure](#planning-when-usage-limits-block-the-exchange): assessment, supported decisions and reversible assumptions, security, proposed tests, author self-check and Start here. Label it **Provisional plan — completed by the available chat; independent review unavailable** and identify the missing tool/review. With no run, write standalone plan/review notes; do not create fake reports or a discussion. With a partial run, preserve contributions, attempts, seals and participant identities, record the setup block in NOTES.md, and refresh derived views only through the runner. Resolve any running-worker cleanup before editing. Do not call finish with missing required stages.
 
-In a solo plan, write a concise **Self-critique — one model, no independent review**: challenge the most consequential assumptions with a concrete failure case, compare a practical alternative, then revise or defend the recommendation with evidence and preserve unresolved risks. This is useful self-review, not a two-model discussion. Skip worker research when no eligible route exists and record why. Never simulate the absent reviewer, invent a second identity or start background retries when a CLI later becomes available.
+In a solo plan, write a concise **Self-critique — one model, no independent review**. For material decisions, connect **decision → source or explicit assumption → failure case or practical alternative → revise, defend or leave unresolved → proposed check**. Focus on uncertainties that could change scope, architecture, security or the first step; do not manufacture concerns or repeat the whole plan. This is useful self-review, not a two-model discussion. Skip worker research when no eligible route exists and record why. Never simulate the absent reviewer, invent a second identity or start background retries when a CLI later becomes available.
 
 ## Change route after a worker block
 
@@ -183,6 +183,21 @@ Current model controls: [Codex commands](https://learn.chatgpt.com/docs/develope
 For an author worker, `author-draft` creates `coordinator-draft.json` without seeing the peer proposal. In plan mode, `draft` independently creates the peer proposal; `author-review` critiques it into `coordinator-review.json`, then `review` critiques the author's proposal without seeing that critique. In review mode, the chat writes its own independent check to `coordinator-review.json`; do not attribute that check to the author worker. The chat synthesizes `final-plan.md`, security review and decisions before peer verification. Successful worker artifacts and participant settings are sealed; do not replace them with chat-authored text.
 
 Identify participants by provider, role, and declared/requested model in the discussion file and any requested chat summaries. Review as an independent skeptic: check consequential assumptions, credible failure examples, and useful alternatives; require evidence for objections and reasons for dispositions. Do not manufacture disagreement or discard sound work to seem adversarial. A separate real report, not the coordinator writing both sides of a dialogue, supplies the second perspective.
+
+## Single-provider planning perspectives
+
+Use complementary questions inside the existing author/critic stages, with the same real participant identities and call allowance. These perspectives apply to Codex-only and Claude-only work alike; they do not imitate an absent provider or establish equivalent capabilities. Cross-provider planning retains its usual workflow.
+
+| Contribution | Focus |
+|---|---|
+| Planning author, including a matching host author | Connect required outcomes and constraints to a minimal viable design, decisive assumptions, dependencies and acceptance gates. Compare alternatives where evidence could change the choice. |
+| Independent implementation proposal, in plan mode only | Derive a buildable approach from interfaces, data/state transitions and failure paths. Trace a thin end-to-end slice to a proposed check, without seeing the other proposal. |
+| Author's critique in plan mode; coordinator's candidate check in review mode | Challenge whether the approach actually meets outcomes, preserves constraints and avoids unnecessary scope. Do not favor a proposal just because you authored it. |
+| Coding critic and verifier | Connect consequential decisions to source evidence, failure cases and minimal adequate remedies. Challenge accepted as well as rejected fixes, reconsider earlier advice and preserve unresolved risks. |
+
+All roles still cover relevant security, tests and unknowns; perspectives are not exclusive ownership of those checks. A source fact outweighs agreement between models. Preserve supplied controls that already work, distinguish blockers from optional improvements, and avoid speculative rewrites. Use findings and dispositions for the arguments; reviews report changes and unresolved risks instead of reproducing plans. No minimum objection count, extra specialist, extra round or extra call is required. The coordinator responds and synthesizes; the peer verifier supplies actual replies to material counterarguments. Never invent a background author's response.
+
+The intended benefit is fewer supported errors and clearer executable decisions for the work spent. Separate-role prompts, passing tests or a larger discussion do not prove improvement over ordinary planning. Use [matched outcome evaluation](../docs/BENCHMARKS.md#evaluate-real-plans) before making comparative accuracy, token or speed claims.
 
 ## File contract
 

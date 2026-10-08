@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 1.2.1: explanations before ratios
+
+The user clarified that model advice should explain why, not merely display a percentage. Recommendations now connect task facts to supported capabilities/evidence, compare the alternative, expose tradeoffs and identify an acceptance check or scope change that could alter the decision. Savings explain lower published rates or actual observed usage causes, without inventing model internals, fewer retries or quality equivalence from price. The plan leads with this explanation before numeric comparisons. Instructions/public docs and version change; runtime, schemas, stages, research scope and spending boundaries are unchanged.
+
+Validation: all 192 documentation targets, whitespace and affected metadata pass, preserving the user-required uppercase identifier. Independent source review found no actionable defect. One fictional advice exercise differentiated bounded UI work from an upload flow with unresolved requirements, explained task fit and alternatives before the supplied price-category comparison, kept usage/quality unknowns visible, and rejected unsupported claims about model size/retries. No real provider call or implementation test occurred; this is instruction acceptance, not proof of better execution or savings.
+
 ### Version 1.2.0: execution model recommendations and savings evidence
 
 The user requested execution-model suggestions based on official docs, public experiments and social reports, with supported token/percentage savings. The coordinator now reuses task research to recommend a model for the first work item (or materially different milestones), alongside a justified alternative, quality gates, eligibility gaps and reconsideration trigger. Advice remains distinct from automatically selected planning workers and grants no implementation, model-switch or spending authority. Official sources control identities/capabilities/rates; firsthand reports are dated and scoped, never copied into permanent rankings. Unavailable research leaves explicit gaps without blocking a useful plan.

@@ -2,6 +2,11 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 1.2.1 — Explain execution choices before savings
+
+- Execution advice leads with concrete task fit, evidence, comparison with the alternative, tradeoffs and acceptance checks that could change the choice.
+- Supported savings explain their cause. Price tables cannot establish fewer reasoning tokens/retries, hidden architecture or equivalent results; missing evidence remains explicit. No new worker calls or automatic changes.
+
 ## 1.2.0 — Execution model recommendations with sourced estimates
 
 - Adds task-specific execution advice beside the plan's first work item: primary model, justified alternative, task-fit rationale, eligibility, sources and conditions for reconsideration. Planning-worker selection remains separate from advisory implementation choices.

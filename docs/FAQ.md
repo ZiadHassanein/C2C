@@ -126,6 +126,8 @@ C2C reuses saved reports and task research, removes repeated context paths, offe
 
 Yes. The plan includes an advisory execution choice tied to the first work item, a justified alternative, source dates, availability gaps and conditions for reconsidering the choice. Roadmaps add different model recommendations only where the work warrants them. Official guidance establishes capabilities and rates; firsthand experiments and social reports add context with their limitations. The recommendation does not switch models, launch coding or enable paid usage.
 
+It explains why the model suits the actual work before presenting a percentage: the relevant task facts, evidence for the choice, tradeoff against the alternative and acceptance check. It also explains where a supported saving comes from; lower prices do not demonstrate fewer retries or reasoning tokens.
+
 An equal-token API price comparison can show a percentage when its baseline and assumptions are explicit. Actual task-token reduction needs comparable task measurements and quality results. Subscription allowance is separate; API prices or social anecdotes cannot establish a percentage for your account. Missing evidence is reported as unknown. [Full recommendation policy](../references/model-selection.md#recommend-models-for-execution).
 
 ## Can I resume later, and will C2C start coding?

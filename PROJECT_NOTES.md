@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.0.0: validated milestone, unchanged runtime
+
+The maintainer requested a real uninstall/reinstall and a fresh planning trial before the 2.0 milestone. Managed removal retained recoverable backups; both installed copies were then verified against the 1.4.0 source and all 23 packaged files. The fresh chat checked local CLI readiness and usage evidence, then delivered a useful provisional plan because a hard included-only worker billing boundary remained unverified. It preserved project constraints, distinguished historical from current evidence, and included security, proposed tests, substantive self-critique and an execution entry point. Independent review found no blocking plan defect. No worker or prepared council run occurred, so this trial does not validate live two-model review or update continuity. Private project details and measurements remain outside the public repository.
+
+The trial also used unnecessarily broad early discovery output and repeated reference reads despite existing focused-discovery instructions. Keep that as an efficiency limitation, not a token measurement or proof of savings. The version bump consolidates existing capabilities without changing runner behavior, commands, schemas or billing gates; it is not a claim of improved planning quality. Current install commands and the previously stale README version label are aligned with 2.0.0. Validate the release metadata/package and native CI before publishing.
+
 ### Version 1.4.0: release notices and update continuity
 
 The user requested new-version notices, easy updates from either coordinating chat, and stable planning in the chat performing an update. A bounded public GitHub stable-tag check supports a daily automatic cache, manual refresh and `C2C_UPDATE_CHECK=off`. The skill shows one short notice per newer version per chat. Offline checks do not block the task; there is no background monitor, automatic installation, provider request or paid limit bypass.

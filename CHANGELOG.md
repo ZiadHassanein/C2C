@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.0.0 — Planning and maintenance milestone
+
+- Consolidates the existing planning, review, available-provider fallback, managed setup and stable-update workflows under the 2.0 release requested by the maintainer. No runner, schema, command or migration change is introduced by this version bump.
+- Updates the quick-install, update and uninstall commands to the 2.0.0 archive and corrects the README version label.
+- A real managed uninstall/reinstall and a fresh planning task passed scoped review. That task used an explicitly provisional self-critique because included-only worker eligibility was unverified; no independent model exchange ran. This does not establish improved accuracy, token savings or guaranteed plan quality.
+
 ## 1.4.0 — Update notices and stable active plans
 
 - Adds a lightweight release check with a daily cache, chat notice and opt-out. Offline checks do not block planning; no background service or model call is needed.

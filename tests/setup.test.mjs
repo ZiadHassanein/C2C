@@ -11,7 +11,16 @@ import { gzipSync } from 'node:zlib';
 const source = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const temporaryParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(temporaryParent, 'c2c-setup-'));
-const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
+let npmCli = process.env.npm_execpath;
+if (!npmCli) {
+  // Direct node:test/CI execution lacks npm_execpath. Native POSIX Node
+  // distributions put npm in ../lib; Windows distributions put it beside node.
+  for (const relative of ['node_modules/npm/bin/npm-cli.js', '../lib/node_modules/npm/bin/npm-cli.js']) {
+    const candidate = path.resolve(path.dirname(process.execPath), relative);
+    try { if ((await fs.stat(candidate)).isFile()) { npmCli = candidate; break; } } catch {}
+  }
+}
+assert.ok(npmCli, 'Cannot locate npm for the offline packaging test; run through npm test.');
 after(async () => {
   const resolved = await fs.realpath(root);
   assert.equal(path.dirname(resolved), temporaryParent);

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const files = Object.freeze({ protocol: 'references/protocol.md', assessment: 'references/project-assessment.md', models: 'references/model-selection.md', presentation: 'references/plan-presentation.md' });
+const files = Object.freeze({ protocol: 'references/protocol.md', assessment: 'references/project-assessment.md', models: 'references/model-selection.md', presentation: 'references/plan-presentation.md', qa: 'references/developer-qa.md' });
 const topics = Object.freeze({
   start: ['assessment#gather-evidence-without-expanding-scope', 'assessment#choose-an-actionable-direction'],
   assess: ['assessment#distinguish-deployment-from-readiness', 'assessment#json-contract', 'assessment#persist-and-revisit'],
@@ -16,6 +16,7 @@ const topics = Object.freeze({
   fallback: ['protocol#planning-with-unavailable-tools', 'protocol#change-route-after-a-worker-block', 'protocol#no-paid-limit-recovery', 'protocol#planning-when-usage-limits-block-the-exchange'],
   present: ['protocol#planning-depth-and-deliverables', 'presentation#put-the-decision-brief-first', 'presentation#show-scope-and-sequence', 'presentation#keep-safety-and-verification-actionable', 'presentation#show-what-review-changed', 'presentation#make-the-execution-entry-point-explicit', 'presentation#check-before-delivery', 'presentation#put-technical-depth-after-the-decisions'],
   update: ['protocol#updates-during-a-chat'],
+  qa: ['qa#scope-and-authority', 'qa#baseline-and-test-selection', 'qa#execution-and-evidence', 'qa#assurance-contract', 'qa#retest-and-readiness'],
 });
 const slug = text => text.toLowerCase().replace(/[`*_]/g, '').replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-');
 const requireThat = (ok, message) => { if (!ok) throw new Error(message); };

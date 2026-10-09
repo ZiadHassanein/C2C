@@ -2,6 +2,15 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.5.0 — Developer QA and clearer evidence
+
+- Adds a scoped QA workflow: the coordinator can run requested project tests and verify authorized fixes; text-only peers challenge the supplied evidence. Test planning alone does not authorize execution.
+- Seals QA purpose and requires an assurance record connecting the exact plan, chosen option, accepted fixes and proposed/observed/blocked checks to supplied evidence. Invalid anchors, hashes, conflicting JSON fields and future observations are rejected; recorded structure does not certify truth or release readiness.
+- Shares a nonsecret spending preference between both apps. New calls apply the stricter saved/current restriction; included-only launches need current, route-matched evidence before an attempt is reserved. Missing evidence uses an honest fallback, without paid recovery or account changes.
+- Shortens discussion excerpts and replaces repeated plan text in `RESULT.md` with source links, outcome, limits and evidence status. The revised plan, discussion and result remain the three delivered files.
+- Adds checks for contradictory selected options, missing receipt contents and reuse of the known working host/runtime context. Existing successful stages, review depth and old runtime pins are preserved.
+- Offline regression and walkthrough results test these controls, not comparative model quality or a token-saving percentage.
+
 ## 2.4.0 — Explicit effort and clearer revision checks
 
 - Adds pinned, per-worker effort selection with separate requested and unreported effective settings. Compatible CLI flags are checked before launching; omitted effort retains existing CLI settings/defaults with its effective value unknown. No global settings or billing changes.

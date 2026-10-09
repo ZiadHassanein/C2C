@@ -35,6 +35,7 @@ async function environment(name) {
   const env = {
     ...process.env, CODEX_HOME: path.join(directory, 'codex home'),
     CLAUDE_CONFIG_DIR: path.join(directory, 'claude home'),
+    C2C_CONFIG_HOME: path.join(directory, 'shared c2c preferences'),
     npm_config_cache: path.join(directory, 'npm-cache'), npm_config_userconfig: config,
     npm_config_update_notifier: 'false', npm_config_audit: 'false', npm_config_fund: 'false',
   };
@@ -60,6 +61,66 @@ test('setup help, version and invalid actions never create skill destinations', 
   }
   await assert.rejects(fs.access(context.env.CODEX_HOME));
   await assert.rejects(fs.access(context.env.CLAUDE_CONFIG_DIR));
+});
+
+test('setup preferences persist across app roots, installation, uninstall and rollback without changing saved bytes', async () => {
+  const context = await environment('shared-preferences');
+  const setup = path.join(source, 'scripts/setup.mjs');
+  const preferenceFile = path.join(context.env.C2C_CONFIG_HOME, 'preferences.json');
+  const invalid = [['--spending', 'paid'], ['--spending'], ['--spending', 'subscription', '--spending', 'included-only'], ['--target', 'codex']];
+  const absent = run([setup, 'preferences'], context);
+  assert.equal(absent.status, 0, absent.stderr);
+  assert.deepEqual(JSON.parse(absent.stdout), { path: preferenceFile, version: 1, spending: 'subscription' });
+  await assert.rejects(fs.access(context.env.C2C_CONFIG_HOME));
+  for (const args of invalid) {
+    const result = run([setup, 'preferences', ...args], context);
+    assert.equal(result.status, 1, JSON.stringify(args));
+    assert.match(result.stderr, /Use preferences/);
+    await assert.rejects(fs.access(context.env.C2C_CONFIG_HOME));
+  }
+
+  const saved = run([setup, 'preferences', '--spending', 'included-only'], context);
+  assert.equal(saved.status, 0, saved.stderr);
+  assert.equal(JSON.parse(saved.stdout).spending, 'included-only');
+  const bytes = await fs.readFile(preferenceFile);
+  assert.deepEqual(JSON.parse(bytes.toString('utf8')), { version: 1, spending: 'included-only' });
+  const preserved = async () => assert.deepEqual(await fs.readFile(preferenceFile), bytes);
+  const otherRoots = { ...context, env: { ...context.env,
+    CODEX_HOME: path.join(context.directory, 'different codex'),
+    CLAUDE_CONFIG_DIR: path.join(context.directory, 'different claude'),
+  } };
+  const shared = run([setup, 'preferences'], otherRoots);
+  assert.equal(shared.status, 0, shared.stderr);
+  assert.deepEqual(JSON.parse(shared.stdout), { path: preferenceFile, version: 1, spending: 'included-only' });
+  await assert.rejects(fs.access(otherRoots.env.CODEX_HOME));
+  await assert.rejects(fs.access(otherRoots.env.CLAUDE_CONFIG_DIR));
+  await preserved();
+
+  for (const args of invalid) {
+    const result = run([setup, 'preferences', ...args], context);
+    assert.equal(result.status, 1, JSON.stringify(args));
+    await preserved();
+  }
+  const installed = run([setup, 'install'], context);
+  assert.equal(installed.status, 0, installed.stderr);
+  await preserved();
+  for (const home of [context.env.CODEX_HOME, context.env.CLAUDE_CONFIG_DIR]) {
+    const result = run([path.join(home, 'skills/C2C/scripts/setup.mjs'), 'preferences'], context);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), { path: preferenceFile, version: 1, spending: 'included-only' });
+    await preserved();
+  }
+  const removed = run([setup, 'uninstall'], context);
+  assert.equal(removed.status, 0, removed.stderr);
+  for (const home of [context.env.CODEX_HOME, context.env.CLAUDE_CONFIG_DIR]) await assert.rejects(fs.access(path.join(home, 'skills/C2C')));
+  await preserved();
+  const id = removed.stdout.match(/Backup ID: (\d{17}-[a-f0-9]{12})/)?.[1];
+  assert.ok(id, removed.stdout);
+  const restored = run([setup, 'rollback', id], context);
+  assert.equal(restored.status, 0, restored.stderr);
+  for (const home of [context.env.CODEX_HOME, context.env.CLAUDE_CONFIG_DIR]) await fs.access(path.join(home, 'skills/C2C/scripts/setup.mjs'));
+  await preserved();
+  assert.deepEqual(await fs.readdir(context.env.C2C_CONFIG_HOME), ['preferences.json']);
 });
 
 test('automatic update checks can be disabled without creating destinations or fetching', async () => {

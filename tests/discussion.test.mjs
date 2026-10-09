@@ -111,7 +111,8 @@ test('adapted remedies and peer replies remain separately attributed without inv
   const decode=text=>text.replace(/&#(\d+);/g,(_,code)=>String.fromCharCode(Number(code)));
   const before=decode(renderDiscussion({state:run,reports,decisions}));
   assert.ok(before.includes(`**Proposed:** ${concern.action}`));
-  assert.ok(before.includes(`**accepted** — ${rationale}`));
+  assert.ok(before.includes('**accepted** — Concern accepted; remedy adapted. Keep the existing serializer'));
+  assert.match(before, /ellipsis.*shortened text/);
   assert.match(before,/accepted concern may use an adapted remedy/);
   assert.match(before,/Counts do not establish peer agreement/);
   assert.match(before,/no unrecorded reply is inferred/);
@@ -321,4 +322,45 @@ test('pending evidence links its validated report and unavailable evidence keeps
   assert.match(text, /pending:\*\* Who owns access\? \[Record\]\(coordinator-draft.json\)/);
   assert.match(text, /No supplied deployment evidence\. \[Record\]\(evidence-1.json\)/);
   assert.doesNotMatch(text, /https:\/\/bad|outside.json/);
+});
+
+test('finding tables put decisions first and suppress only exact repeated proposals', () => {
+  const input = { state: state(), reports: [{ name: 'coordinator-draft.json', report: report({ findings: [
+    finding('C-D1', { claim: 'Add the role check.', action: 'Add the role check.' }),
+    finding('C-D2', { action: 'Use the existing role middleware.' }),
+    finding('C-D3', { action: 'Replace the middleware.' }),
+  ] }) }], decisions: [
+    { finding_id: 'C-D2', disposition: 'accepted', rationale: 'Use the existing role middleware.' },
+    { finding_id: 'C-D3', disposition: 'rejected', rationale: 'Use the existing role middleware.' },
+  ] };
+  const text = renderDiscussion(input);
+  assert.match(text, /\| Finding \| Coordinator decision \| Concern and proposed change \|/);
+  const row = id => text.split('\n').find(line => line.startsWith(`| **${id} `));
+  assert.doesNotMatch(row('C-D1'), /Proposed:/);
+  assert.doesNotMatch(row('C-D2'), /Proposed:/);
+  assert.match(row('C-D3'), /\*\*rejected\*\*.*\*\*Proposed:\*\* Replace the middleware/);
+});
+
+test('many long findings retain every disposition and reference within a per-finding text bound', () => {
+  const long = 'Detailed analysis and evidence. '.repeat(200);
+  const findings = Array.from({ length: 150 }, (_, i) => finding(`P-R${i + 1}`, {
+    claim: `${long} C-D1`, action: `${long} C-S1`, evidence: long, verification: long,
+  }));
+  const decisions = findings.map((item, i) => ({ finding_id: item.id,
+    disposition: ['accepted', 'rejected', 'unresolved'][i % 3], rationale: `${long} P-V1` }));
+  const input = { state: state({ mode: 'review', stages: { review: { status: 'succeeded' } }, seals: { 'peer-review.json': 'hash' } }),
+    reports: [{ name: 'peer-review.json', report: report({ summary: long, findings }) }], decisions };
+  const original = JSON.stringify(input);
+  const text = renderDiscussion(input);
+  assert.equal(JSON.stringify(input), original);
+  for (const decision of decisions) {
+    const line = text.split('\n').find(item => item.startsWith(`| **${decision.finding_id} ·`));
+    assert.ok(line, decision.finding_id);
+    assert.ok(line.includes(`**${decision.disposition}**`), decision.finding_id);
+    assert.ok(line.includes('C-D1') && line.includes('C-S1') && line.includes('P-V1'));
+    assert.ok(line.length < 650, `${decision.finding_id}: bounded excerpt row`);
+  }
+  assert.ok(text.length < 3000 + 650 * findings.length);
+  assert.match(text, /\[Report\]\(peer-review.json\)/);
+  assert.match(text, /\[Full responses\]\(decisions.json\)/);
 });

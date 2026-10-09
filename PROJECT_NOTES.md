@@ -1,6 +1,6 @@
 # Project notes and continuation guide
 
-Last updated: 2026-10-09. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
+Last updated: 2026-10-10. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
 
 ## Objective and current status
 
@@ -35,6 +35,20 @@ The user explicitly requested suitability for both small features and big-projec
 - Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
+
+### Version 2.5.0: developer QA and evidence assurance
+
+QA uses the existing council with sealed `--purpose qa`. The coordinating chat runs requested tests within existing authority after inspecting their scripts and environment; peer workers remain text-only. Conditional guidance covers baseline/dirty-scope capture, risk-based behavior checks, failures/skips/flakiness, bounded log receipts, retesting and the narrowest supported next action. Planning alone grants no execution, release or production authority. Content and mixed work retain source/editorial and accessibility checks without mandatory software tooling.
+
+The assurance contract lives in the existing decisions wrapper. Exact plan hashes and anchors connect the selected option, every accepted finding and scoped claim/check observations to actually supplied evidence IDs and hashes. It rejects malformed or ambiguous JSON, missing observations, future timestamps and stale links. `recorded` and `ready_for_review` establish structure for review, not truthful execution, semantic completeness or production certification. QA requires a record before verification/finish; ordinary planning keeps it optional. New evidence or operative contract changes follow existing bounded revision rules; merely appending new verifier finding links does not waste a round.
+
+A shared nonsecret preference persists across both apps. New runs seal it; each new-run worker launch applies the stricter current/sealed policy. Included-only launches require fresh applicable declarations matching subscription preflight before reserving an attempt. The declaration is evidence provenance, not independent billing attestation; account controls still govern actual spending. Missing/invalid evidence does not launch a worker or ask for paid recovery. Older pinned code is never changed; the coordinator must enforce current user restrictions before resuming it. Uninstall preserves this preference with other saved state.
+
+The user handoff keeps three files. Discussion retains every finding/disposition/reference with shorter excerpts; RESULT links the canonical plan and detailed records, retaining blockers, evidence status, hashes and review limits without duplicating full arguments. This reduces presentation repetition, not proven total tokens or planning cost. Guidance checks selected alternatives against operative prerequisites, source holds and milestones, supplies receipts instead of mere local links, and reuses the approved host/runtime invocation after local permission issues.
+
+Publication requires local regressions, independent source and instruction review, exact-candidate native CI, and verification of managed installation with retained pins. Synthetic offline checks are not a live provider comparison; private task records remain outside the repository.
+
+Final local validation: 608 tests, 597 passed, 11 platform skips, zero failures; 260 documentation links/anchors/assets and eight SVG checks passed. Metadata retains the intentional uppercase identifier exception. Independent source review resolved conflicting JSON, timestamp, preflight policy-race and provenance issues. Three isolated instruction scenarios exercised meaningful negative software checks, source/rights gaps and contradictory mixed-plan gates without actual provider calls. Shared and task-specific spending restrictions, both provider routes, compact artifact/source preservation, QA revision handling and install/uninstall/rollback preferences have offline regressions. New installs contain 33 package files; runtime bundles contain 27 source files plus their manifest. Exact-candidate CI and release installation remain required gates, with machine-specific proof recorded privately.
 
 ### Version 2.4.0: explicit effort and revision review
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "C2C"
-  short_description: "Software and content plans with independent review"
+  short_description: "Software, content and QA with independent review"
   default_prompt: "Use $C2C to plan this software, content, or mixed project with suitable workers within my limits, independent critique, relevant security and acceptance checks, and a clear first step."

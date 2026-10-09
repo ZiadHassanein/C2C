@@ -50,7 +50,7 @@ Briefly connect significant challenges to their disposition: supported concern w
 
 ## Make the execution entry point explicit
 
-Include a concise **Start here** block in the main plan before any appendices. Identify:
+Include a concise **Start here** block near the decision brief, before detailed milestones or appendices. Identify:
 
 - **First work item:** the selected milestone or bounded task and its intended outcome.
 - **Entry point and action:** the inspected repository/component/files or current draft/source/media and first concrete action. Distinguish existing paths from proposed new ones. When location or tooling is unknown, start with bounded discovery and name the evidence needed; never invent an executable command or pretend a proposed path exists.
@@ -70,11 +70,13 @@ For an existing-plan review, deliver its revised version in `final-plan.md`, not
 Check the assembled plan before peer verification, then check corrections again before `finish` and delivery. For a draft or usage-limit fallback, apply the same check within available limits and state missing review. Resolve contradictions in the plan itself:
 
 - The recommendation, scope, technical/editorial decisions, milestone order and Start here block agree with the latest finding dispositions and actual project evidence.
+- Check the selected option explicitly: its prerequisites, source holds and success conditions must agree with later milestones. Remove operative instructions belonging only to a rejected alternative; do not leave contradictory instructions for the implementer to resolve.
 - Accepted fixes appear in the operative plan; the user can follow it without reconciling an older plan against separate review notes. Preserve an explicit critique-only scope.
 - The first work item has a concrete location/action, prerequisites and observable acceptance result, or an explicit discovery/blocking condition. Dependencies do not require an unfinished later milestone or form a cycle.
 - When a map is recorded, `quality --run RUN` agrees with the current plan excerpts, evidence and finding dispositions. Missing mapping is `not_recorded`; `recorded` is a structural result, not semantic coverage or readiness. Check changed decisions and their downstream effects against the full plan after revisions.
 - Execution advice fits that work item and the user's limits; sources, eligibility gaps and savings labels are accurate. Price differences are not presented as token or subscription savings, and the recommendation grants no new implementation authority.
 - Applicable security, acceptance checks and unresolved decisions remain actionable; proposed checks are not reported as executed. Content claims, source/media gaps and publication state are accurate. Review status identifies material edits after verification and remaining limitations.
+- QA observations name the actual method, environment, tested revision, time and result. Supplied log/table receipts include hashes and relevant excerpts; a local link alone provides no inspection evidence. Reconcile the [assurance contract](developer-qa.md#assurance-contract) with the current plan and accepted decisions. A recorded contract is not execution attestation or release approval.
 
 Keep this a coordinator check within the existing workflow, not a new report, score, or extra peer round. Do not repeat it as chat narration. `finish` checks saved stages and evidence; it does not assess semantic quality. Complete corrections before sealing the result; a later revision must not inherit an earlier review/completion claim.
 

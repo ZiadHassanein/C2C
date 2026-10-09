@@ -8,7 +8,7 @@ Use this page when you need help with installation, updating, or a failed setup 
 
 **Install:** [Quick start](../README.md#install) · [One app](#install-for-one-app-only) · [Linux/macOS](#linux-and-macos) · [Check setup](#check-your-setup)
 
-**Maintain:** [Update or roll back](#update-the-skill) · [Uninstall](#uninstall) · [Models](#choose-the-participants) · [Usage and privacy](#usage-and-privacy)
+**Maintain:** [Update or roll back](#update-the-skill) · [Uninstall](#uninstall) · [Models](#choose-the-participants) · [Spending preference](#save-your-spending-preference) · [Usage and privacy](#usage-and-privacy)
 
 **Fix a problem:** [Troubleshooting](#troubleshooting) · [Login and background workers](#do-i-need-another-terminal-open) · [Timeouts](#when-a-peer-call-takes-longer) · [Usage limits](#when-a-participant-hits-a-usage-limit)
 
@@ -17,14 +17,14 @@ Use this page when you need help with installation, updating, or a failed setup 
 With [Node.js 18+ and npm/npx](https://nodejs.org/en/download), run in PowerShell on Windows or Terminal on macOS/Linux:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
 ```
 
 This downloads the named C2C release and runs its setup helper. It needs no Git, npm account or global package installation. Both apps receive the skill for your current user; start a new chat afterward. It does not install the provider CLIs, create accounts or sign in. [Optional CLI setup](../README.md#1-prepare-your-tools) is separate.
 
 Append `--dry-run` to `install`, `update` or `uninstall` to inspect the selected paths and planned changes without changing skill installations. The surrounding `npx` command can still download files into npm's cache. `--target codex`, `--target claude` or `--target both` selects the apps; `both` is the default.
 
-The launcher is pinned to **v2.4.0**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
+The launcher is pinned to **v2.5.0**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
 
 <details>
 <summary>Install from a Git clone or downloaded ZIP</summary>
@@ -38,9 +38,9 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-Without Git, [download the v2.4.0 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
+Without Git, [download the v2.5.0 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
 
-`node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `check-update`, `update`, `uninstall`, `doctor`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
+`node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `check-update`, `update`, `uninstall`, `doctor`, `preferences`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
 
 </details>
 
@@ -49,11 +49,11 @@ Without Git, [download the v2.4.0 ZIP](https://github.com/ZiadHassanein/C2C/arch
 The default installer adds the skill to both apps. To choose one, run **one** of these instead:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz install --target codex
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install --target codex
 ```
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz install --target claude
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install --target claude
 ```
 
 This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI, whether selected automatically or requested. Missing unused CLIs do not block a valid route. See [routing and provisional planning](../references/protocol.md#planning-with-unavailable-tools).
@@ -100,7 +100,7 @@ Store run folders on a local filesystem supporting hard links and atomic renames
 From any folder with npm/npx available:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz doctor
 ```
 
 Or open a terminal in your cloned/extracted C2C folder and run:
@@ -128,6 +128,43 @@ Windows discovery additionally tries known native Codex user/app-cache locations
 
 Connection failures are separate from login and quota errors. C2C preserves the attempt and advises checking connectivity or the host's approved network path; it does not infer that every connection error came from a sandbox or retry automatically. `doctor` also discloses enabled Codex features outside its explicit disable list; its controls are not a complete isolation guarantee.
 
+## Save your spending preference
+
+For a restriction on one request only, say so in that request. The coordinator uses `prepare --spending included-only` to seal it for that run without changing your shared preference. A task cannot weaken an existing shared restriction.
+
+From a current downloaded or installed C2C folder, inspect the shared preference or set it explicitly:
+
+```sh
+node scripts/setup.mjs preferences
+node scripts/setup.mjs preferences --spending included-only
+```
+
+Both Codex and Claude Code use `~/.c2c/preferences.json`. `~` means your user folder. The file stores only version `1` and `spending`; it contains no credentials or account settings. An explicit absolute `C2C_CONFIG_HOME` selects another persistent directory containing `preferences.json`; use the same value in both apps and later chats. `CODEX_HOME` and `CLAUDE_CONFIG_DIR` do not change this shared location. It must support hard links and atomic replacement. Linked paths, corrupt JSON, unsupported fields and unsafe file types are rejected without silently applying a looser policy or overwriting their contents.
+
+| Preference | Effect |
+|---|---|
+| `subscription` | Default when no file exists. Ordinary authorized subscription use follows existing account settings. Unknown live quota alone does not block it; this is not a guarantee of zero charges. |
+| `included-only` | Worker launches require current, applicable evidence for included-only use. The saved preference itself is not that evidence. |
+
+To deliberately return future work to the default, use `node scripts/setup.mjs preferences --spending subscription`. New runs seal their spending policy. A later included-only preference also tightens an existing run; relaxing the preference cannot weaken an included-only seal. Updates and uninstall intentionally retain the preference. To forget it, you may remove only the exact `preferences.json` path printed by the helper after inspecting it; keep sibling runtime bundles and other data. Removing the preference does not relax a sealed strict run.
+
+### Included-only allowance evidence
+
+For a new runner's included-only `ask`, the coordinator supplies `--allowance-evidence FILE` before a worker attempt can be reserved. This is a bounded nonsecret record of an actual applicable confirmation, not a request to purchase anything. Its version-1 fields are:
+
+| Field | Required meaning |
+|---|---|
+| `version`, `provider`, `auth_method` | `1`, the selected `codex` or `claude` worker, and `chatgpt` or `claude.ai` respectively. |
+| `allowance`, `source` | `included-only`, with `user-confirmed` or `provider-reported` provenance. |
+| `reference` | A concise reference to the actual confirmation or observation; no credentials. |
+| `observed_at`, `valid_until` | Actual observation and expiry timestamps, preferably UTC. Evidence must be current, not future-dated, and valid for at most 24 hours. |
+
+The evidence must match fresh worker preflight's subscription authentication route without credential overrides. It stops applying after account, route or relevant setting changes, even if its expiry has not passed. Signed-in status, token counters, a model name, a statement that the app works, and the preference itself do not establish included-only eligibility. The coordinator must not invent a confirmation, extend an old timestamp or make a model request to probe billing.
+
+The record is a coordinator-supplied declaration, not independent billing attestation or control of provider settings. If applicable evidence is unavailable, use an eligible provisional continuation or preserve a checkpoint; no forced billing question or paid recovery is required. Existing user statements can be reused only if they actually establish the applicable current boundary. [Billing and fallback rules](../references/protocol.md#no-paid-limit-recovery).
+
+Older pinned runtimes keep their original code. On resume, the coordinator reads the installed shared preference and respects it, but an update does not add a new machine-enforced launch gate retroactively to an old runner. Preserve its reports, attempt history and pin; do not rewrite the run or switch billing routes to bypass a restriction.
+
 ## Do I need another terminal open?
 
 No. Keep your coordinating chat open; C2C runs the peer non-interactively using `claude -p` or `codex exec`, with piped input/output and hidden Windows process windows. Claude can work for Codex without an open Claude panel, and Codex can work for Claude without an open Codex app. The peer CLI must be installed, accessible to the coordinator, and authenticated.
@@ -139,7 +176,7 @@ An inaccessible or expired login leaves that worker unavailable. C2C follows its
 **In chat:** say “Update C2C and keep this plan on its current version.” The AI checks the active run before updating. For a direct terminal update:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz update
 ```
 
 This discovers the latest stable tag in the official C2C repository. Append `--target codex` or `--target claude` for one app, or `--dry-run` to preview. During a prepared run, include `--run "/absolute/path/to/run"` so its retained runtime is checked first. Changed installations are protected. An identical installation needs no replacement. Start a new chat to use the updated instructions for a new plan.
@@ -216,7 +253,7 @@ Downloading updates alone does not update installed copies. Matching content, in
 **Finish or stop active C2C runs first.** Removing the skill does not stop a worker that is already running. Then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz uninstall
 ```
 
 The command moves unchanged managed C2C folders out of skill discovery into recoverable backups. It protects customized, unrecognized or linked files instead of deleting them. A missing target is a no-op. It leaves parent settings, other skills, apps, logins, and projects/plans saved elsewhere untouched. Start a new chat in each affected app; an existing chat may still contain previously loaded instructions.
@@ -224,7 +261,7 @@ The command moves unchanged managed C2C folders out of skill discovery into reco
 Preview first, without changing skill installations:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz uninstall --dry-run
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz uninstall --dry-run
 ```
 
 Add `--target codex` or `--target claude` to remove the skill from only one app. Keep the printed rollback command to restore it; rollback protects any installation added or changed afterward. For an interrupted operation, use its printed recovery guidance. [Transaction recovery](#update-the-skill) also applies to managed removal.
@@ -238,7 +275,7 @@ From a downloaded/cloned C2C folder:
 node scripts/setup.mjs uninstall
 ```
 
-This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.4.0 installed copy also contains the helper. For example, with default paths:
+This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.5.0 installed copy also contains the helper. For example, with default paths:
 
 PowerShell on Windows:
 
@@ -271,20 +308,20 @@ For an older, customized or unrecognized installation, you can use your file man
 
 `~` means your home folder. If you installed with `CODEX_HOME` or `CLAUDE_CONFIG_DIR`, use `skills/C2C` inside that configured root instead. The installer's `Installed:` or `Updated:` output shows the exact destination. Keep the parent configuration and `skills` folders; they can contain other settings and skills.
 
-Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans saved elsewhere in place. The downloaded repository/ZIP, npm cache, update-check metadata, retained runtime bundles and installer backups also stay on disk; uninstall does not delete its source package. You can keep those, or remove them separately after preserving any work stored there. Deleting backups gives up rollback; deleting runtime bundles prevents their saved plans from resuming. Deleting the downloaded repository alone does not uninstall the skill.
+Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans saved elsewhere in place. The downloaded repository/ZIP, npm cache, update-check metadata, retained runtime bundles, shared spending preference and installer backups also stay on disk; uninstall does not delete its source package. You can keep those, or remove them separately after preserving any work stored there. See [preference removal](#save-your-spending-preference) before removing that exact file. Deleting backups gives up rollback; deleting runtime bundles prevents their saved plans from resuming. Deleting the downloaded repository alone does not uninstall the skill.
 
 ## npx and PowerShell help
 
 If PowerShell blocks `npx.ps1`, use `npx.cmd` in the same command. No execution-policy change is needed:
 
 ```powershell
-npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz install
+npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
 ```
 
 If npm 12 rejects the remote package URL, permit it for this command only:
 
 ```sh
-npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz install
+npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
 ```
 
 This follows npm's [remote URL setting](https://docs.npmjs.com/cli/v12/using-npm/config/#allow-remote); do not change global npm policy. Keep the exact release URL and replace the final action with `update`, `uninstall` or `doctor` as needed. On Windows, the `npx.cmd` form can also include this option. If npm/npx is unavailable or your environment disallows remote packages, use the local Git/ZIP method instead.
@@ -344,7 +381,7 @@ With the current chat as author, required stages use two successful calls for fo
 
 Your current chat selects the brief and relevant context to send to the peer's provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
 
-C2C never buys or enables extra paid usage to recover from a limit. It does not upgrade plans, raise spending limits or move the task to API/cloud billing. Normal authorized subscription use can proceed without live quota metadata; a limit response stops that route. An explicit included-only/zero-extra-charge rule needs applicable no-overflow evidence before calls. Existing provider settings still govern charges. Worker processes disable Claude's credit-only fast mode, automatic updates and background terminal-title generation; this does not change your model/effort or impose a universal billing cap. [Billing policies](../references/protocol.md#no-paid-limit-recovery).
+C2C never buys or enables extra paid usage to recover from a limit. It does not upgrade plans, raise spending limits or move the task to API/cloud billing. Normal authorized subscription use can proceed without live quota metadata; a limit response stops that route. An explicit included-only/zero-extra-charge rule needs applicable no-overflow evidence before calls. [Save the preference across chats](#save-your-spending-preference); new included-only launches require the evidence described there. Existing provider settings still govern charges. Worker processes disable Claude's credit-only fast mode, automatic updates and background terminal-title generation; this does not change your model/effort or impose a universal billing cap. [Billing policies](../references/protocol.md#no-paid-limit-recovery).
 
 Before launching a new run's first worker, C2C uses `node RUNNER preview --run RUN --stage STAGE` to inspect the provider/model, outbound labels, packet hash and limits without a model call or state change. Your explicit C2C request authorizes relevant selected context for that exchange. The host may separately require approval for a bounded command outside its sandbox. [Launch preview and local permissions](../references/protocol.md#launch-preview-and-local-permissions).
 
@@ -356,13 +393,15 @@ Worker selection uses current research and your constraints; it does not change 
 
 Every new council plan includes a scoped security review and relevant acceptance checks. Software work uses engineering tests; content work uses editorial, factual source, rights and accessibility checks as relevant; mixed work uses both. These checks remain labeled as proposed, executed or blocked. The [plan presentation guide](../references/plan-presentation.md) puts priority decisions, the proposed scope, and the next action before supporting appendices. Unresolved findings and edits made after peer verification remain visible. Completion does not mean every issue is resolved or authorize implementation, final content production, image generation or publication.
 
+When you authorize testing or verification of a fix, the coordinating AI can run the applicable project checks and retest within that scope. Text-only workers review the supplied evidence. [QA planning and verification](QA.md) explains meaningful assertions, test receipts and the limits of readiness claims.
+
 ## Troubleshooting
 
 | What you see | What to do |
 |---|---|
 | `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `npx` is missing, PowerShell blocks it, or npm rejects the remote URL | Follow [npx and PowerShell help](#npx-and-powershell-help); local Node setup remains available without npm/npx. |
-| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.zip), extract it, and open a terminal in the folder containing `scripts`. |
+| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/setup.mjs` or `scripts/install.mjs` | You are in the wrong folder or using an older source copy. Open a terminal in the extracted or cloned current release, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise apply [available-provider routing](#choose-the-participants). If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
 | `doctor` reports signed out | Treat that worker as unavailable and apply [routing rules](#choose-the-participants). If you choose setup repair, check the environment/access row below before renewing the selected native login. |

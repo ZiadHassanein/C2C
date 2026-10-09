@@ -7,7 +7,7 @@ C2C is an open-source skill for planning software, content, and mixed projects b
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -29,7 +29,7 @@ C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
@@ -110,7 +110,17 @@ No. The optional `plan_map` lives beside finding decisions in the existing `deci
 
 Every new council requires a scoped security review and proposed acceptance checks suited to the work. Software plans use relevant engineering tests. Content plans use checks such as factual source verification, audience comprehension, editorial consistency, permissions and accessible text alternatives; they do not require an `npm test` command. Mixed plans keep both sets and their dependencies clear. Privacy, sensitive information and harmful or misleading claims belong in the review where relevant.
 
-The plan preserves missing evidence, unresolved risks, and the distinction between proposed checks and checks actually executed. Completing the discussion does not certify security, publication or production readiness, or a working implementation. Current controller validation is recorded in [project notes](../PROJECT_NOTES.md); [evaluation methods](BENCHMARKS.md) distinguish software checks from planning outcomes.
+The plan preserves missing evidence, unresolved risks, and the distinction between static inspection, proposed checks, executed checks and blocked checks. Completing the discussion does not certify security, publication or production readiness, or a working implementation. Current controller validation is recorded in [project notes](../PROJECT_NOTES.md); [evaluation methods](BENCHMARKS.md) distinguish software checks from planning outcomes.
+
+## Can C2C run my project's tests and verify a fix?
+
+Yes, when testing or implementation is within your existing authorization. The coordinating AI inspects the actual revision and dirty scope, uses the relevant existing project tools, preserves failed attempts and records commands, environment, results and evidence hashes. After a fix it reruns the failure check and affected regressions. Text-only peer workers review the supplied evidence; C2C does not claim they independently executed tests.
+
+A small task can need one meaningful assertion. More consequential work may need additional integration, contract, end-to-end or risk-specific checks. Production, destructive, load, paid-service, deployment and publication actions still need applicable authority. Proposed checks and missing tools stay explicit, and a successful fixture test does not prove a live integration works. See [QA planning and verification](QA.md).
+
+## Does an assurance result prove the plan is ready?
+
+It checks the recorded structure. The `assurance` section in the existing `decisions.json` connects the chosen option, accepted fixes, material claims and acceptance checks to exact plan passages and supplied evidence. It is required before verification and finish for a run prepared with `--purpose qa`, and optional for the default planning purpose. Preparation provides `assurance.schema.json`; the coordinator maintains the record without requiring another user-written report. `quality --run RUN` detects stale hashes and missing or inconsistent links. Observations remain coordinator-recorded assertions, and `ready_for_review` means the record is ready for peer inspection. It is not independent execution evidence, a completeness guarantee or production/publication certification. [Assurance details](../references/developer-qa.md#assurance-contract).
 
 ## Does it choose or change my model automatically?
 
@@ -135,6 +145,12 @@ Consequential changes after verification may use one additional successful revis
 No. C2C must not buy credits, enable extra usage or auto-reload, raise spending limits, upgrade your plan, or switch to API/cloud billing to keep an exchange running. Asking it to continue does not authorize those actions. It stops the blocked route and checks only permitted continuation within existing allowance. If none qualifies, it delivers a provisional plan with self-critique; if the chat has no allowance, it saves a checkpoint. It does not ask you to pay to unblock the plan.
 
 Provider billing remains separate. For ordinary authorized subscription use, unknown live usage metadata is not treated as an exhausted account or a reason for repeated billing questions. Existing credit/overage settings can permit charges without a quota error, so this is not a zero-charge guarantee. An explicit included-only/zero-extra-charge restriction needs applicable no-overflow evidence before calls; an API key never supplies spending permission by itself. Worker processes disable Claude's credit-only fast mode without changing your account settings, selected model or effort. See [billing policies](../references/protocol.md#no-paid-limit-recovery).
+
+## Can C2C remember included-only usage across chats and both apps?
+
+Yes. Run `node scripts/setup.mjs preferences --spending included-only` from a current C2C copy, or ask your coordinating chat to save that preference. Both apps read `~/.c2c/preferences.json`, independently of their own configuration directories. An absolute `C2C_CONFIG_HOME` can select a shared alternate location. Updates and uninstall intentionally preserve it; the file contains no credentials. Without a saved preference, the default is ordinary `subscription` use, which is not a zero-charge guarantee.
+
+The preference records what you require, not proof that a provider will honor it. New included-only worker launches also need current applicable `--allowance-evidence FILE` matching fresh subscription-route preflight. The declaration is not independently attested billing control; a saved login, token counter or statement that the app works does not establish eligibility. If evidence is absent, C2C uses eligible provisional work or a checkpoint without forcing a billing question or paid recovery. A later strict preference tightens existing work, while relaxing it cannot weaken a strict run's sealed policy. Older pinned runners keep their original code and require the coordinator to respect the current preference. See [commands, evidence fields and intentional removal](SETUP.md#save-your-spending-preference).
 
 ## Can the reviewer check missing repository facts?
 

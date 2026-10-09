@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { checkUpdates, compareVersions, discoverLatest, stageRelease } from './updates.mjs';
+import { readPreferences, writePreferences, preferencesPath } from './preferences.mjs';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(fs.readFileSync(path.join(directory, '../package.json'), 'utf8'));
@@ -38,6 +39,8 @@ Update also accepts:
   --run RUN                  Verify an active plan can retain its pinned version
   --source                   Use this package offline instead of downloading
 Rollback and recover also accept --target.
+
+Preferences: ${launcher} preferences [--spending subscription|included-only]
 
 Pinned plans keep their original version during an update. Finish legacy runs first.
 Set C2C_UPDATE_CHECK=off to disable automatic notices; no update installs itself.
@@ -97,6 +100,13 @@ function preventInstalledDowngrade(releaseVersion, forwarded) {
 
 try {
   if (['help', '--help', '-h'].includes(action)) help();
+  else if (action === 'preferences') {
+    if (args.length === 0) console.log(JSON.stringify({ path: preferencesPath(), ...readPreferences() }, null, 2));
+    else {
+      if (args.length !== 2 || args[0] !== '--spending' || !['subscription', 'included-only'].includes(args[1])) throw new Error('Use preferences [--spending subscription|included-only]');
+      console.log(JSON.stringify({ path: preferencesPath(), ...writePreferences({ spending: args[1] }), note: 'Preference saved for both apps. This changes no billing setting and is not allowance evidence. Existing sealed runs cannot be weakened.' }, null, 2));
+    }
+  }
   else if (['version', '--version', '-v'].includes(action)) {
     if (args.length) throw new Error('version takes no options.');
     console.log(`C2C ${version}`);

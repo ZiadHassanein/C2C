@@ -28,7 +28,7 @@ const authored = escapeAuthoredText;
 
 // Bound the derived view, not the authoritative reports or worker context. Mark
 // cuts explicitly; do not pretend a prefix is an AI summary of the whole argument.
-function excerpt(value, limit = 240) {
+export function excerptAuthoredText(value, limit = 240) {
   const points = Array.from(String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim());
   if (points.length <= limit) return authored(points.join(''));
@@ -40,6 +40,8 @@ function excerpt(value, limit = 240) {
   const omittedRefs = [...new Set(references(points.join('')))].filter(id => !shownRefs.has(id));
   return `${authored(shown)} …${omittedRefs.length ? ` (references: ${omittedRefs.map(authored).join(', ')})` : ''}`;
 }
+const excerpt = excerptAuthoredText;
+const sameProse = (left, right) => authored(left) === authored(right);
 
 function reportSource(state, entry) {
   if (entry.source === undefined) return entry.name;
@@ -185,12 +187,17 @@ export function renderDiscussion({ state, reports = [], decisions = [], completi
         : 'The successful peer attempt has no recorded model metadata. Its requested model is not independently verified.', '');
     }
     if (report.findings.length) {
-      lines.push('| Finding | Concern and proposed change | Coordinator decision |', '| --- | --- | --- |');
+      lines.push('| Finding | Coordinator decision | Concern and proposed change |', '| --- | --- | --- |');
       for (const finding of report.findings) {
         const decision = dispositions.get(finding.id);
-        lines.push(`| **${authored(finding.id)} · ${authored(finding.severity)}** | ${excerpt(finding.claim, 140)}<br>**Proposed:** ${excerpt(finding.action, 140)} | ${decision
-          ? `**${authored(decision.disposition)}** — ${excerpt(decision.rationale, 240)}`
-          : '**Awaiting a recorded decision.**'} |`);
+        // Deduplicate only exact normalized prose. A different or adapted remedy
+        // must remain separately attributed; this view does not infer agreement.
+        const concern = excerpt(finding.claim, 120);
+        const proposed = sameProse(finding.action, finding.claim) || decision && sameProse(finding.action, decision.rationale)
+          ? '' : `<br>**Proposed:** ${excerpt(finding.action, 100)}`;
+        lines.push(`| **${authored(finding.id)} · ${authored(finding.severity)}** | ${decision
+          ? `**${authored(decision.disposition)}** — ${excerpt(decision.rationale, 160)}`
+          : '**Awaiting a recorded decision.**'} | ${concern}${proposed} |`);
       }
       lines.push('');
     } else {

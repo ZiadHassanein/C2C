@@ -23,6 +23,10 @@ import { checkPlanQuality, comparePlanImpact, PLAN_MAP_SCHEMA } from './plan-qua
 import { readGuidance } from './guidance.mjs';
 import { projectVerificationPacket } from './projection.mjs';
 import { buildReviewDiff } from './review-diff.mjs';
+import { readPreferences, resolveSpendingPolicy } from './preferences.mjs';
+import { checkAllowanceEvidence } from './allowance.mjs';
+import { ASSURANCE_SCHEMA, checkAssurance, parseBoundedJSON } from './assurance.mjs';
+import { renderResult } from './result.mjs';
 
 const VERSION = 7;
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -168,6 +172,9 @@ export function prepare(options) {
   required(options.project && options.brief && options.out && options.assessment, 'prepare requires --project, --brief, --assessment, and --out');
   const participants = participantsFromOptions(options);
   const workerEffort = effortSelection(participants, options);
+  const spendingPolicy = resolveSpendingPolicy({ preferences: readPreferences(), runPolicy: options.spending === undefined ? undefined : { version: 1, spending: options.spending } });
+  const purpose = options.purpose ?? 'planning';
+  required(['planning', 'qa'].includes(purpose), 'Purpose must be planning or qa');
   const project = fs.realpathSync(path.resolve(options.project));
   required(fs.statSync(project).isDirectory(), 'Project must be a directory');
   const coordinator = participants.coordinator;
@@ -192,7 +199,7 @@ export function prepare(options) {
   required(inputs.reduce((n, f) => n + f.bytes, 0) <= CONTEXT_LIMIT, `Selected context exceeds ${CONTEXT_LIMIT} bytes; summarize it first`);
   const out = path.resolve(options.out);
   const state = {
-    version: VERSION, id: crypto.randomUUID(), created_at: now(), ...participants, worker_effort: workerEffort, mode, project, context_profile: contextProfile,
+    version: VERSION, id: crypto.randomUUID(), created_at: now(), ...participants, worker_effort: workerEffort, spending_policy: spendingPolicy, purpose, mode, project, context_profile: contextProfile,
     ...prepareBudget(options),
     elapsed_ms: 0, attempts: [], stages: {}, seals: {}, status: 'prepared', generated_handoff: true, generated_discussion: true,
   };
@@ -201,7 +208,7 @@ export function prepare(options) {
   validateRunOutput(out, PACKAGE_ROOT);
   const runtime = pinRuntime(PACKAGE_ROOT, PACKAGE_RUNTIME);
   state.runtime = runtime.pin;
-  const snapshot = { project, inputs, project_assessment: assessment, participants, worker_effort: workerEffort, context_profile: contextProfile, run_format: VERSION, runtime: runtime.pin };
+  const snapshot = { project, inputs, project_assessment: assessment, participants, worker_effort: workerEffort, spending_policy: spendingPolicy, purpose, context_profile: contextProfile, run_format: VERSION, runtime: runtime.pin };
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.mkdirSync(out);
   write(path.join(out, 'snapshot.json'), snapshot);
@@ -212,10 +219,11 @@ export function prepare(options) {
   seal(out, state, 'PROJECT_CONTEXT.md');
   write(path.join(out, 'project-assessment.schema.json'), ASSESSMENT_SCHEMA);
   write(path.join(out, 'report.schema.json'), REPORT_SCHEMA);
-  write(path.join(out, 'decisions.schema.json'), { oneOf: [DECISIONS_SCHEMA, obj({ decisions: DECISIONS_SCHEMA, plan_map: PLAN_MAP_SCHEMA })] });
+  write(path.join(out, 'decisions.schema.json'), { oneOf: [DECISIONS_SCHEMA, { type: 'object', required: ['decisions'], additionalProperties: false, properties: { decisions: DECISIONS_SCHEMA, plan_map: PLAN_MAP_SCHEMA, assurance: ASSURANCE_SCHEMA } }] });
   write(path.join(out, 'plan-map.schema.json'), PLAN_MAP_SCHEMA);
+  write(path.join(out, 'assurance.schema.json'), ASSURANCE_SCHEMA);
   saveRun(out, state);
-  return { run: out, runtime: { pinned: true, version: runtime.version, digest: runtime.digest, runner: runtime.runner, instructions: runtime.instructions }, coordinator, peer: state.peer, participants: participantSummary(state), worker_effort: effortSummary(state), mode, budget: budgetSummary(state), discussion: availableDiscussion(out), context: inputs.map(({ content, ...f }) => f), next: state.author_model ? 'Use runtime.runner and runtime.instructions for this plan. Call ask --stage author-draft to obtain the selected planner proposal.' : 'Use runtime.runner and runtime.instructions for this plan. Write coordinator-draft.json using report.schema.json.' };
+  return { run: out, runtime: { pinned: true, version: runtime.version, digest: runtime.digest, runner: runtime.runner, instructions: runtime.instructions }, coordinator, peer: state.peer, participants: participantSummary(state), worker_effort: effortSummary(state), spending_policy: spendingPolicy, purpose, mode, budget: budgetSummary(state), discussion: availableDiscussion(out), context: inputs.map(({ content, ...f }) => f), next: state.author_model ? 'Use runtime.runner and runtime.instructions for this plan. Call ask --stage author-draft to obtain the selected planner proposal.' : 'Use runtime.runner and runtime.instructions for this plan. Write coordinator-draft.json using report.schema.json.' };
 }
 
 function loadRun(run, { allowLegacy = false } = {}) {
@@ -232,6 +240,7 @@ function loadRun(run, { allowLegacy = false } = {}) {
     required(sha(readText(path.join(dir, file))) === hash, `Sealed artifact changed: ${file}. Start a new run for revised evidence.`);
   }
   const snapshot = readJSON(path.join(dir, 'snapshot.json'));
+  required(['planning', 'qa'].includes(state.purpose ?? 'planning') && (state.purpose ?? 'planning') === (snapshot.purpose ?? 'planning'), 'Purpose changed after preparation');
   required(['full', 'verify-compact'].includes(state.context_profile ?? 'full') && (state.context_profile ?? 'full') === (snapshot.context_profile ?? 'full'), 'Context profile changed after preparation');
   if (snapshot.run_format !== undefined || state.version >= 6) required(snapshot.run_format === state.version, 'Run format does not match the sealed snapshot; do not downgrade review requirements');
   const participants = validateParticipants(state);
@@ -242,6 +251,10 @@ function loadRun(run, { allowLegacy = false } = {}) {
     required(participants.pairing === 'cross', 'Legacy runs only support cross-provider pairing');
   }
   validateEffortSelection(state, snapshot);
+  if (state.spending_policy !== undefined || snapshot.spending_policy !== undefined) {
+    required(state.spending_policy && snapshot.spending_policy && JSON.stringify(state.spending_policy) === JSON.stringify(snapshot.spending_policy), 'Spending policy changed after preparation; preserve the sealed run');
+    resolveSpendingPolicy({ preferences: state.spending_policy });
+  }
   if (state.version >= 3) {
     required(state.seals['snapshot.json'] && state.seals['project-assessment.json'] && state.seals['PROJECT_CONTEXT.md'], 'Version 3 requires sealed project assessment and context artifacts');
     const assessment = validateAssessment(readJSON(path.join(dir, 'project-assessment.json')));
@@ -490,9 +503,10 @@ function securityReview(dir, state) {
 }
 // An optional map lives beside dispositions in the same existing artifact.
 function decisionDocument(value) {
+  if (typeof value === 'string') value = parseBoundedJSON(value, { maxBytes: LIMIT });
   if (Array.isArray(value)) return { decisions: value, planMap: undefined, wrapped: false };
-  required(value && typeof value === 'object' && Object.keys(value).length === 2 && Object.hasOwn(value, 'decisions') && Object.hasOwn(value, 'plan_map') && Array.isArray(value.decisions), 'Use a decisions array or {decisions, plan_map}');
-  return { decisions: value.decisions, planMap: value.plan_map, wrapped: true };
+  required(value && typeof value === 'object' && Object.keys(value).every(key => ['decisions', 'plan_map', 'assurance'].includes(key)) && Array.isArray(value.decisions), 'Use a decisions array or {decisions, plan_map?, assurance?}');
+  return { decisions: value.decisions, planMap: value.plan_map, assurance: value.assurance, wrapped: true };
 }
 const mappedFindings = decisions => decisions.map(({ finding_id, disposition, rationale }) => ({ id: finding_id, disposition, rationale }));
 function planSources(dir, state) {
@@ -508,14 +522,29 @@ function planSources(dir, state) {
 function planQualityInput(dir, state, document) {
   return { planMap: document.planMap, planText: fs.existsSync(path.join(dir, 'final-plan.md')) ? readText(path.join(dir, 'final-plan.md')) : '', sources: planSources(dir, state), findings: mappedFindings(document.decisions) };
 }
+function assuranceResult(dir, state, document) {
+  const input = planQualityInput(dir, state, document);
+  return checkAssurance({ assurance: document.assurance, finalPlan: input.planText, decisions: document.decisions,
+    knownSources: input.sources, findings: collectReports(dir, state).flatMap(item => item.report.findings) });
+}
+function assuranceContractChanged(before, after, oldDecisions) {
+  if (JSON.stringify(before) === JSON.stringify(after)) return false;
+  if (!before || !after) return true;
+  const ids = new Set(oldDecisions.map(item => item.finding_id));
+  const stripNewFindingLinks = contract => ({ ...contract,
+    accepted_decisions: contract.accepted_decisions?.filter(item => ids.has(item.finding_id)),
+    checks: contract.checks?.map(item => ({ ...item, finding_ids: (item.finding_ids ?? []).filter(id => ids.has(id)) })),
+  });
+  return JSON.stringify(stripNewFindingLinks(before)) !== JSON.stringify(stripNewFindingLinks(after));
+}
 export function quality(options) {
   notPeer();
   const { dir, state } = loadRun(options.run);
   const file = path.join(dir, 'decisions.json');
-  const document = decisionDocument(fs.existsSync(file) ? readJSON(file) : []);
+  const document = decisionDocument(fs.existsSync(file) ? readText(file) : []);
   validateDecisions(document.decisions, collectReports(dir, state), true);
   const input = planQualityInput(dir, state, document);
-  return { run: dir, plan_quality: checkPlanQuality(input), available_sources: input.sources.map(({ id, sha256 }) => ({ id, sha256 })) };
+  return { run: dir, plan_quality: checkPlanQuality(input), assurance: assuranceResult(dir, state, document), available_sources: input.sources.map(({ id, sha256 }) => ({ id, sha256 })) };
 }
 export function usage(options) {
   notPeer();
@@ -618,7 +647,7 @@ function writeDiscussion(dir, state) {
   let decisions = [];
   if (fs.existsSync(path.join(dir,'decisions.json'))) {
     try {
-      const current = decisionDocument(readJSON(path.join(dir,'decisions.json'))).decisions;
+      const current = decisionDocument(readText(path.join(dir,'decisions.json'))).decisions;
       validateDecisions(current,reports,false);
       decisions = current;
     } catch { warnings.push('The current decision record is invalid or incomplete; its responses are not displayed. Check decisions.json before continuing.'); }
@@ -668,7 +697,7 @@ function stagePrompt(dir, state, stage) {
   // Retain actual roles and model IDs; local run IDs and derived identity prose
   // stay in state/results. The instruction prefix retains the identity caveat.
   const participants = { ...validateParticipants(state), ...(state.author_model ? { author_provider: state.coordinator } : {}) };
-  let packet = { shared_context: shared, mode: state.mode, work_profile: workProfile, participants, stage };
+  let packet = { shared_context: shared, mode: state.mode, purpose: state.purpose ?? 'planning', work_profile: workProfile, participants, stage };
   const supplementary = evidenceForStage(evidenceLedger(dir, state), stage);
   if (supplementary.length) packet.supplementary_evidence = supplementary;
   if (baseStage !== 'draft') {
@@ -683,7 +712,7 @@ function stagePrompt(dir, state, stage) {
     packet.final_plan = readText(path.join(dir, 'final-plan.md'));
     required(packet.final_plan.trim(), 'Final plan cannot be empty');
     decisionText = readText(path.join(dir, 'decisions.json'));
-    const document = decisionDocument(JSON.parse(decisionText));
+    const document = decisionDocument(decisionText);
     packet.decisions = document.decisions;
     reviewedHashes = { 'final-plan.md': sha(packet.final_plan), 'decisions.json': sha(decisionText) };
     const security = securityReview(dir, state);
@@ -694,6 +723,12 @@ function stagePrompt(dir, state, stage) {
     }
     validateDecisions(packet.decisions, collectReports(dir, state), true);
     const qualityInput = planQualityInput(dir, state, document);
+    required(state.purpose !== 'qa' || document.assurance !== undefined, 'QA verification requires the assurance contract in decisions.json; record proposed, observed and blocked checks accurately');
+    if (document.assurance !== undefined) {
+      packet.assurance = document.assurance;
+      packet.assurance_check = assuranceResult(dir, state, document);
+      required(packet.assurance_check.status !== 'invalid', 'Invalid assurance contract; run quality and reconcile the plan, decisions and supplied evidence before verification');
+    }
     if (document.wrapped) {
       packet.plan_map = document.planMap;
       packet.plan_sources = qualityInput.sources;
@@ -716,9 +751,10 @@ function stagePrompt(dir, state, stage) {
     : baseStage === 'review'
       ? `Independently critique the ${author ? 'peer' : 'coordinator'} proposal against the shared brief. In plan mode compare it with your independent proposal. Check missing requirements, feasibility, complexity, alternatives and verification. Test its weakest material assumption against a concrete failure case, consider the strongest practical alternative and explain its tradeoff. The other participant's review is deliberately withheld. Agreement requires supplied evidence; do not force agreement or invent criticism.`
       : 'Review this consolidated plan, security review (when supplied), and decision record against the brief and evidence. Independently scrutinize accepted, rejected and unresolved dispositions, including your own earlier advice. Separate a supported concern from its proposed remedy: check adopted or adapted remedies for feasibility, scope/cost, new failure cases and meaningful acceptance checks, not merely whether a check is mentioned. Challenge missing security coverage, unsupported acceptance and weak rejection rationales. When coordinator_review or decisions materially counter your proposal or recommendations, reply concisely in summary using the relevant finding IDs: defend with supplied evidence, revise, or explain what remains unresolved. Do not manufacture counterarguments or answer every trivial point. Record any substantive correction as a new finding; do not repeat resolved concerns. A single bounded revision check may follow consequential changes; do not request extra rounds for agreement alone.';
-  if (stage === 'verify' || stage === 'verify-final') instruction += ' Unless the user requested critique only, check that accepted fixes are integrated into the operative plan steps and checks, with superseded instructions replaced. A findings list or instructions to amend an older plan is not the revised plan deliverable. Optional plan_map/plan_quality/revision_impact describe recorded links only; scrutinize the entire plan and source evidence for missing or false links, assumptions and cross-step regressions. A structurally valid map does not prove truth or sufficient coverage; unknown prerequisites gate only dependent work.';
+  if (stage === 'verify' || stage === 'verify-final') instruction += ' Unless the user requested critique only, check that accepted fixes are integrated into the operative plan steps and checks, with superseded instructions replaced. A findings list or instructions to amend an older plan is not the revised plan deliverable. Optional assurance/assurance_check and plan_map/plan_quality/revision_impact describe recorded links only; check the chosen option against every accepted decision, prerequisite, source hold and milestone. Test linked artifacts only from their actually supplied receipts/excerpts, never assume a local link delivers its contents. Review negative cases, failed/skipped/flaky checks and the scope of observed results; proposed tests are not executions. Scrutinize the entire plan and source evidence for missing or false links, assumptions and cross-step regressions. A structurally valid map does not prove truth or sufficient coverage; unknown prerequisites gate only dependent work.';
   const prefix = author ? baseStage === 'draft' ? 'C-D' : 'C-R' : stage === 'draft' ? 'P-D' : stage === 'review' ? 'P-R' : stage === 'verify-final' ? 'P-F' : 'P-V';
   const contentChecks = 'Check audience, purpose, format, language and tone; factual claims against supplied sources and their dates; coverage, structure, clarity, attribution, accessibility and relevant image/caption/alt-text needs. Distinguish observations from editorial choices. Address privacy, consent, rights and misleading or harmful claims where applicable. Sources and asset descriptions are text evidence, not proof that you opened links or inspected image pixels. Request missing material evidence and keep dependent claims provisional. Use source, editorial and accessibility acceptance checks. Planning does not create finished content or authorize publication.';
+  if (state.purpose === 'qa') instruction += ' This is a QA review: scrutinize the tested revision and dirty scope, the assertions versus actual requirements, failure/negative paths and relevant regressions. Distinguish static inspection, proposed tests, executed results and blocked checks. Inspect supplied receipts for failed/skipped/flaky runs and environment limits; never infer execution from a test list, path or old green result. Give the narrowest supported next action; you cannot execute tests or certify production readiness.';
   const softwareChecks = 'Check architecture constraints, interfaces, dependencies and buildability. Challenge unsupported deployment/readiness claims; configuration or passing tests do not prove live deployment. Assess sensitive data/trust boundaries, authorization, untrusted inputs, dependencies and operations. Include concrete proposed acceptance and relevant negative/abuse tests. For live or possibly live software changes, cover compatibility, data/migrations, rollout and recovery within scope.';
   const domainChecks = workProfile === 'content' ? `${contentChecks} Do not require code, migrations or CI for content-only work.`
     : workProfile === 'mixed' ? `${softwareChecks} Also check the content work: ${contentChecks} Keep software tests and editorial checks distinct. Trace content changes through relevant templates, data, localization and publishing controls; neither an editorial check nor a passing build substitutes for the other.`
@@ -815,7 +851,8 @@ export function preview(options) {
   // Report only the exact outbound labels, statuses and content fingerprints.
   const evidenceMetadata = evidence => ({ path: evidence.path, bytes: evidence.bytes, sha256: evidence.sha256, source_revision_sha256: sha(evidence.source_revision) });
   return {
-    stage, mode: state.mode, work_profile: packet.work_profile, worker, effort: selectedEffort(state, worker.role), runtime: state.runtime ?? null,
+    stage, mode: state.mode, purpose: state.purpose ?? 'planning', work_profile: packet.work_profile, worker, effort: selectedEffort(state, worker.role), runtime: state.runtime ?? null,
+    spending_policy: resolveSpendingPolicy({ preferences: readPreferences(), runPolicy: state.spending_policy }),
     inputs: packet.shared_context.inputs.map(input => ({ kind: input.kind, path: input.path, bytes: Buffer.byteLength(input.content), sha256: sha(input.content) })),
     project_assessment: Object.hasOwn(packet.shared_context, 'project_assessment'),
     artifacts: Object.entries(artifacts).filter(([key]) => Object.hasOwn(packet, key)).map(([, file]) => file),
@@ -839,6 +876,8 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
     const stage = options.stage;
     const worker = validateStage(dir, state, stage);
     const effort = selectedEffort(state, worker.role);
+    let spendingPolicy = resolveSpendingPolicy({ preferences: readPreferences(), runPolicy: state.spending_policy });
+    required(spendingPolicy.spending !== 'included-only' || options['allowance-evidence'], 'Included-only policy: no current allowance evidence supplied. Preserve this run; use eligible available-chat fallback without paid recovery or a billing-confirmation ritual. See guide --topic prepare. No worker attempt was reserved.');
     const env = workerEnvironment(worker.provider, effort.requested);
     assertWorkersStopped(state);
     if (recoverInterruptedAttempts(state, now())) saveRun(dir, state);
@@ -869,11 +908,19 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
       if (!info.authenticated) throw providerSetupError(worker.provider, 'login_unavailable', `${worker.provider} CLI did not report an accessible login. Local credential status may be signed out, unreadable or unrecognized; it does not establish request authentication or billing eligibility.`);
       executable = info.executable;
     }
+    let allowanceEvidence = null;
+    // Preflight awaits an external process; honor preferences tightened meanwhile.
+    spendingPolicy = resolveSpendingPolicy({ preferences: readPreferences(), runPolicy: spendingPolicy });
+    if (spendingPolicy.spending === 'included-only') {
+      required(options['allowance-evidence'], 'Included-only policy requires current allowance evidence before launch; preserve the run and use eligible fallback. No worker attempt was reserved.');
+      const input = source(options['allowance-evidence'], 'allowance');
+      allowanceEvidence = { ...checkAllowanceEvidence(parseBoundedJSON(input.content, { maxBytes: 4096 }), { provider: worker.provider, info }), sha256: input.sha256 };
+    }
     const args = buildPeerArgs(worker.provider, { schemaPath, model: worker.model, effort: effort.requested, codexFeatures: info?.codex_features, claudePartialMessages: info?.claude_partial_messages, schema: workerSchema });
     const caps = [state.timeout_ms, remaining].filter(value => value !== null);
     const attempt = { number: state.attempts.length + 1, stage, ...(state.author_model ? { provider: worker.provider, role: worker.role } : {}), status: 'running', started_at: now(), timeout_ms: caps.length ? Math.min(...caps) : null,
       ...(state.timeout_policy ? { timeout_policy: state.timeout_policy, idle_timeout_ms: state.idle_timeout_ms } : {}),
-      input_sha256: sha(prompt), context_projection: projection, version: info?.version || 'injected-test', requested_model: worker.model, reported_models: [], model_identity_status: 'unreported',
+      input_sha256: sha(prompt), context_projection: projection, spending_policy: spendingPolicy, allowance_evidence: allowanceEvidence, version: info?.version || 'injected-test', requested_model: worker.model, reported_models: [], model_identity_status: 'unreported',
       requested_effort: effort.requested, effort_source: effort.source, effective_effort: null, effective_effort_status: 'unreported' };
     state.attempts.push(attempt); state.status = 'running';
     const promptFile = `attempt-${attempt.number}-${stage}-input.txt`;
@@ -1001,7 +1048,7 @@ export function status(options) {
   const budget = budgetSummary(state);
   return { run: dir, runtime, coordinator: state.coordinator, peer: state.peer, participants: participantSummary(state), provider_limit: providerLimitNotice(state), reported_peer_models: [...new Set(state.attempts.filter(a => a.role !== 'author').flatMap(attempt => attempt.reported_models || []))],
     ...(state.author_model ? { reported_author_models: [...new Set(state.attempts.filter(a => a.role === 'author').flatMap(a => a.reported_models || []))], successful_worker_calls: state.attempts.filter(a => a.status === 'succeeded').length } : {}),
-    mode: state.mode, context_profile: state.context_profile ?? 'full', worker_effort: effortSummary(state), resource_usage: aggregateUsage(state.attempts), status: state.status, stages: state.stages, attempts_used: state.attempts.length, successful_peer_calls: state.attempts.filter(a => a.status === 'succeeded' && a.role !== 'author').length, attempts_remaining: budget.attempts_remaining, peer_seconds_used: budget.peer_seconds_used, peer_seconds_remaining: budget.peer_seconds_available, budget, limit_history: state.limit_history ?? [], peer_progress: readPeerProgress(dir, state), changed_source_files: changed, unavailable_source_files: unavailable, evidence_requests: evidenceRequests(dir,state), project_assessment: assessmentSummary(dir, state), completion: state.completion || null };
+    mode: state.mode, purpose: state.purpose ?? 'planning', spending_policy: resolveSpendingPolicy({ preferences: readPreferences(), runPolicy: state.spending_policy }), context_profile: state.context_profile ?? 'full', worker_effort: effortSummary(state), resource_usage: aggregateUsage(state.attempts), status: state.status, stages: state.stages, attempts_used: state.attempts.length, successful_peer_calls: state.attempts.filter(a => a.status === 'succeeded' && a.role !== 'author').length, attempts_remaining: budget.attempts_remaining, peer_seconds_used: budget.peer_seconds_used, peer_seconds_remaining: budget.peer_seconds_available, budget, limit_history: state.limit_history ?? [], peer_progress: readPeerProgress(dir, state), changed_source_files: changed, unavailable_source_files: unavailable, evidence_requests: evidenceRequests(dir,state), project_assessment: assessmentSummary(dir, state), completion: state.completion || null };
 }
 
 export function progress(options) {
@@ -1018,17 +1065,18 @@ function revisionBoundary(dir, state) {
   const hashes = verification.reviewed_hashes;
   const changes = Object.entries(hashes).filter(([file, hash]) => sha(readText(path.join(dir, file))) !== hash).map(([file]) => file);
   const attempt = state.attempts.find(a => a.number === verification.attempt);
-  let adjudicationsChanged = changes.includes('decisions.json'), mapChanged = false;
+  let adjudicationsChanged = changes.includes('decisions.json'), mapChanged = false, assuranceChanged = false;
   if (attempt?.decisions_file) {
     required(attempt.decisions_file === `attempt-${attempt.number}-decisions.json` && state.seals[attempt.decisions_file], 'Invalid sealed verification decisions');
-    const prior = decisionDocument(readJSON(path.join(dir, attempt.decisions_file)));
-    const current = decisionDocument(readJSON(path.join(dir, 'decisions.json')));
+    const prior = decisionDocument(readText(path.join(dir, attempt.decisions_file)));
+    const current = decisionDocument(readText(path.join(dir, 'decisions.json')));
     adjudicationsChanged = prior.decisions.some(d => !current.decisions.some(item => item.finding_id === d.finding_id && item.disposition === d.disposition && item.rationale === d.rationale));
     mapChanged = planMapChanged(prior.planMap, current.planMap, prior.decisions);
+    assuranceChanged = assuranceContractChanged(prior.assurance, current.assurance, prior.decisions);
   }
   const evidenceChanged = evidenceLedger(dir, state).slice(verification.evidence_count ?? 0).some(record => record.status === 'supplied');
-  const needsReview = changes.includes('final-plan.md') || changes.includes('security-review.json') || adjudicationsChanged || mapChanged || evidenceChanged;
-  return { stage, changes, reviewed_hashes: hashes, adjudications_changed: adjudicationsChanged, plan_map_changed: mapChanged, evidence_changed: evidenceChanged, needs_review: needsReview };
+  const needsReview = changes.includes('final-plan.md') || changes.includes('security-review.json') || adjudicationsChanged || mapChanged || assuranceChanged || evidenceChanged;
+  return { stage, changes, reviewed_hashes: hashes, adjudications_changed: adjudicationsChanged, plan_map_changed: mapChanged, assurance_changed: assuranceChanged, evidence_changed: evidenceChanged, needs_review: needsReview };
 }
 
 export function syncDecisions(options) {
@@ -1039,12 +1087,12 @@ export function syncDecisions(options) {
     const { state } = loadRun(options.run);
     required(state.status !== 'complete', 'Completed decisions are immutable');
     const file = path.join(dir, 'decisions.json');
-    const document = decisionDocument(fs.existsSync(file) ? readJSON(file) : []);
+    const document = decisionDocument(fs.existsSync(file) ? readText(file) : []);
     const decisions = document.decisions;
     const findings = validateDecisions(decisions, collectReports(dir, state), false);
     const added = findings.filter(f => !decisions.some(d => d.finding_id === f.id)).map(f => f.id);
     for (const finding_id of added) decisions.push({ finding_id, disposition: 'unresolved', rationale: 'Awaiting coordinator adjudication; no remedy has been accepted.' });
-    write(file, document.wrapped ? { decisions, plan_map: document.planMap } : decisions);
+    write(file, document.wrapped ? { decisions, ...(document.planMap !== undefined ? { plan_map: document.planMap } : {}), ...(document.assurance !== undefined ? { assurance: document.assurance } : {}) } : decisions);
     writeDiscussion(dir, state);
     return { run: dir, file, added, total: decisions.length, note: 'Existing decisions are preserved. Review each new unresolved finding; generated entries are not adjudication or agreement.' };
   } finally { release(); }
@@ -1081,12 +1129,15 @@ export function finish(options) {
     const plan = readText(path.join(dir, 'final-plan.md'));
     required(plan.trim(), 'Final plan cannot be empty');
     const security = securityReview(dir, state);
-    const document = decisionDocument(readJSON(path.join(dir, 'decisions.json')));
+    const document = decisionDocument(readText(path.join(dir, 'decisions.json')));
     const decisions = document.decisions;
     const reports = collectReports(dir, state);
     const findings = validateDecisions(decisions, reports, true);
     const planQuality = checkPlanQuality(planQualityInput(dir, state, document));
     required(planQuality.status !== 'invalid', 'Invalid recorded plan map; run quality and repair it before finishing');
+    const assurance = assuranceResult(dir, state, document);
+    required(state.purpose !== 'qa' || assurance.status !== 'not_recorded', 'QA completion requires the assurance contract; absent evidence is not a passed test');
+    required(assurance.status !== 'invalid', 'Invalid assurance contract; run quality and repair it before finishing');
     required(evidenceRequests(dir, state).every(request => request.status !== 'pending'), 'Resolve pending evidence requests before finishing; preserve unavailable evidence explicitly');
     const finalHashes = { 'final-plan.md': sha(plan), 'decisions.json': sha(readText(path.join(dir, 'decisions.json'))) };
     if (security) finalHashes['security-review.json'] = sha(security.text);
@@ -1108,8 +1159,9 @@ export function finish(options) {
     const peerVerdict = readJSON(path.join(dir, `peer-${boundary.stage}.json`)).verdict;
     const sourceStatus = status(options);
     const completion = { completed_at: now(), outcome: state.version >= 6 && unverified ? 'complete_with_unreviewed_revision' : unresolved.length ? 'complete_with_unresolved_findings' : 'complete_with_recorded_decisions',
-      plan_quality: planQuality, resource_usage: aggregateUsage(state.attempts), context_profile: state.context_profile ?? 'full',
-      plan_map_changed_since_verification: boundary.plan_map_changed, verification_stage: boundary.stage, delivered_plan_reviewed: !changes.includes('final-plan.md'), adjudications_changed_since_verification: boundary.adjudications_changed,
+      plan_quality: planQuality, assurance, purpose: state.purpose ?? 'planning', spending_policy: state.spending_policy ?? null, resource_usage: aggregateUsage(state.attempts), context_profile: state.context_profile ?? 'full',
+      attempt_spending_policies: state.attempts.map(attempt => ({ attempt: attempt.number, status: attempt.status, policy: attempt.spending_policy ?? null, allowance_evidence_sha256: attempt.allowance_evidence?.sha256 ?? null })),
+      plan_map_changed_since_verification: boundary.plan_map_changed, assurance_changed_since_verification: boundary.assurance_changed, verification_stage: boundary.stage, delivered_plan_reviewed: !changes.includes('final-plan.md'), adjudications_changed_since_verification: boundary.adjudications_changed,
       evidence_changed_since_verification: boundary.evidence_changed, unverified_revision_reason: unverifiedReason,
       evidence_requests: evidenceRequests(dir, state),
       changedSinceVerification: changes.length > 0, changed_artifacts: changes, reviewed_hashes: reviewedHashes, final_hashes: finalHashes,
@@ -1127,23 +1179,7 @@ export function finish(options) {
       security_review: security ? { required: true, verdict: security.report.verdict, limitations: security.report.limitations, open_questions: security.report.open_questions, changed_since_verification: changes.includes('security-review.json'), plan_changed_since_verification: changes.includes('final-plan.md') } : { required: false, verdict: 'not_required_by_legacy_run', limitations: ['Legacy run: the mandatory security-review artifact was not enforced.'] },
       note: 'Workflow completion is not a correctness guarantee or permission to implement or publish. Any post-review edits have not been reviewed by the peer again.' };
     write(path.join(dir, 'completion.json'), completion);
-    const lines = ["# C2C — result", '', '[Open the revised plan](final-plan.md)',
-      ...(availableDiscussion(dir) ? ['[Discussion and decisions](DISCUSSION.md)'] : []), '',
-      `${participantLabel(state, 'coordinator')} → ${participantLabel(state, 'peer')}. Pairing: ${state.pairing || 'cross'}.`,
-      ...(state.author_model ? [`Background planner: ${participantLabel(state, 'author')}.` , `Successful worker calls: ${completion.successful_worker_calls} (including ${completion.successful_peer_calls} peer calls).`,
-        `Author model metadata: ${completion.worker_model_reports.filter(item => item.role === 'author' && item.reported.length).map(item => `attempt ${item.attempt}: ${item.reported.map(modelMetadataMarkdown).join(', ')} (${item.status})`).join('; ') || 'not reported by the CLI; requested identity is unverified'}.`] : []),
-      participantSummary(state).identity_note, `Peer model metadata: ${completion.peer_model_reports.filter(item => item.reported.length).map(item => `attempt ${item.attempt}: ${item.reported.map(modelMetadataMarkdown).join(', ')} (${item.status})`).join('; ') || 'not reported by the CLI; distinct runtime identities are unverified'}.`, `Outcome: ${completion.outcome}.`, `Successful peer calls: ${completion.successful_peer_calls}; attempts: ${state.attempts.length}; runtime: ${runtimeUsedText(completion.budget)}.`, `Final allowance: per-call cap ${secondsText(completion.budget.timeout_seconds)}, cumulative cap ${secondsText(completion.budget.budget_seconds)}, inactivity guard ${secondsText(completion.budget.idle_seconds)}, ${completion.budget.max_attempts} attempts. Recorded limit changes: ${completion.budget.limit_changes}; earlier attempts and runtime remain charged.`, '',
-      changes.includes('final-plan.md') ? 'The final plan was revised after peer verification. See the recorded hashes and finding dispositions; the delivered revision has not had another peer review.' : 'The delivered plan matches the version used for the final peer review.',
-      changes.includes('decisions.json') ? 'The decision record was updated after peer verification.' : '',
-      changes.includes('security-review.json') ? 'The security review was updated by the coordinator after peer verification; this revision has not been peer-reviewed.' : '',
-      unverifiedReason ? `Provisional revision: ${modelMetadataMarkdown(unverifiedReason)}` : '',
-      `Final peer verdict: ${peerVerdict}. Security review: ${completion.security_review.verdict}.`,
-      completion.source_changes.length ? 'Source inputs have changed since the snapshot. This plan is based on the saved snapshot.' : '',
-      completion.unavailable_sources.length ? 'Some original inputs are missing or unreadable. Their current contents could not be compared; the saved snapshot remains the evidence used for this plan.' : '', '', '## Final plan', '', plan, '', '## Finding decisions', '', ...decisions.map(d => `- **${d.finding_id} — ${d.disposition}:** ${escapeAuthoredText(d.rationale)}`), '', '## Questions raised during review', '', ...openQuestions.map(q => `- ${escapeAuthoredText(q.question)} (${q.source})`), '', completion.note, ''];
-    lines.push('## Recorded structure and resources', '', `Plan map: ${planQuality.status}. Structural links are not proof of truth or complete coverage.`, `Observed terminal token subtotal: ${completion.resource_usage.counters.total_tokens.observed_sum ?? 'unknown'}; unknown attempts: ${completion.resource_usage.counters.total_tokens.unknown_attempts}. This excludes unobserved coordinator work and is not whole-task usage, cost or savings.`, '');
-    lines.push('## Security review', '', security ? security.report.proposal_markdown : completion.security_review.limitations[0], '', ...completion.security_review.limitations.map(item => `- Limitation: ${item}`), '', 'Security review assesses the plan; it does not certify the implementation or prove proposed tests passed.');
-    lines.push('', state.version >= 3 ? readText(path.join(dir, 'PROJECT_CONTEXT.md')).replace(/^# Project context and planning direction/, '## Project assessment before planning') : 'Legacy run: no mandatory project assessment was recorded; deployment and readiness were not established by this workflow.');
-    write(path.join(dir, 'RESULT.md'), lines.filter(line => line !== undefined).join('\n'));
+    write(path.join(dir, 'RESULT.md'), renderResult({ state, completion, discussionAvailable: Boolean(availableDiscussion(dir)) }));
     for (const file of ['final-plan.md', 'decisions.json', 'completion.json', 'RESULT.md', ...(security ? ['security-review.json'] : [])]) seal(dir, state, file);
     state.status = 'complete'; state.completion = completion; saveRun(dir, state);
     return { run: dir, plan: path.join(dir, 'final-plan.md'), result: path.join(dir, 'RESULT.md'), discussion: availableDiscussion(dir), ...completion };
@@ -1160,7 +1196,7 @@ function parseArgs(argv) {
   const [rawCommand = 'help', ...args] = argv;
   const command = rawCommand === '--version' ? 'version' : rawCommand === '--help' ? 'help' : rawCommand;
   const options = {};
-  const allowed = { guide: ['run', 'topic', 'section', 'domain'], quality: ['run'], usage: ['run'], evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['context-profile', 'project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'peer-effort', 'author-effort', 'budget-profile', 'timeout-policy', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
+  const allowed = { guide: ['run', 'topic', 'section', 'domain'], quality: ['run'], usage: ['run'], evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['spending', 'purpose', 'context-profile', 'project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'peer-effort', 'author-effort', 'budget-profile', 'timeout-policy', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage', 'allowance-evidence'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
   required(Object.hasOwn(allowed, command), `Unknown command: ${command}`);
   let compact = false;
   for (let i = 0; i < args.length; i++) {
@@ -1175,7 +1211,7 @@ function parseArgs(argv) {
   }
   return { command, options, compact };
 }
-const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  guide (--topic TOPIC | --section REFERENCE#ANCHOR) [--run DIR] [--domain software|content|mixed|non_software]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  guide (--topic TOPIC | --section REFERENCE#ANCHOR) [--run DIR] [--domain software|content|mixed|non_software]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--purpose planning|qa] [--spending subscription|included-only] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--allowance-evidence FILE]\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
 function isMainModule() {
   try { return process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); }

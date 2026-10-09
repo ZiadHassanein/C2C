@@ -1,6 +1,6 @@
 {
   "name": "c2c",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "C2C: independent planning and review for software, content and mixed projects across Codex and Claude Code, or different models within either tool.",
   "private": true,
   "type": "module",
@@ -19,7 +19,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test tests/council.test.mjs tests/process.test.mjs tests/adapters.test.mjs tests/state.test.mjs tests/install-compat.test.mjs tests/setup.test.mjs tests/discussion.test.mjs tests/budget.test.mjs tests/progress.test.mjs tests/evidence.test.mjs tests/evaluation.test.mjs tests/runtime.test.mjs tests/updates.test.mjs tests/usage.test.mjs tests/plan-quality.test.mjs tests/guidance.test.mjs tests/projection.test.mjs tests/effort.test.mjs tests/review-diff.test.mjs tests/review-diff-integration.test.mjs"
+    "test": "node --test tests/council.test.mjs tests/process.test.mjs tests/adapters.test.mjs tests/state.test.mjs tests/install-compat.test.mjs tests/setup.test.mjs tests/discussion.test.mjs tests/budget.test.mjs tests/progress.test.mjs tests/evidence.test.mjs tests/evaluation.test.mjs tests/runtime.test.mjs tests/updates.test.mjs tests/usage.test.mjs tests/plan-quality.test.mjs tests/guidance.test.mjs tests/projection.test.mjs tests/effort.test.mjs tests/review-diff.test.mjs tests/review-diff-integration.test.mjs tests/preferences.test.mjs tests/allowance.test.mjs tests/assurance.test.mjs tests/result.test.mjs tests/qa-integration.test.mjs"
   },
   "license": "MIT"
 }

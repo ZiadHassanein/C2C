@@ -1,6 +1,6 @@
 ---
 name: C2C
-description: Use when the user explicitly requests C2C or a Codex–Claude planning exchange. Plan and review software, content or mixed projects from either app. Use both eligible providers, or a planner and distinct critic within the available provider. If a real pair is unavailable, deliver a provisional plan with an honest self-critique. Includes assessment, security, acceptance checks and an execution entry point. Check for C2C updates and preserve active plans during requested updates.
+description: Use when the user explicitly requests C2C or a Codex–Claude planning exchange. Plan and review software, content or mixed projects, including developer QA and evidence from authorized tests. Use both eligible providers, or a planner and distinct critic within the available provider. If a real pair is unavailable, deliver a provisional plan with an honest self-critique. Includes assessment, security, acceptance checks and an execution entry point. Check for C2C updates and preserve active plans during requested updates.
 ---
 
 # C2C
@@ -27,14 +27,17 @@ Resolve `RUNNER` and `SETUP` to this skill's absolute `scripts/council.mjs` and 
 | Reports, independent stages, security, evidence and decisions | `exchange` |
 | Same-provider complementary perspectives | `same` |
 | Plan checks and final verification/revision | `verify` |
+| Developer QA, requested testing, fix verification or readiness | `qa`, alongside the applicable stage topics |
 | Presentation and three-file handoff | `present` |
 | Interruptions, locks, time or attempt recovery | `recover` |
 | Unavailable providers or usage limits | `fallback` |
 | User-requested update preserving active work | `update` |
 
-For a single section use `guide --section protocol#security-and-testing` (also `assessment`, `models`, `presentation`). If Node/helper is unavailable, read only the applicable section in [protocol](references/protocol.md), [assessment](references/project-assessment.md), [models](references/model-selection.md) or [presentation](references/plan-presentation.md). Old pinned versions may lack `guide`; use their own references. Never replace an old runtime to obtain a new helper.
+For a single section use `guide --section protocol#security-and-testing` (also `assessment`, `models`, `presentation`, `qa`). If Node/helper is unavailable, read only the applicable section in [protocol](references/protocol.md), [assessment](references/project-assessment.md), [models](references/model-selection.md), [presentation](references/plan-presentation.md) or [QA](references/developer-qa.md). Old pinned versions may lack `guide`; use their own references. Never replace an old runtime to obtain a new helper.
 
 On first start/resume in a chat, run installed `node SETUP check-update --auto` once when available. Checks use a daily cache, honor `C2C_UPDATE_CHECK=off`, and never install or call a model. Mention an available version once, without delaying planning. Updating requires the user's request; prepared runs keep their original runner and instructions. Unpinned provisional work keeps its instructions until finished or explicitly stopped. New plans discover updates in a new chat.
+
+Also read installed `node SETUP preferences` at start/resume. Both apps share this user policy; combine it with the current request using the stricter restriction. Use `prepare --spending included-only` for a hard task-specific restriction; it does not change the shared preference. Save an explicit continuing spending preference with `preferences --spending included-only` when authorized. A preference is not allowance evidence. New runners enforce it before calls; older pins require coordinator enforcement without modification. Missing evidence under included-only uses the available-chat fallback, without a billing question or paid recovery.
 
 ## Establish facts and choose the route
 
@@ -50,6 +53,8 @@ Use `review` for a bounded deliverable/supplied plan (2 successful calls with ho
 
 Prepare a concise brief and necessary source excerpts with revision/local-change context, without duplicating the assessment. Keep full worker context as default. Experimental `--context-profile verify-compact` is only for explicitly requested trials; it cannot remove evidence or change models/stages, and its byte counts are not measured token savings.
 
+For QA, use `--purpose qa` and load `qa`. Run requested project tests within existing authority after checking their scripts and environment; planning alone grants no execution authority. Keep the baseline, failures, skips and bounded receipts, and supply the evidence actually reviewed. Peers challenge those observations without executing tests. Require the exact-plan assurance record before verification/finish; proposed or blocked checks remain valid incomplete evidence, never invented passes. Scale the checks to material risk.
+
 ## Review, verify and deliver
 
 Read `exchange` for stages and schemas. Before the first worker call, inspect recipients and outbound content with `preview`; reuse C2C authorization. A host permission denial is not provider failure. Keep yielded `ask` in its original session. Prefer supported completion notifications; otherwise use the longest bounded waits allowed by host progress/cancellation requirements, backing off unchanged polls. Never relaunch or edit artifacts while a worker may be running.
@@ -57,6 +62,8 @@ Read `exchange` for stages and schemas. Before the first worker call, inspect re
 Use returned reports directly. Triage findings by supported consequence, not persuasive wording: test assumptions, failure cases and remedies separately. Correct real defects, defend sound decisions, and record optional polish without forcing objections or rounds. Preserve dissent, rejected rationales and unresolved gates. Keep public arguments concise and ID-linked; never expose private reasoning or invent replies. Use bounded evidence requests, not broader worker tools.
 
 Every route owes a usable plan: evidence-backed scope, decisions, ordered work, security, acceptance checks and Start here, scaled to software, content or mixed work. Integrate adopted fixes into operative `final-plan.md`, preserving sound content; discussion alone is not a revision. Link material requirements, evidence/assumptions, decisions, dependencies and checks through the existing decision record. Run `quality --run RUN` before verification and after substantive changes; repair broken links/cycles. Its structural result proves neither truth nor semantic completeness; see `verify` for the optional map.
+
+Cross-check the selected option against accepted fixes, source holds, prerequisites and milestone gates. Links to local logs or tables are not supplied evidence; send bounded receipts/excerpts or mark missing inspection. Keep detailed rationale in source records; deliver a decision brief and Start here early, concise discussion, and a completion record that links rather than repeats the plan.
 
 Complete security, dispositions and presentation before `verify`. Triage its findings before editing; when the plan needs no correction, finish with its reviewed bytes and generated status. Never cosmetically rewrite it to announce completion. Real edits still need the bounded final-revision procedure or an honest unreviewed outcome; minor labels are no exemption. Preserve required stages and never add rounds for agreement.
 

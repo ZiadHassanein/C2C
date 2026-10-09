@@ -9,7 +9,7 @@
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
-[**Version 2.4.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+[**Version 2.5.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
 [Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
 
@@ -31,7 +31,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 Run in **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
 ```
 
 Installs the skill for your current user in both apps. Start a new chat afterward. [One app only](docs/SETUP.md#install-for-one-app-only) · [Easy to uninstall](#uninstall).
@@ -74,12 +74,12 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
+No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
 
 For the quick-install route, check setup from any folder:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz doctor
 ```
 
 For the default setup with both CLIs, look for:
@@ -120,6 +120,9 @@ and show me the plan before coding.
 | **Software** — a feature, fix, or app | Engineering choices, failure paths, security and tests. |
 | **Content** — website copy, educational material, or images | Audience, structure, factual sources, rights, accessibility and editorial acceptance checks. |
 | **Mixed** — an app and its content | Both perspectives, with dependencies and separate technical and content checks. |
+| **Developer QA** — a change, regression, or release decision | Authorized tests, negative cases and observed evidence; missing or failed checks remain visible. |
+
+For testing: `Use $C2C to review this change, run the authorized local tests, and give me a revised fix plan with the evidence.` Use `/C2C` in Claude Code. [QA workflow and examples](docs/QA.md) · [Shared spending preference](docs/SETUP.md#save-your-spending-preference)
 
 <details>
 <summary>Examples: content and mixed projects</summary>
@@ -365,7 +368,7 @@ C2C does not buy credits or switch to paid billing when a provider limit blocks 
 When you use C2C, it checks for new releases at most daily and gives a short chat notice. Say **“Update C2C and keep this plan on its current version.”** Or run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz update
 ```
 
 The updater installs the latest stable release. Plans prepared with 1.4+ keep their original runtime and instructions; start a new chat for new-version plans. Older or provisional plans should finish or stop first. [Checks, offline updates and rollback](docs/SETUP.md#update-the-skill).
@@ -390,7 +393,7 @@ No automatic installation or extra model call. Completed reviews, decisions and 
 Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.4.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz uninstall
 ```
 
 Moves unchanged managed skill folders into recoverable backups. Your projects, apps and logins stay in place. Start a new chat afterward. Add `--dry-run` to preview, or `--target codex` / `--target claude` for one app. [Restore, offline or manual removal](docs/SETUP.md#uninstall).

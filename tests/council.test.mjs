@@ -407,9 +407,13 @@ test('generated completion preserves reviewed plan bytes and required calls acro
     assert.ok((result.worker_model_reports ?? result.peer_model_reports).every(item => item.identity_status === 'unreported' && item.reported.length === 0));
     const resultText = await fs.readFile(path.join(f.out, 'RESULT.md'), 'utf8');
     const discussionText = await fs.readFile(path.join(f.out, 'DISCUSSION.md'), 'utf8');
-    assert.ok(resultText.includes(finalPlan));
+    assert.ok(!resultText.includes(finalPlan), 'The compact result must link the unchanged canonical plan without duplicating it');
     assert.match(resultText, /\[Open the revised plan\]\(final-plan.md\)/);
     assert.match(resultText, /\[Discussion and decisions\]\(DISCUSSION.md\)/);
+    const planHash = createHash('sha256').update(reviewedBytes).digest('hex');
+    assert.equal(result.final_hashes['final-plan.md'], planHash);
+    assert.ok(resultText.includes(`| [final-plan.md](final-plan.md) | \`${planHash}\` | \`${planHash}\` |`),
+      'The result must identify the exact reviewed and delivered plan bytes');
     assert.ok(resultText.includes(result.outcome));
     assert.match(resultText, /not reported by the CLI/);
     assert.match(discussionText, /Run: \*\*complete\*\*/);
@@ -1788,7 +1792,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','scripts/evidence.mjs','scripts/runtime.mjs','scripts/usage.mjs','scripts/plan-quality.mjs','scripts/guidance.mjs','scripts/projection.mjs','scripts/review-diff.mjs','scripts/updates.mjs','scripts/install.mjs','scripts/install-baselines.json','scripts/setup.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','scripts/evidence.mjs','scripts/runtime.mjs','scripts/usage.mjs','scripts/plan-quality.mjs','scripts/guidance.mjs','scripts/projection.mjs','scripts/review-diff.mjs', 'scripts/preferences.mjs', 'scripts/allowance.mjs', 'scripts/assurance.mjs', 'scripts/result.mjs', 'references/developer-qa.md','scripts/updates.mjs','scripts/install.mjs','scripts/install-baselines.json','scripts/setup.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -2179,14 +2183,20 @@ test('adjudication preserves adapted remedies, actual peer replies and later cor
   assert.ok(peerSection.includes(reply));
   assert.ok(peerSection.includes('[Report](peer-verify.json)'));
   assert.ok(peerSection.includes(peerVerify.findings[0].claim));
-  assert.ok(current.includes(adapted));
+  assert.match(current, /\*\*accepted\*\* — Concern accepted; remedy adapted\./);
+  assert.ok(current.includes('[Full responses](decisions.json)'));
+  assert.match(current, /ellipsis.*shortened text/);
+  assert.equal((await read(path.join(f.out,'decisions.json'))).find(decision=>decision.finding_id==='P-D1').rationale,adapted,
+    'The linked authoritative decision must preserve the complete adapted remedy and its checks');
   assert.ok(current.includes(oldRationale));
   assert.match(peerSection,/Awaiting a recorded decision/);
   const currentCheck='Compare independently specified expected CSV bytes and ensure a deliberate escaping defect fails.';
   const updatedRationale=`Original reason: ${oldRationale} Superseded by P-V1: repeatability does not establish correct quoting. Current check: ${currentCheck}`;
+  const correctionRationale=`Supersedes the P-R1 rationale: repeatability does not establish correct quoting. Current check: ${currentCheck}`;
   const updatedDecisions=decisions.map(decision=>decision.finding_id==='P-R1'?{...decision,rationale:updatedRationale}:decision);
-  await write(path.join(f.out,'decisions.json'),[...updatedDecisions,{finding_id:'P-V1',disposition:'accepted',rationale:`Supersedes the P-R1 rationale: repeatability does not establish correct quoting. Current check: ${currentCheck}`}]);
-  await write(path.join(f.out,'final-plan.md'),plan+'P-V1 supersedes the repeat-only check: compare independently specified expected CSV bytes and ensure a deliberate escaping defect fails.\n');
+  await write(path.join(f.out,'decisions.json'),[...updatedDecisions,{finding_id:'P-V1',disposition:'accepted',rationale:correctionRationale}]);
+  const revisedPlan=plan+'P-V1 supersedes the repeat-only check: compare independently specified expected CSV bytes and ensure a deliberate escaping defect fails.\n';
+  await write(path.join(f.out,'final-plan.md'),revisedPlan);
   assert.throws(() => finish({run:f.out}), /bounded verify-final/);
   const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   assert.equal(completed.successful_peer_calls,3);
@@ -2196,11 +2206,16 @@ test('adjudication preserves adapted remedies, actual peer replies and later cor
   assert.deepEqual(completed.unresolved.map(item=>item.finding_id),['C-S1']);
   const finalDecisions=await read(path.join(f.out,'decisions.json'));
   assert.equal(finalDecisions.find(decision=>decision.finding_id==='P-R1').rationale,updatedRationale);
+  assert.equal(finalDecisions.find(decision=>decision.finding_id==='P-V1').rationale,correctionRationale);
+  assert.equal(await fs.readFile(path.join(f.out,'final-plan.md'),'utf8'),revisedPlan,
+    'The canonical revised plan must retain the complete operative correction');
   assert.deepEqual(finalDecisions.filter(decision=>!['P-R1','P-V1'].includes(decision.finding_id)),decisions.filter(decision=>decision.finding_id!=='P-R1'));
   const finalDiscussion=decode(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8'));
   assert.ok(finalDiscussion.includes(`**accepted** — Original reason: ${oldRationale}`));
   assert.ok(finalDiscussion.includes('[Full responses](decisions.json)'));
-  assert.ok(finalDiscussion.includes(currentCheck));
+  assert.match(finalDiscussion, /\*\*P-V1 · major\*\* \| \*\*accepted\*\* — Supersedes the P-R1 rationale/);
+  assert.ok(finalDiscussion.includes('P-V1: repeatability does not establish correct quoting'));
+  assert.ok(finalDiscussion.includes('[Report](peer-verify.json)'));
   assert.deepEqual(await Promise.all(preservedFiles.map(file=>fs.readFile(path.join(f.out,file),'utf8'))),earlierReports);
 });
 
@@ -2867,16 +2882,24 @@ for (const [projectType, coordinator, pairing] of [['content', 'codex', 'same'],
     assert.deepEqual(await read(path.join(f.out, 'decisions.json')), decisions);
     const discussionText = (await fs.readFile(completed.discussion, 'utf8')).replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
     const result = await fs.readFile(completed.result, 'utf8');
-    assert.ok(result.includes(plan), 'Result must retain the revised copy and unexecuted acceptance checks');
+    assert.ok(!result.includes(plan), 'The compact result must link the canonical revised copy and acceptance checks without duplicating them');
+    assert.match(result, /\[Open the revised plan\]\(final-plan.md\)/);
+    assert.match(result, /\[Finding decisions\]\(decisions.json\)/);
+    assert.match(result, /\[Discussion and decisions\]\(DISCUSSION.md\)/);
+    const planHash = createHash('sha256').update(plan).digest('hex');
+    assert.equal(completed.final_hashes['final-plan.md'], planHash);
+    assert.ok(result.includes(`| [final-plan.md](final-plan.md) | \`${planHash}\` | \`${planHash}\` |`));
+    assert.match(result, /does not certify the implementation or prove proposed tests passed/);
     assert.ok(result.includes(original.readiness.gaps[0]));
     assert.ok(result.includes(original.unknowns[0]));
     for (const [stage, file] of workerReportStages) {
       assert.deepEqual(await read(path.join(f.out, file)), responses.get(stage));
       assert.ok(discussionText.includes(responses.get(stage).summary));
+      assert.ok(result.includes(`](${file})`), 'The result must link every authoritative worker report');
     }
     for (const decision of decisions) {
-      assert.ok(discussionText.includes(decision.finding_id));
-      assert.ok(result.includes(decision.finding_id));
+      assert.ok(discussionText.includes(`**${decision.finding_id} · major** | **${decision.disposition}**`),
+        'Every finding ID and disposition must remain visible in the linked discussion');
     }
     assert.ok(discussionText.includes('C-S1 limits personal data and unverified image use.'));
     assert.match(discussionText, /proposed/);

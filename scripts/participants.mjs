@@ -7,7 +7,7 @@ const effort = /(?:[-_:/.](?:none|minimal|low|medium|high|xhigh|max|ultra))$/i;
 function exactModel(value, provider, role) {
   required(validName(value), `Model routing requires --${role}-model with an exact full model ID`);
   required(!/(?:^|[-_:/.])(?:default|latest|auto|opusplan)(?:$|[-_:/.])/i.test(value), 'Same-provider pairing does not accept moving model aliases');
-  required(!effort.test(value), 'Reasoning effort is not a different model; provide exact model IDs without effort suffixes');
+  required(!effort.test(value) || value.toLowerCase() === 'gpt-5.1-codex-max', 'Reasoning effort is not a different model; use a published full model ID rather than adding an effort suffix');
   const format = provider === 'claude'
     ? /^claude-[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(value) && /\d/.test(value)
     : /^(?:gpt-\d|o\d)(?:[a-z0-9.-]*)$/i.test(value);
@@ -26,6 +26,25 @@ function identityFamily(value) {
   return value.toLowerCase().replace(/-\d{4}-\d{2}-\d{2}$/, '').replace(/-\d{8}$/, '');
 }
 
+// Names are researched at selection time, not validated against a stale model
+// catalogue. For diversity only, effort labels do not establish another model.
+// This published model's Max is part of its name, not an effort setting:
+// https://developers.openai.com/api/docs/models/gpt-5.1-codex-max
+function diversityFamily(value) {
+  let family = identityFamily(value);
+  while (family !== 'gpt-5.1-codex-max' && effort.test(family)) family = identityFamily(family.replace(effort, ''));
+  return family;
+}
+
+function reportedIdentity(value, provider) {
+  const model = value.toLowerCase();
+  // Claude documents [1m] as context selection, not a different model. Only
+  // normalize this exact trailing label for comparison; keep raw reports.
+  // https://code.claude.com/docs/en/model-config#extended-context
+  return provider === 'claude' && /^claude-[a-z0-9]+(?:-[a-z0-9]+)*\[1m\]$/.test(model)
+    ? model.slice(0, -4) : model;
+}
+
 export function validateParticipants(state) {
   const pairing = state.pairing ?? 'cross';
   required(['cross', 'same'].includes(pairing), 'Pairing must be cross or same');
@@ -42,7 +61,7 @@ export function validateParticipants(state) {
   if (pairing === 'same') {
     exactModel(state.author_model ?? state.coordinator_model, state.coordinator, state.author_model ? 'author' : 'coordinator');
     exactModel(state.peer_model, state.peer, 'peer');
-    required(identityFamily(state.author_model ?? state.coordinator_model) !== identityFamily(state.peer_model), 'Same-provider pairing requires two different model IDs; aliases, dated variants or reasoning effort do not establish different models');
+    required(diversityFamily(state.author_model ?? state.coordinator_model) !== diversityFamily(state.peer_model), 'Same-provider pairing requires two different model IDs; aliases, dated variants or reasoning effort do not establish different models');
   }
   return { pairing, coordinator: state.coordinator, peer: state.peer, coordinator_model: state.coordinator_model ?? null, peer_model: state.peer_model ?? null,
     ...(state.author_model != null ? { author_model: state.author_model } : {}) };
@@ -85,15 +104,16 @@ export function validateReportedModels(state, models, stage = 'review') {
   if (state.pairing !== 'same' && !state.author_model && !isExactModel(state.peer_model, state.peer)) return;
   const worker = stageWorker(state, stage);
   for (const model of models) {
+    const reported = reportedIdentity(model, worker.provider);
     if (state.pairing === 'same') {
       const other = worker.role === 'author' ? state.peer_model : state.author_model ?? state.coordinator_model;
-      required(identityFamily(model) !== identityFamily(other), `Worker CLI reported the ${state.author_model ? 'other participant' : 'coordinator'} model ${model}; different-model review was not established`);
+      required(diversityFamily(reported) !== diversityFamily(other), `Worker CLI reported the ${state.author_model ? 'other participant' : 'coordinator'} model ${model}; different-model review was not established`);
     }
     const requested = worker.model.toLowerCase();
     const requestedFamily = identityFamily(requested);
     const matches = requestedFamily === requested
-      ? identityFamily(model) === requestedFamily
-      : model.toLowerCase() === requested;
+      ? identityFamily(reported) === requestedFamily
+      : reported === requested;
     required(matches, `Worker CLI reported unexpected model ${model}; requested ${worker.model}. No fallback to another model family or explicitly pinned snapshot is accepted`);
   }
 }

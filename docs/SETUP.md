@@ -124,6 +124,10 @@ A missing CLI does not block a route with no worker from that provider. Before c
 
 **Both apps work, but C2C reports an incompatible worker?** The app and terminal may use different CLI installations. C2C checks distinct installed candidates in PATH order and skips those missing required capabilities. `candidate_checks` shows the paths, versions and reasons; `executable` identifies the selected CLI. Explicit `COUNCIL_CODEX_BIN` / `COUNCIL_CLAUDE_BIN` overrides select one binary without fallback. Execution or login failures stop selection; C2C does not try another account or weaken restrictions. No reinstall or extra terminal is required when a compatible, eligible installation is already available.
 
+Windows discovery additionally tries known native Codex user/app-cache locations. Automatic fallback requires a stable version; prereleases need explicit selection. These internal locations may change. Windows `claude.cmd` wrappers are not executed—point `COUNCIL_CLAUDE_BIN` to an existing native `claude.exe` when available. Diagnostics explain the detected version and supported remedies.
+
+Connection failures are separate from login and quota errors. C2C preserves the attempt and advises checking connectivity or the host's approved network path; it does not infer that every connection error came from a sandbox or retry automatically. `doctor` also discloses enabled Codex features outside its explicit disable list; its controls are not a complete isolation guarantee.
+
 ## Do I need another terminal open?
 
 No. Keep your coordinating chat open; C2C runs the peer non-interactively using `claude -p` or `codex exec`, with piped input/output and hidden Windows process windows. Claude can work for Codex without an open Claude panel, and Codex can work for Claude without an open Codex app. The peer CLI must be installed, accessible to the coordinator, and authenticated.
@@ -379,7 +383,11 @@ For a damaged or stale run lock, ask the AI to inspect the saved state and follo
 
 New C2C 2.1 runs keep waiting while recognized model activity advances. They do not apply a fixed call or total deadline by default. The inactivity guard is 10 minutes for standard work or 20 minutes for project planning. Some CLI versions emit little activity during computation; even with supported streaming events, silence cannot prove a hang. C2C preserves diagnostics without exposing raw reasoning or treating partial output as a valid review.
 
+The coordinating AI keeps the runner in a supported background command session and waits for it there; a returned session ID is not a failed call. You do not need to leave the other AI's terminal open. Host process limits still apply. New tracked workers block a replacement after a coordinator crash until their direct process is confirmed stopped; uncertain cleanup preserves the checkpoint.
+
 Advanced `prepare` options: `--idle-timeout-seconds 60..3600` adjusts the activity guard. `--timeout-seconds 10..900` and `--budget-seconds 10..3600` set hard call/total caps that activity cannot override. Use actual numbers, not these range expressions. `--timeout-policy fixed` restores the older standard 5-minute call/15-minute total or project 10-minute call/40-minute total defaults. Older pinned runs keep their original policy; an update does not change them.
+
+An explicit call cap raises the default idle allowance to at least that cap unless you also choose an idle setting. A total cap without a call cap has a recovery tradeoff: a crash can conservatively consume all remaining reserved time. C2C warns about this at preparation; it does not claim that time was measured or refund it from file timestamps.
 
 For an existing incomplete run, ask:
 

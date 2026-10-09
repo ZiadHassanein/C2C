@@ -27,6 +27,23 @@ export function evidencePath(value, { empty = false } = {}) {
   return normalized;
 }
 
+// Requests are descriptive hints, never file selectors. Accept common citation
+// formatting while preserving the exact report value for sealing and matching.
+// Actual supplied file/label paths continue to use strict evidencePath above.
+function validateRequestPath(value) {
+  required(typeof value === 'string' && value.length <= 1000, 'Evidence path must be bounded text');
+  if (value === '') return;
+  let candidate = value.replaceAll('\\', '/').replace(/^(?:\.\/)+/, '');
+  // Reject drive-relative forms before interpreting a numeric suffix as a line.
+  required(!/^[a-z]:/i.test(candidate), 'Evidence path must be repository-relative');
+  const line = candidate.match(/:([1-9][0-9]*)$/);
+  if (line) {
+    required(Number.isSafeInteger(Number(line[1])), 'Evidence line number must be a positive safe integer');
+    candidate = candidate.slice(0, -line[0].length);
+  }
+  evidencePath(candidate.replace(/\/$/, ''));
+}
+
 /** Optional report field, with a separate ID namespace from findings. */
 export function validateEvidenceRequests(requests = [], findingPrefix) {
   required(Array.isArray(requests) && requests.length <= EVIDENCE_LIMITS.requests_per_report, `Provide at most ${EVIDENCE_LIMITS.requests_per_report} evidence requests per report`);
@@ -39,7 +56,7 @@ export function validateEvidenceRequests(requests = [], findingPrefix) {
     required(!ids.has(request.id), `Duplicate evidence request ID: ${request.id}`);
     ids.add(request.id);
     text(request.question, 'Evidence question');
-    evidencePath(request.path, { empty: true });
+    validateRequestPath(request.path);
   }
   return requests;
 }

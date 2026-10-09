@@ -1,6 +1,6 @@
 ---
 name: C2C
-description: Plan and review features or projects from Codex or Claude Code. Use both eligible providers, or a planner and distinct critic within the available provider. If a real pair is unavailable, deliver a provisional plan with an honest self-critique. Includes assessment, security, tests and an execution entry point. Check for C2C updates and preserve active plans during requested updates.
+description: Use when the user explicitly requests C2C or a Codex–Claude planning exchange. Plan and review features or projects from either app. Use both eligible providers, or a planner and distinct critic within the available provider. If a real pair is unavailable, deliver a provisional plan with an honest self-critique. Includes assessment, security, tests and an execution entry point. Check for C2C updates and preserve active plans during requested updates.
 ---
 
 # C2C
@@ -59,6 +59,8 @@ Prepare a concise UTF-8 brief and necessary selected context with source revisio
 Use the [file contract](references/protocol.md#file-contract) and [report schema](references/protocol.md#report-schema), or generated schemas. Keep drafts/final plans self-contained. Review prose describes changes rather than repeating proposals; every substantive correction needs a finding ID, evidence, action and verification. Retain material risks, unknowns and required fields regardless of compactness.
 
 Before the first worker call, use `preview --run RUN --stage STAGE` to inspect the actual provider/model, outbound labels, packet fingerprint and limits. Review the content locally. The explicit C2C request authorizes relevant selected context for that exchange; reuse it instead of asking again. For a host-required permission request, identify that authorization and the bounded review command. Follow [launch and local-permission handling](references/protocol.md#launch-preview-and-local-permissions); a denied local cache/lock/process operation is not evidence that either provider failed.
+
+Keep `ask` in a supported resumable/background command session and wait on that same session. A yielded session ID is still running; do not relaunch it or add a short shell deadline. Host lifetime restrictions still apply. After interruption, resolve recorded worker liveness/cleanup before another call; see [waiting and recovery](references/protocol.md#budgets-and-bounded-recovery).
 
 Critique consequential assumptions against evidence, realistic failure cases and alternatives. Judge each concern separately from its remedy: test consequential fixes for failure modes, unnecessary scope, user friction and operational cost. Record adoption, adaptation or rejection with the decisive reason; preserve unresolved parts. Sound agreement needs reasons, not a disagreement quota. Follow the [decision contract](references/protocol.md#decision-record).
 

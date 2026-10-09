@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"fixture-id-1"}
+{"type":"item.completed","item":{"id":"fixture-id-2","type":"error","message":"redacted-diagnostic"}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"fixture-id-3","type":"agent_message","text":"redacted-content-1"}}
+{"type":"turn.completed"}

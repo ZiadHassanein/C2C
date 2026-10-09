@@ -88,8 +88,23 @@ export function discoverExecutables(name, {
   if (name === 'claude') {
     add(path.join(home, '.local', 'bin', platform === 'win32' ? 'claude.exe' : 'claude'));
   }
+  // Best-effort lookup of already installed native Windows binaries. These
+  // internal layouts are not guaranteed; PATH and explicit overrides win.
+  const beforeFallback = candidates.length;
+  if (name === 'codex' && platform === 'win32') {
+    add(path.join(env.CODEX_HOME || path.join(home, '.codex'), '.sandbox-bin', 'codex.exe'));
+    if (env.LOCALAPPDATA) {
+      const appBin = path.join(env.LOCALAPPDATA, 'OpenAI', 'Codex', 'bin');
+      try {
+        for (const entry of fs.readdirSync(appBin, { withFileTypes: true }).filter(entry => entry.isDirectory() && /^[a-f0-9]{8,64}$/i.test(entry.name)).sort((a,b) => a.name.localeCompare(b.name)).slice(0, 16)) {
+          add(path.join(appBin, entry.name, 'codex.exe'));
+        }
+      } catch { /* An absent/inaccessible optional app cache is not a failure. */ }
+    }
+  }
+  Object.defineProperty(candidates, 'automaticFallbacks', { value: candidates.slice(beforeFallback), enumerable: false });
   if (candidates.length) return candidates;
-  throw providerSetupError(name, 'cli_not_found', `${name} executable not found in supported discovery locations. This does not prove the CLI is not installed. Windows npm Codex requires an intact platform binary.`);
+  throw providerSetupError(name, 'cli_not_found', `${name} executable not found in supported discovery locations. This does not prove the CLI is not installed. ${name === 'codex' ? 'Windows npm Codex requires an intact platform binary; select an installed native binary with COUNCIL_CODEX_BIN.' : 'Windows claude.cmd shell shims are not executed. Select a native claude.exe with COUNCIL_CLAUDE_BIN, or optionally install the native CLI when requested.'}`);
 }
 
 // Retained for callers that only need discovery, without compatibility probing.
@@ -101,6 +116,9 @@ export const CODEX_DISABLED_FEATURES = Object.freeze([
   'shell_tool', 'unified_exec', 'multi_agent', 'hooks', 'apps', 'plugins',
   'browser_use', 'computer_use', 'image_generation', 'in_app_browser',
   'code_mode', 'code_mode_host', 'view_image', 'memories',
+  'browser_use_external', 'browser_use_full_cdp_access', 'in_app_local_automation',
+  'sleep_tool', 'skill_search', 'tool_suggest', 'goals', 'remote_plugin',
+  'unified_exec_tty', 'worktrees', 'fast_mode',
 ]);
 // Older Codex versions exposed view_image without a feature switch. Skipping
 // an unknown flag would keep local-image access enabled, so fail closed here.
@@ -189,7 +207,7 @@ export function peerAuthenticationFailure(provider, { code, stdout = '', stderr 
   const failed = failureEvents(stdout);
   const isAuth = failed.some(event => {
     const error = event.error;
-    const status = event.status ?? event.status_code ?? error?.status ?? error?.status_code;
+    const status = event.api_error_status ?? event.status ?? event.status_code ?? error?.status ?? error?.status_code;
     return status === 401 || AUTH_FAILURE.test([event.message, error, event.errors, event.result].map(value => errorText(value)).join('\n'));
   }) || (Number.isInteger(code) && code !== 0 && AUTH_FAILURE.test(stderr));
   return isAuth ? { reason: 'authentication_error', message: authenticationFailureGuidance(provider) } : null;
@@ -216,12 +234,25 @@ export function usageLimitGuidance(provider) {
 export function peerUsageLimitFailure(provider, { code, stdout = '', stderr = '' } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
   const blocked = failureEvents(stdout).some(event => {
-    const status = event.status ?? event.status_code ?? event.error?.status ?? event.error?.status_code;
+    const status = event.api_error_status ?? event.status ?? event.status_code ?? event.error?.status ?? event.error?.status_code;
     return status === 402 || isUsageLimit(
       [event.code, event.message, event.error, event.errors, event.result].map(value => errorText(value)).join('\n'),
     );
   }) || (Number.isInteger(code) && code !== 0 && isUsageLimit(stderr));
   return blocked ? { reason: 'usage_limit', message: usageLimitGuidance(provider) } : null;
+}
+
+const NETWORK_FAILURE = /\b(?:ECONNREFUSED|ECONNRESET|ENETUNREACH|EHOSTUNREACH|ENOTFOUND|EAI_AGAIN|connection refused|network (?:is )?unreachable|could not resolve host|unable to resolve host|failed to connect|connection error)\b/i;
+export function networkFailureGuidance(provider) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  return `${provider} reported a connection failure, not a proven login or usage-limit failure. Preserve the attempt and reports. Check host network permissions and service connectivity; if the host blocked access, use its approved execution path for the unchanged command. Honor a denied approval. Do not change accounts, billing, worker restrictions or reset attempts. Retry only after the cause is addressed; no automatic retry was made.`;
+}
+export function peerNetworkFailure(provider, { code, stdout = '', stderr = '' } = {}) {
+  required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  const failed = failureEvents(stdout).some(event => NETWORK_FAILURE.test(
+    [event.code, event.message, event.error, event.errors, event.result].map(value => errorText(value)).join('\n')))
+    || (Number.isInteger(code) && code !== 0 && NETWORK_FAILURE.test(stderr));
+  return failed ? { reason: 'network_error', message: networkFailureGuidance(provider) } : null;
 }
 
 // Only metadata and authentication-status commands run here, never a model turn.
@@ -235,7 +266,7 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     if (['cli_not_found', 'cli_override_unusable'].includes(error.reason)) throw error;
     throw providerSetupError(provider, 'cli_check_failed', `${provider} executable discovery could not complete.`);
   }
-  let executable, version, codexFeatures, claudePartialMessages = false;
+  let executable, version, codexFeatures, codexUnreviewedEnabled = [], claudePartialMessages = false;
   const candidateChecks = [];
   const check = async (args, label) => {
     let result;
@@ -254,15 +285,29 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     claudePartialMessages = false;
     try {
       version = (await check(['--version'], 'version check')).stdout.trim();
+      if (!env.COUNCIL_CODEX_BIN && candidates.automaticFallbacks?.includes(candidate) && (!/\b\d+\.\d+\.\d+\b/.test(version) || /\d+\.\d+\.\d+-[a-z0-9]/i.test(version))) {
+        throw providerSetupError(provider, 'cli_incompatible', `Installed fallback ${version} is prerelease or has an unrecognized version. It is not automatically selected; COUNCIL_CODEX_BIN can explicitly select that native binary when authorized.`);
+      }
       const help = await check(provider === 'codex' ? ['exec', '--help'] : ['--help'], 'help check');
       for (const flag of flags) if (!help.stdout.includes(flag)) throw providerSetupError(provider, 'cli_incompatible', `${provider} is missing required ${flag}; the worker safety controls cannot be relaxed.`);
       // Optional progress support belongs to the selected binary, not a reason
       // to skip an otherwise compatible installation or run another command.
       const hasFlag = flag => new RegExp(`(?:^|\\s)${flag}(?=[\\s,=]|$)`).test(help.stdout);
       if (provider === 'claude') claudePartialMessages = hasFlag('--include-partial-messages');
-      if (provider === 'codex') codexFeatures = parseCodexFeatures((await check(['features', 'list'], 'feature discovery')).stdout);
+      if (provider === 'codex') {
+        const featuresText = (await check(['features', 'list'], 'feature discovery')).stdout;
+        codexFeatures = parseCodexFeatures(featuresText);
+        codexUnreviewedEnabled = featuresText.split(/\r?\n/).flatMap(line => {
+          const match = line.trim().match(/^([a-z][a-z0-9_.-]*)\s+.+?\s+true$/);
+          return match && !CODEX_DISABLED_FEATURES.includes(match[1]) ? [match[1]] : [];
+        });
+      }
       break;
     } catch (error) {
+      if (error.reason === 'cli_incompatible' && version) {
+        error.detail = `${provider} ${version}: ${error.detail} Use an already installed compatible native binary with COUNCIL_${provider.toUpperCase()}_BIN, or upgrade the CLI only when requested.`;
+        error.message = `${error.detail} ${providerSetupGuidance(provider)}`;
+      }
       candidateChecks.push({ executable, ...(version ? { version } : {}), setup_status: error.reason === 'cli_incompatible' ? 'incompatible' : 'unavailable', reason: error.reason, detail: error.detail });
       // Only capability incompatibility permits trying another installed binary.
       // Execution failures, login failures and quota errors never select accounts.
@@ -315,6 +360,7 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     quota_status: 'unknown', overage_status: 'unknown',
     billing_note: 'Local credential status does not attest included allowance, paid-credit balance, billing or overage settings. Not checked means unknown, not a provider failure. Apply the existing user billing scope and supported evidence before selecting a route. This check makes no model call and does not authorize spending.',
     login_command: provider === 'codex' ? 'codex login' : 'claude auth login',
-    ...(codexFeatures ? { codex_features: codexFeatures, disabled_features: CODEX_DISABLED_FEATURES.filter(name => codexFeatures.includes(name)) } : {}),
+    ...(codexFeatures ? { codex_features: codexFeatures, disabled_features: CODEX_DISABLED_FEATURES.filter(name => codexFeatures.includes(name)), enabled_features_not_explicitly_reviewed: codexUnreviewedEnabled,
+      feature_control_note: 'Only advertised named controls are disabled. Other enabled features are disclosed for review, not declared harmless or proof of complete tool isolation.' } : {}),
   };
 }

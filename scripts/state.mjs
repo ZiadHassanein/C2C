@@ -9,6 +9,19 @@ const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const required = (ok, message) => { if (!ok) throw new Error(message); };
 const manifestName = 'run.json';
 const checkpointName = 'run.checkpoint.json';
+const renameRetryDelays = [20, 40, 80];
+const pause = milliseconds => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+let ownWindowsIdentity = null;
+
+function publishRename(from, to, { platform, wait }) {
+  for (let retries = 0; ; retries++) {
+    try { fs.renameSync(from, to); return; }
+    catch (error) {
+      if (platform !== 'win32' || !['EPERM', 'EBUSY'].includes(error.code) || retries >= renameRetryDelays.length) throw error;
+      wait(renameRetryDelays[retries]);
+    }
+  }
+}
 
 function syncDirectory(dir) {
   // Windows does not permit opening a directory for fsync through Node. Files
@@ -19,7 +32,7 @@ function syncDirectory(dir) {
 }
 
 /** Publish a complete, flushed file by atomic rename in its own directory. */
-export function atomicWriteFile(file, value) {
+export function atomicWriteFile(file, value, { platform = process.platform, wait = pause } = {}) {
   const data = typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n';
   const temp = `${file}.${crypto.randomUUID()}.tmp`;
   let fd;
@@ -28,7 +41,9 @@ export function atomicWriteFile(file, value) {
     fs.writeFileSync(fd, data, 'utf8');
     fs.fsyncSync(fd);
     fs.closeSync(fd); fd = undefined;
-    fs.renameSync(temp, file);
+    // Some Windows readers briefly deny replacement. Retry the same flushed
+    // temporary file; never unlink the destination or fall back to copying.
+    publishRename(temp, file, { platform, wait });
     syncDirectory(path.dirname(file));
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
@@ -113,12 +128,18 @@ export function inspectProcess(pid) {
   if (!Number.isSafeInteger(pid) || pid <= 0) return { status: 'unknown', identity: null };
   try { process.kill(pid, 0); }
   catch (error) { if (error.code === 'ESRCH') return { status: 'dead', identity: null }; }
+  // This JS process cannot acquire a different incarnation while it executes.
+  // Foreign PIDs must always be inspected again; caching those hides PID reuse.
+  if (process.platform === 'win32' && pid === process.pid && ownWindowsIdentity) return { status: 'alive', identity: ownWindowsIdentity };
   try {
     if (process.platform === 'linux') {
       const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
       const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/);
-      const boot = fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
       required(fields.length >= 20 && /^\d+$/.test(fields[19]), 'Invalid process start record');
+      // Orphan zombies can await a slow container reaper after termination.
+      // They cannot execute a model call or resume their former process state.
+      if (['Z', 'X'].includes(fields[0])) return { status: 'dead', identity: null };
+      const boot = fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
       return { status: 'alive', identity: `linux:${boot}:${fields[19]}` };
     }
     if (process.platform === 'win32') {
@@ -128,7 +149,11 @@ export function inspectProcess(pid) {
       // interpolated into executable shell text.
       const script = `$ErrorActionPreference='Stop'; (Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`;
       const result = spawnSync(executable, ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 5000, maxBuffer: 16384 });
-      if (!result.error && result.status === 0 && /^\d+$/.test(result.stdout.trim())) return { status: 'alive', identity: `windows:${result.stdout.trim()}` };
+      if (!result.error && result.status === 0 && /^\d+$/.test(result.stdout.trim())) {
+        const identity = `windows:${result.stdout.trim()}`;
+        if (pid === process.pid) ownWindowsIdentity = identity;
+        return { status: 'alive', identity };
+      }
     } else if (process.platform === 'darwin') {
       // ps formats lstart using the caller's locale and local timezone. Keep
       // that representation stable across shells before comparing ownership.
@@ -141,6 +166,31 @@ export function inspectProcess(pid) {
   } catch { /* Permission denied or process exit: recheck liveness below. */ }
   try { process.kill(pid, 0); return { status: 'alive', identity: null }; }
   catch (error) { return { status: error.code === 'ESRCH' ? 'dead' : 'unknown', identity: null }; }
+}
+
+/** Read-only guard for newly registered direct workers. Legacy attempts without
+ * worker_process remain untracked. Never kill a recorded PID or infer that a
+ * detached descendant stopped merely because the registered worker exited. */
+export function assertWorkersStopped(state, { inspect = inspectProcess } = {}) {
+  required(Array.isArray(state?.attempts), 'Run attempt history is unavailable');
+  for (const attempt of state.attempts) {
+    if (!Object.hasOwn(attempt, 'worker_process')) continue;
+    const worker = attempt.worker_process;
+    if (worker?.released === true) continue;
+    const blocked = (reason, message) => { throw Object.assign(new Error(`${message} Preserve this run and its attempts; do not launch another worker or reset its state. Inspect the recorded worker through the host's approved process tools. No process was terminated by this check.`), { reason }); };
+    if (!worker || typeof worker !== 'object' || Array.isArray(worker) || worker.launch_pending === true ||
+        !Number.isSafeInteger(worker.pid) || worker.pid <= 0 || typeof worker.identity !== 'string' || !worker.identity) {
+      blocked('worker_cleanup_unconfirmed', 'Previous worker launch or ownership is unresolved.');
+    }
+    let current;
+    try { current = inspect(worker.pid); } catch { /* Inaccessible inspection remains ambiguous. */ }
+    if (current?.status === 'dead') continue;
+    if (current?.status === 'alive' && typeof current.identity === 'string' && current.identity) {
+      if (current.identity !== worker.identity) continue; // The PID now names a different process incarnation.
+      blocked('worker_still_running', 'A previously registered worker process is still alive.');
+    }
+    blocked('worker_cleanup_unconfirmed', 'The previous worker process cannot be confirmed stopped.');
+  }
 }
 
 function lockSnapshot(file) {

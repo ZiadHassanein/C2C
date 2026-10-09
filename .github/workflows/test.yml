@@ -13,9 +13,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
       - name: Record platform
         run: node -e "console.log(JSON.stringify({platform:process.platform,arch:process.arch,node:process.version}))"
       - run: npm test
+      - name: Preserve published package versions
+        run: node .github/check-release.mjs

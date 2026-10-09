@@ -79,7 +79,7 @@ export async function discoverLatest(options = {}) {
 }
 
 export function updateCachePath(environment = process.env) {
-  const configuration = environment.CODEX_HOME || environment.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.codex');
+  const configuration = environment.CODEX_HOME || environment.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.c2c');
   return path.resolve(configuration, 'c2c-update-check.json');
 }
 async function readCache(file) {
@@ -105,7 +105,7 @@ async function writeCache(file, value) {
   finally { if (temporary) await fs.unlink(temporary).catch(() => {}); }
 }
 
-export async function checkUpdates({ version, automatic = false, cacheFile = updateCachePath(), environment = process.env, now = Date.now(), ...options }) {
+export async function checkUpdates({ version, automatic = false, environment = process.env, cacheFile = updateCachePath(environment), now = Date.now(), ...options }) {
   requireThat(stable(version), 'Invalid installed C2C version.');
   if (automatic && /^(0|off|false)$/i.test(environment.C2C_UPDATE_CHECK || '')) return { status: 'disabled', current_version: version, notify: false };
   const previous = await readCache(cacheFile);

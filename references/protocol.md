@@ -2,6 +2,8 @@
 
 Resolve `RUNNER` to the absolute path of this skill's `scripts/council.mjs`. Resolve `PROJECT`, `BRIEF`, `ASSESSMENT`, each `CONTEXT`, and `RUN` to actual absolute filesystem paths. Quote each path in shell commands. `PROJECT` identifies the task's project; peer processes execute in isolated temporary directories.
 
+Read only the section needed for the current step: [route selection](#choose-an-available-route), [waiting/recovery](#budgets-and-bounded-recovery), [billing boundary](#no-paid-limit-recovery), [evidence](#bounded-evidence-requests), [security](#security-and-testing), [decisions](#decision-record), or [updates](#updates-during-a-chat). Reuse already-read contracts and saved facts across stages instead of loading this entire reference.
+
 ## Updates during a chat
 
 Resolve `SETUP` to the **installed** `scripts/setup.mjs`, separate from an active run's pinned runner. `node SETUP check-update --auto` checks public stable GitHub tags at most daily using a local cache. A newer version gets one short notice per version per chat: “C2C VERSION is available; this plan stays on its current version. Say ‘Update C2C’ to install it for future plans.” Do not repeat notices in stage recaps. Offline, disabled or failed checks do not block planning; no model request is made. Follow host network policy rather than requesting an exception just for an automatic notice.
@@ -31,7 +33,7 @@ node RUNNER decisions --run RUN
 node RUNNER evidence --run RUN --request P-R-E1 --status supplied --file src/contract.txt --source-revision REVISION --reason "This scoped source answers the requested contract."
 node RUNNER progress --run RUN
 node RUNNER status --run RUN
-node RUNNER extend --run RUN --timeout-seconds NEW_CALL_TOTAL --budget-seconds NEW_RUN_TOTAL --reason "Coordinator-selected time allowance was too short; continuing the authorized plan."
+node RUNNER extend --run RUN --idle-timeout-seconds NEW_IDLE_GUARD --reason "Coordinator-selected inactivity guard was too short; continuing the authorized plan."
 node RUNNER discussion --run RUN
 node RUNNER finish --run RUN
 ```
@@ -89,6 +91,12 @@ Only substantive recognized model output or advancing work counters renew the gu
 
 Explicit `--timeout-seconds` and `--budget-seconds` remain hard caps even while activity continues. `--timeout-policy fixed` preserves the earlier profile defaults: standard 300 seconds/call and 900 total; project 600/call and 2,400 total. Do not add a fixed cap to an activity run merely to reproduce an older default. Existing pinned runs retain their original fixed behavior and successful stages; updating C2C does not migrate their policy.
 
+When preparation supplies a call cap but no idle setting, the default guard is at least that call cap. An explicitly shorter idle guard still applies. Extending a saved call cap does not silently extend its saved idle guard; increase both when authorized and needed.
+
+Launch `ask` using the host's supported background or resumable command session, then wait on that same session in short intervals. A tool returning a session ID means the command is still running, not that it failed. Do not launch a second `ask` while waiting or impose a separate short shell deadline. If the host cannot retain a sufficiently long command, state that limitation; C2C cannot override host process limits. Neither provider's interactive terminal needs to remain open.
+
+New real launches persist the direct worker's PID and OS process identity before sending its prompt. Locked recovery refuses a replacement while that identity is alive or ambiguous, including unresolved launch registration; it never kills a PID read from a manifest. Dead or reused identities allow normal recovery. Normal cancellation still requests owned-tree cleanup. A hard-killed coordinator cannot guarantee descendant cleanup, and old untracked attempts have no retroactive worker identity; inspect cleanup before retrying those cases. Preserve an ambiguous checkpoint instead of starting another worker.
+
 A background author adds one required call in review mode or two in plan mode: three or five successful worker calls respectively, versus two or three for a host author. All worker attempts share the run allowance. Author plan defaults to six attempts unless explicitly capped; timeout policy and any user caps still apply. Check feasibility before launching; do not promise that routing to more workers lowers total usage.
 
 For pending calls, use read-only `progress --run RUN --compact`: phase, elapsed time, guard/cap metadata and log bytes, without repeating the project assessment/history. An uncapped activity call has no absolute deadline or remaining-time countdown. Log modification times describe output arrival, not the semantic idle clock. Use `status` for pending stages, remaining attempts and any finite runtime allowance. A `null` time cap/availability means no fixed cap, not zero seconds; duration feasibility remains unknown.
@@ -114,6 +122,8 @@ node RUNNER ask --run RUN --stage FAILED_STAGE
 Replace placeholders with numeric **absolute values**, not additions, and omit unchanged values. Activity guards may increase up to 3,600 seconds; use `--max-attempts NEW_ATTEMPT_TOTAL` for up to six attempts. Existing finite caps can increase with `--timeout-seconds NEW_CALL_TOTAL` (up to 900) and `--budget-seconds NEW_RUN_TOTAL` (up to 3,600), subject to user authority. `extend` cannot remove caps, change fixed/activity policy or reset used allowance. Repeating applied values is idempotent. A reason is required: a nonempty single line, at most 500 characters. The command records `limit_history`, preserves successful stages, seals and reviewed hashes, and makes no worker call. Use it between calls; it does not alter a running timer, and completed runs cannot be extended. Legacy runs retain their original rules.
 
 After an interrupted uncapped call, elapsed runtime can be unknown. Keep that uncertainty and its known lower bound; never present it as zero or invent unused time. A finite reservation is charged conservatively once. If an explicit whole-task time cap cannot be accounted for, preserve a checkpoint instead of inferring spare allowance.
+
+With a cumulative cap but no per-call cap, the reserved deadline can be the entire remaining allowance. An interruption before completion is saved can therefore exhaust that allowance; preparation/status warn about this case. This is conservative accounting, not measured model runtime. Wall clocks and log times cannot safely establish a refund. Preserve the attempt and use only an authorized extension within existing ceilings, or deliver a provisional plan when no allowance remains.
 
 Retries require a useful reason to expect a different result, such as repaired login or more time for an active but unfinished response. Exhausting the hard ceilings stops worker calls; continue useful planning through the fallback below while preserving the partial run. Never edit a manifest, erase failures, replay success, or create a fresh run solely to escape a cap. A later materially different scope/evidence can justify a new run with a recorded link and reason; that is not timeout recovery.
 
@@ -228,7 +238,7 @@ Use complementary questions inside the existing author/critic stages, with the s
 
 All roles still cover relevant security, tests and unknowns; perspectives are not exclusive ownership of those checks. A source fact outweighs agreement between models. Preserve supplied controls that already work, distinguish blockers from optional improvements, and avoid speculative rewrites. Use findings and dispositions for the arguments; reviews report changes and unresolved risks instead of reproducing plans. No minimum objection count, extra specialist, extra round or extra call is required. The coordinator responds and synthesizes; the peer verifier supplies actual replies to material counterarguments. Never invent a background author's response.
 
-The intended benefit is fewer supported errors and clearer executable decisions for the work spent. Separate-role prompts, passing tests or a larger discussion do not prove improvement over ordinary planning. Use [matched outcome evaluation](../docs/BENCHMARKS.md#evaluate-real-plans) before making comparative accuracy, token or speed claims.
+The intended benefit is fewer supported errors and clearer executable decisions for the work spent. Separate-role prompts, passing tests or a larger discussion do not prove improvement over ordinary planning. Use [matched outcome evaluation](https://github.com/ZiadHassanein/C2C/blob/main/docs/BENCHMARKS.md#evaluate-real-plans) before making comparative accuracy, token or speed claims.
 
 ## File contract
 
@@ -415,9 +425,11 @@ These notes stay local and are not independent peer packets. Do not pass coordin
 
 ## Compatibility and recovery
 
+On Windows, discovery also checks known native Codex user/app-cache locations after PATH. This is best-effort support for internal layouts, not a guaranteed installation contract. Automatic fallbacks must report a stable version; selecting a prerelease requires an explicit override. Windows `claude.cmd` shims remain unsupported: the error directs users to an existing native `claude.exe` or optional native setup, never executes the wrapper or forces installation.
+
 Windows npm installations are supported by resolving the known `codex.cmd` package layout to its native binary; the runner never executes arbitrary shell wrappers. Without an override, preflight checks distinct installed candidates in PATH order (then Claude's native user location), skipping only candidates missing required capabilities. It stops at the first compatible binary; execution or authentication failures do not trigger another selection. `COUNCIL_CODEX_BIN` and `COUNCIL_CLAUDE_BIN` explicitly select one binary: an invalid or incompatible override fails without fallback. No installations, global PATH/configuration changes or account/billing switches occur.
 
-On Linux/macOS, CLI files must be executable. PATH discovery skips non-executable files; executable symlinks and shebang scripts are supported. An explicit non-executable override fails. The installer uses the same Node commands and user configuration roots on all platforms; see [platform setup and CI coverage](../docs/SETUP.md#linux-and-macos).
+On Linux/macOS, CLI files must be executable. PATH discovery skips non-executable files; executable symlinks and shebang scripts are supported. An explicit non-executable override fails. The installer uses the same Node commands and user configuration roots on all platforms; see [platform setup and CI coverage](https://github.com/ZiadHassanein/C2C/blob/main/docs/SETUP.md#linux-and-macos).
 
 `doctor` and `ask` share preflight checks for required flags, Codex feature controls and authentication. Unsupported optional feature switches are omitted; missing required shell/image controls reject that candidate before an attempt is reserved. `doctor` reports the selected path/version and `candidate_checks`, including incompatible paths and their reasons; failed metadata checks retain the path and version when known. Inspect this local record when the interactive app works but the worker does not. Continue with [available-chat planning](#planning-with-unavailable-tools) if no eligible route exists. Capability checks are not a version allowlist or proof of model access, authentication freshness or included usage; verify allowance for the selected route before a model call.
 
@@ -425,15 +437,17 @@ State writes flush and atomically publish both a checksummed current checkpoint 
 
 Locks record process identity as well as PID, preventing normal PID reuse from blocking indefinitely. Empty or ambiguous legacy locks require inspected recovery. First establish that the previous runner has stopped, then use the exact hash printed by the error:
 
-macOS process identities use a fixed locale and UTC timezone so different terminal environments cannot make the same live process appear stale. New runners preserve ambiguous older macOS identities when that PID is still alive; inspect them before recovery rather than assuming PID reuse. Use one current runner version for a run when upgrading.
-
 ```text
 node RUNNER recover-lock --run RUN --expected-sha256 HASH --confirm-owner-stopped yes
 ```
 
+macOS process identities use a fixed locale and UTC timezone so different terminal environments cannot make the same live process appear stale. New runners preserve ambiguous older macOS identities when that PID is still alive; inspect them before recovery rather than assuming PID reuse. Use one current runner version for a run when upgrading.
+
 Recovery preserves the old lock and never resets attempts. A matching live owner cannot be removed. If a crash leaves `.lock.reclaim`, inspect its recorded process and preserve/move only that marker after confirming it stopped. Use a local filesystem supporting hard links for run folders. These safeguards reduce common crash damage; they cannot recover all copies after disk or hardware failure.
 
 ## Report schema
+
+Worker schemas constrain finding-ID spelling without renumbering authored references. Diagnostic prose around JSONL can be ignored, but malformed JSON records, fatal stream errors and missing substantive finding fields still fail validation. Descriptive evidence hints may contain `./`, a trailing slash or a `:line` suffix; their original text is preserved and actual supplied-file paths remain strict. A failed model call still counts as an attempt; no output repair fabricates missing content or refunds usage.
 
 Each draft, review, security review, and verification report uses this complete object shape:
 

@@ -1,0 +1,15 @@
+{"type":"system","uuid":"fixture-id-1","session_id":"fixture-id-2","subtype":"init"}
+{"type":"stream_event","uuid":"fixture-id-3","session_id":"fixture-id-2","event":{"type":"message_start","message":{"id":"fixture-id-4","type":"message","role":"assistant"}}}
+{"type":"stream_event","uuid":"fixture-id-5","session_id":"fixture-id-2","event":{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}}
+{"type":"system","uuid":"fixture-id-6","session_id":"fixture-id-2","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50}
+{"type":"stream_event","uuid":"fixture-id-7","session_id":"fixture-id-2","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}}
+{"type":"system","uuid":"fixture-id-8","session_id":"fixture-id-2","subtype":"thinking_tokens","estimated_tokens":150,"estimated_tokens_delta":100}
+{"type":"stream_event","uuid":"fixture-id-9","session_id":"fixture-id-2","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}}
+{"type":"assistant","uuid":"fixture-id-10","session_id":"fixture-id-2","request_id":"fixture-id-11","message":{"id":"fixture-id-4","type":"message","role":"assistant","content":[{"type":"thinking","thinking":""}]}}
+{"type":"stream_event","uuid":"fixture-id-12","session_id":"fixture-id-2","event":{"type":"content_block_stop","index":0}}
+{"type":"stream_event","uuid":"fixture-id-13","session_id":"fixture-id-2","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"fixture-id-14","name":"StructuredOutput","input":{}}}}
+{"type":"stream_event","uuid":"fixture-id-15","session_id":"fixture-id-2","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}}}
+{"type":"stream_event","uuid":"fixture-id-16","session_id":"fixture-id-2","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"redacted-content-1"}}}
+{"type":"assistant","uuid":"fixture-id-17","session_id":"fixture-id-2","request_id":"fixture-id-11","message":{"id":"fixture-id-4","type":"message","role":"assistant","content":[{"type":"tool_use","id":"fixture-id-14","name":"StructuredOutput","input":{"summary":"redacted-report"}}]}}
+{"type":"stream_event","uuid":"fixture-id-18","session_id":"fixture-id-2","event":{"type":"message_stop"}}
+{"type":"result","uuid":"fixture-id-19","session_id":"fixture-id-2","subtype":"success","is_error":false}

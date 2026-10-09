@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import syncFs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
+import { spawn, spawnSync } from 'node:child_process';
 import { processEnvironment, runProcess } from '../scripts/process.mjs';
+import { assertWorkersStopped, inspectProcess } from '../scripts/state.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-process-tests-'));
@@ -214,20 +216,123 @@ test('explicit hard deadline still stops a continuously active worker', async ()
   assert.equal(error.termination.treeRequested, true);
 });
 
-test('activity observer failures stop safely and output limits still apply in idle mode', async () => {
-  const failure = new Error('Synthetic classifier failure');
-  const rejected = await rejection(node(`console.log('{"type":"delta","text":"content"}');setTimeout(()=>{},10000);`, {
-    idleTimeoutMs: 1400, isActivity: () => { throw failure; },
-  }));
-  assert.equal(rejected.reason, 'activity_observer_error');
-  assert.equal(rejected.cause, failure);
-  assert.equal(rejected.termination.treeRequested, true);
+test('observer exceptions preserve quick results and cannot renew the idle deadline', async () => {
+  const isActivity = () => { throw new Error('PRIVATE synthetic observer detail'); };
+  const completed = await node(`console.log('{"type":"delta","text":"content"}');`, { idleTimeoutMs: 1400, isActivity });
+  assert.equal(completed.code, 0);
+  assert.equal(completed.activity.observer_error, 'activity_observer_error');
+  assert.equal(completed.activity.observed_events, 0);
+  assert.doesNotMatch(JSON.stringify(completed), /PRIVATE/);
+  const idle = await rejection(node(`console.log('{"type":"delta","text":"content"}');setTimeout(()=>{},10000);`, { idleTimeoutMs: 1400, isActivity }));
+  assert.equal(idle.reason, 'idle_timeout');
+  assert.equal(idle.activity.observer_error, 'activity_observer_error');
+  assert.equal(idle.activity.last_activity_at, null);
+  assert.doesNotMatch(JSON.stringify(idle), /PRIVATE/);
+});
+
+test('valid activity after an observer error can still renew the guard', async () => {
+  let observations = 0;
+  const completed = await node(`let n=0;const timer=setInterval(()=>{console.log(JSON.stringify({type:'delta',text:'part '+(++n)}));if(n===5)clearInterval(timer);},500);`, {
+    idleTimeoutMs: 1700, isActivity: event => { if (++observations === 1) throw new Error('Invalid first observation'); return contentActivity(event); },
+  });
+  assert.equal(completed.code, 0);
+  assert.equal(completed.activity.observer_error, 'activity_observer_error');
+  assert.equal(completed.activity.observed_events, 4);
+});
+
+test('output limits still apply in idle mode', async () => {
   const oversized = await rejection(node(`process.stdout.write('x'.repeat(5*1024*1024));setTimeout(()=>{},10000);`, {
     idleTimeoutMs: 1400, isActivity: contentActivity,
   }));
   assert.equal(oversized.reason, 'output_limit');
   assert.equal(Buffer.byteLength(oversized.stdout), 4 * 1024 * 1024);
   assert.equal(oversized.activity.observed_events, 0);
+});
+
+test('spawn registration completes before any prompt bytes or EOF reach the worker', async () => {
+  const record = path.join(root, 'registered-worker.json');
+  const source = `const fs=require('node:fs');let text='';process.stdin.on('data',chunk=>{const record=JSON.parse(fs.readFileSync(${JSON.stringify(record)},'utf8'));if(record.pid!==process.pid)process.exit(4);text+=chunk;});process.stdin.on('end',()=>process.stdout.write(text));`;
+  let registeredPid;
+  const result = await node(source, { prompt: 'synthetic review input', onSpawn: pid => {
+    registeredPid = pid; assert.ok(Number.isSafeInteger(pid) && pid > 0);
+    syncFs.writeFileSync(record, JSON.stringify({ pid }));
+  } });
+  assert.ok(registeredPid);
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout, 'synthetic review input');
+  assert.equal(result.termination.spawnObserved, true);
+});
+
+test('failed or asynchronous spawn registration withholds prompt delivery and cleans up', async () => {
+  for (const onSpawn of [() => { throw new Error('Cannot persist ownership'); }, () => Promise.resolve(), () => Promise.reject(new Error('Async registration is unsupported'))]) {
+    const observed = path.join(root, `unregistered-input-${crypto.randomUUID()}`);
+    const source = `const fs=require('node:fs');process.stdin.on('data',()=>fs.writeFileSync(${JSON.stringify(observed)},'prompt received'));setTimeout(()=>{},10000);`;
+    const error = await rejection(node(source, { prompt: 'must remain local', onSpawn }));
+    assert.equal(error.reason, 'worker_registration_error');
+    assert.equal(error.termination.spawnObserved, true);
+    assert.equal(error.termination.treeRequested, true);
+    assert.equal(syncFs.existsSync(observed), false);
+  }
+  const failed = await rejection(runProcess(path.join(root, 'missing-worker'), [], { onSpawn: () => assert.fail('missing executable cannot register') }));
+  assert.equal(failed.termination.spawnObserved, false);
+});
+
+test('a hard or idle deadline elapsed during synchronous registration withholds the prompt', async () => {
+  for (const [options, reason] of [[{ timeoutMs: 100 }, 'timeout'], [{ idleTimeoutMs: 100, isActivity: contentActivity }, 'idle_timeout']]) {
+    const observed = path.join(root, `late-registered-input-${reason}`);
+    const source = `const fs=require('node:fs');process.stdin.on('data',()=>fs.writeFileSync(${JSON.stringify(observed)},'received'));setTimeout(()=>{},10000);`;
+    const error = await rejection(node(source, { prompt: 'must remain local', ...options,
+      onSpawn: () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200),
+    }));
+    assert.equal(error.reason, reason);
+    assert.equal(syncFs.existsSync(observed), false);
+  }
+});
+
+test('a surviving registered worker blocks duplication after coordinator hardkill until confirmed dead', { timeout: 30000 }, async () => {
+  const record = path.join(root, 'orphan-worker.json'), ready = path.join(root, 'orphan-ready.json');
+  const processURL = new URL('../scripts/process.mjs', import.meta.url).href;
+  const stateURL = new URL('../scripts/state.mjs', import.meta.url).href;
+  const worker = `const fs=require('node:fs');process.stdin.resume();process.stdin.on('end',()=>{const record=JSON.parse(fs.readFileSync(${JSON.stringify(record)},'utf8'));fs.writeFileSync(${JSON.stringify(ready)},JSON.stringify({registeredBeforeInput:record.pid===process.pid}));setTimeout(()=>{},25000);});`;
+  const coordinatorSource = `import {runProcess} from ${JSON.stringify(processURL)};import {atomicWriteFile,inspectProcess} from ${JSON.stringify(stateURL)};await runProcess(process.execPath,['-e',${JSON.stringify(worker)}],{prompt:'synthetic input',timeoutMs:25000,onSpawn:pid=>{const observed=inspectProcess(pid);if(observed.status!=='alive'||!observed.identity)throw new Error('Owned worker identity unavailable');atomicWriteFile(${JSON.stringify(record)},{pid,identity:observed.identity});}});`;
+  const coordinator = spawn(process.execPath, ['--input-type=module', '-e', coordinatorSource], { cwd: root, windowsHide: true, shell: false, stdio: ['ignore', 'ignore', 'pipe'] });
+  let diagnostics = '', workerRecord;
+  coordinator.stderr.on('data', chunk => { diagnostics += chunk; });
+  const stopped = new Promise(resolve => coordinator.once('close', resolve));
+  try {
+    const deadline = Date.now() + 15000;
+    while (!syncFs.existsSync(ready)) {
+      assert.ok(Date.now() < deadline && coordinator.exitCode === null && coordinator.signalCode === null, `Coordinator failed before worker readiness: ${diagnostics}`);
+      await pause(40);
+    }
+    workerRecord = JSON.parse(await fs.readFile(record, 'utf8'));
+    assert.equal(JSON.parse(await fs.readFile(ready, 'utf8')).registeredBeforeInput, true);
+    const run = { attempts: [{ number: 1, status: 'running', worker_process: workerRecord }] };
+    assert.deepEqual(inspectProcess(workerRecord.pid), { status: 'alive', identity: workerRecord.identity });
+    assert.throws(() => assertWorkersStopped(run), error => error.reason === 'worker_still_running');
+    coordinator.kill('SIGKILL'); // Owned direct handle only; deliberately leave the registered child for the guard.
+    await stopped;
+    const observed = inspectProcess(workerRecord.pid);
+    if (observed.status === 'dead') {
+      assert.equal(process.platform, 'win32', 'Detached POSIX worker should remain available to exercise orphan protection');
+    } else {
+      assert.deepEqual(observed, { status: 'alive', identity: workerRecord.identity });
+      assert.throws(() => assertWorkersStopped(run), error => error.reason === 'worker_still_running');
+      process.kill(workerRecord.pid, 'SIGKILL'); // Only the verified synthetic worker owned by this fixture.
+    }
+    const exitDeadline = Date.now() + 5000;
+    while (inspectProcess(workerRecord.pid).status !== 'dead') { assert.ok(Date.now() < exitDeadline, 'Owned worker did not terminate'); await pause(40); }
+    assert.doesNotThrow(() => assertWorkersStopped(run));
+    assert.equal(run.attempts[0].status, 'running', 'The guard must not recover or mutate accounting');
+  } finally {
+    if (coordinator.exitCode === null && coordinator.signalCode === null) coordinator.kill('SIGKILL');
+    await stopped;
+    if (!workerRecord && syncFs.existsSync(record)) workerRecord = JSON.parse(await fs.readFile(record, 'utf8'));
+    if (workerRecord) {
+      const observed = inspectProcess(workerRecord.pid);
+      if (observed.status === 'alive' && observed.identity === workerRecord.identity) process.kill(workerRecord.pid, 'SIGKILL');
+    }
+  }
 });
 
 test('idle mode requires a valid guard and classifier and cannot silently remove every timeout', async () => {

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { checkUpdates, compareVersions, discoverLatest, stageRelease, verifyArchive } from '../scripts/updates.mjs';
+import { checkUpdates, compareVersions, discoverLatest, stageRelease, updateCachePath, verifyArchive } from '../scripts/updates.mjs';
 
 const parent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(parent, 'c2c-update-test-'));
@@ -75,6 +75,27 @@ test('version ordering accepts stable numeric releases only', () => {
   assert.equal(compareVersions('2.0.0', '9.0.0'), -1);
   assert.equal(compareVersions('1.3.0', '1.3.0'), 0);
   for (const version of ['1.4.0-beta', 'v1.4.0', '01.4.0', '../../evil', '999999999.0.0']) assert.throws(() => compareVersions(version, '1.0.0'));
+});
+
+test('update cache defaults to a provider-neutral home and preserves explicit configuration precedence', () => {
+  assert.equal(updateCachePath({}), path.join(os.homedir(), '.c2c', 'c2c-update-check.json'));
+  assert.equal(updateCachePath({ CODEX_HOME: '', CLAUDE_CONFIG_DIR: '' }), updateCachePath({}));
+  const codexHome = path.join(root, 'chosen-codex'), claudeHome = path.join(root, 'chosen-claude');
+  assert.equal(updateCachePath({ CODEX_HOME: codexHome }), path.join(codexHome, 'c2c-update-check.json'));
+  assert.equal(updateCachePath({ CLAUDE_CONFIG_DIR: claudeHome }), path.join(claudeHome, 'c2c-update-check.json'));
+  assert.equal(updateCachePath({ CODEX_HOME: codexHome, CLAUDE_CONFIG_DIR: claudeHome }), path.join(codexHome, 'c2c-update-check.json'));
+});
+
+test('an implicit cache follows the supplied environment while explicit cache paths still win', async () => {
+  const configuration = path.join(root, 'injected-configuration');
+  const environment = { CLAUDE_CONFIG_DIR: configuration }, requests = [];
+  const result = await checkUpdates({ version: '1.3.0', environment, fetchImpl: mockFetch(discoveryRoutes(), requests) });
+  assert.equal(result.status, 'update_available');
+  assert.equal(JSON.parse(await fs.readFile(updateCachePath(environment), 'utf8')).release.version, release.version);
+  const explicitCache = path.join(root, 'explicit-cache', 'cache.json');
+  await checkUpdates({ version: '1.3.0', environment: { CODEX_HOME: path.join(root, 'unused-configuration') }, cacheFile: explicitCache, fetchImpl: mockFetch(discoveryRoutes()) });
+  assert.equal(JSON.parse(await fs.readFile(explicitCache, 'utf8')).release.version, release.version);
+  await assert.rejects(fs.access(path.join(root, 'unused-configuration')));
 });
 
 test('discovery selects the highest stable tag, pins its commit and checks matching package metadata', async () => {

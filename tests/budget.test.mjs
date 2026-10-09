@@ -33,6 +33,23 @@ test('explicit fixed policy preserves old profile durations without an inactivit
   assert.throws(() => prepareBudget({ 'timeout-policy': 'fixed', 'idle-timeout-seconds': 600 }), /requires the activity/);
 });
 
+test('implicit inactivity allowance cannot preempt an explicit call deadline', () => {
+  const standard = prepareBudget({ 'timeout-seconds': 900 });
+  assert.equal(standard.timeout_ms, 900000);
+  assert.equal(standard.idle_timeout_ms, 900000);
+  assert.equal(standard.initial_limits.idle_timeout_ms, 900000, 'The adjusted default is frozen into the initial contract');
+  assert.equal(standard.budget_ms, null);
+  assert.equal(prepareBudget({ 'timeout-seconds': 300 }).idle_timeout_ms, 600000, 'A short cap does not shorten the profile silence allowance');
+  assert.equal(prepareBudget({ 'budget-profile': 'project', 'timeout-seconds': 900 }).idle_timeout_ms, 1200000);
+  const explicitIdle = prepareBudget({ 'timeout-seconds': 900, 'idle-timeout-seconds': 60 });
+  assert.equal(explicitIdle.idle_timeout_ms, 60000, 'An explicit shorter guard still wins');
+  const totalCapped = activeState({ 'timeout-seconds': 900, 'budget-seconds': 300 });
+  assert.equal(totalCapped.idle_timeout_ms, 900000);
+  assert.equal(totalCapped.budget_ms, 300000, 'Raising the default guard never raises the total runtime cap');
+  assert.equal(budgetSummary(totalCapped).peer_seconds_available, 300);
+  assert.equal(prepareBudget({ 'timeout-policy': 'fixed', 'timeout-seconds': 900 }).idle_timeout_ms, null);
+});
+
 test('budget status separates definite attempt shortage from advisory runtime headroom', () => {
   const run = state();
   run.attempts = [{ number: 1, status: 'failed' }, { number: 2, status: 'failed' }];
@@ -188,6 +205,19 @@ test('a finite total remains fully reserved and charged after an uncapped interr
   assert.equal(run.elapsed_ms, 100000);
   assert.equal(budgetSummary(run).assessment, 'runtime_exhausted');
   assert.equal(run.runtime_accounting_incomplete, undefined);
+});
+
+test('a total-only runtime cap discloses conservative recovery before any worker call', () => {
+  const capped = activeState({ 'budget-seconds': 100 });
+  const before = structuredClone(capped);
+  const warning = budgetSummary(capped).recovery_warning;
+  assert.match(warning, /reserves all remaining cumulative runtime/);
+  assert.match(warning, /recovery can consume that entire remaining allowance/);
+  assert.match(warning, /not measured model runtime/);
+  assert.deepEqual(capped, before, 'The warning does not reserve or charge runtime');
+  assert.equal(budgetSummary(activeState()).recovery_warning, null);
+  assert.equal(budgetSummary(activeState({ 'timeout-seconds': 50, 'budget-seconds': 100 })).recovery_warning, null);
+  assert.equal(budgetSummary(state()).recovery_warning, null);
 });
 
 test('new policy permits a hard deadline derived from a one-hour total and retains its charge', () => {

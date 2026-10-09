@@ -12,8 +12,9 @@ import {
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
-import { writeRunState } from '../scripts/state.mjs';
+import { writeRunState, inspectProcess } from '../scripts/state.mjs';
 import { probeProvider, resolveExecutable, CODEX_DISABLED_FEATURES } from '../scripts/adapters.mjs';
+import { validateParticipants, validateReportedModels } from '../scripts/participants.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(tempParent, 'council-test-'));
@@ -106,6 +107,65 @@ test('report validator rejects incomplete and invalid reports', () => {
   assert.throws(()=>validateReport(report(['C-D1','C-D1'])));
   assert.throws(()=>validateReport(report(['C-R1']),'C-D'));
   assert.equal(REPORT_SCHEMA.type,'object');
+});
+
+test('stream parsing tolerates diagnostic prose but preserves malformed records, fatal errors and required substance', async () => {
+  for(const provider of ['claude','codex']) {
+    const result=await invocation()({provider});
+    assert.equal(parsePeerResponse(provider,`Native CLI diagnostic\n${result.stdout}\nDone logging.`).report.summary, 'A useful report');
+    assert.throws(()=>parsePeerResponse(provider,`${result.stdout}\n{"type":"error",`),/malformed JSON/);
+  }
+  const success=(await invocation()({provider:'codex'})).stdout;
+  assert.throws(()=>parsePeerResponse('codex',`${JSON.stringify({type:'error',message:'Fatal transport failure'})}\n${success}`),/failed turn/);
+  const bad=report(['P-R1']);bad.findings[0].verification='';
+  assert.throws(()=>validateReport(bad,'P-R'),/cannot be empty/);
+  const args=buildPeerArgs('claude',{schemaPath:'unused.json'});
+  const schema=JSON.parse(args[args.indexOf('--json-schema')+1]);
+  const pattern=new RegExp(schema.properties.findings.items.properties.id.pattern);
+  assert.ok(pattern.test('P-R1'));
+  for(const id of ['P-R01','P-R-1','P-R1a'])assert.ok(!pattern.test(id));
+});
+
+test('published Max names and context labels do not weaken distinct-model or fallback checks', () => {
+  const codex={pairing:'same',coordinator:'codex',peer:'codex',coordinator_model:'gpt-5.1-codex-max',peer_model:'gpt-5.1-codex'};
+  assert.doesNotThrow(()=>validateParticipants(codex));
+  assert.throws(()=>validateParticipants({...codex,coordinator_model:'gpt-5.4',peer_model:'gpt-5.4-high'}),/different model/);
+  const claude={pairing:'same',coordinator:'claude',peer:'claude',coordinator_model:'claude-sonnet-4-6',peer_model:'claude-opus-4-6'};
+  const metadata=['claude-opus-4-6[1m]'];
+  assert.doesNotThrow(()=>validateReportedModels(claude,metadata));
+  assert.deepEqual(metadata,['claude-opus-4-6[1m]']);
+  assert.throws(()=>validateReportedModels(claude,[...metadata,'claude-haiku-4-5']),/unexpected model/);
+  assert.throws(()=>validateReportedModels(claude,[...metadata,'claude-sonnet-4-6[1m]']),/coordinator model/);
+});
+
+test('a finite remainder under ten seconds reserves no new attempt', async () => {
+  const f=await fixture('minimum-remaining'); await hostDraft(f);
+  const manifest=path.join(f.out,'run.json'), state=await read(manifest);
+  state.elapsed_ms=state.budget_ms-9999;await write(manifest,state);
+  let calls=0;
+  await assert.rejects(()=>ask({run:f.out,stage:'draft'},async request=>{calls++;return invocation()(request);}),/10-second launch minimum/);
+  assert.equal(calls,0);assert.deepEqual(await read(manifest),state);
+  assert.equal(status({run:f.out}).budget.assessment,'runtime_exhausted');
+});
+
+test('network failure is recorded once with useful handoff guidance', async () => {
+  const f=await fixture('network-handoff');await hostDraft(f);
+  await assert.rejects(()=>ask({run:f.out,stage:'draft'},async()=>({code:1,stderr:'',stdout:JSON.stringify({type:'result',is_error:true,result:'API Error: Connection refused (ECONNREFUSED)'})})),/connection failure/);
+  const state=await read(path.join(f.out,'run.json'));
+  assert.equal(state.attempts.length,1);assert.equal(state.attempts[0].reason,'network_error');
+  assert.match(await fs.readFile(path.join(f.out,'HANDOFF.md'),'utf8'),/Next:.*approved execution path/);
+});
+
+test('verified completion rejects an irrelevant provisional reason and escapes worker questions', async () => {
+  const f=await readyForVerify('finish-prose');
+  const peer=report();peer.open_questions=['<img src="https://evil.example/p"> ![tracking](https://evil.example)\n# Forged'];
+  await ask({run:f.out,stage:'verify'},invocation(peer));
+  assert.throws(()=>finish({run:f.out,'unverified-reason':'This is not actually an unreviewed revision.'}),/only to an actual unreviewed revision/);
+  const completed=finish({run:f.out});
+  assert.equal(completed.unverified_revision_reason,null);
+  const result=await fs.readFile(path.join(f.out,'RESULT.md'),'utf8');
+  assert.doesNotMatch(result,/<img|!\[tracking\]|https:\/\/evil|\n# Forged/);
+  assert.match(result,/&#60;img/);
 });
 
 test('new activity runs pass only an inactivity guard and retain honest unlimited-time artifacts', async () => {
@@ -1093,6 +1153,48 @@ test('coordinator evidence changed during a peer call invalidates its result', a
   assert.equal(state.attempts[0].status,'failed');
   assert.equal(state.stages.draft,undefined);
   await assert.rejects(()=>fs.access(path.join(f.out,'peer-draft.json')));
+});
+
+test('worker recovery blocks launches and extensions before changing allowance when ownership is live or ambiguous', async () => {
+  const owner = inspectProcess(process.pid);
+  assert.equal(owner.status, 'alive');
+  assert.ok(owner.identity);
+  for (const workerProcess of [{ pid: process.pid, identity: owner.identity }, { launch_pending: true }]) {
+    const f = await fixture('worker-recovery-guard');
+    await hostDraft(f);
+    const manifest = path.join(f.out, 'run.json');
+    const state = await read(manifest);
+    state.status = 'running';
+    state.attempts = [{ number: 1, stage: 'draft', status: 'running', timeout_ms: 300000, worker_process: workerProcess }];
+    await write(manifest, state);
+    let invoked = false;
+    await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async request => {
+      invoked = true;
+      return invocation()(request);
+    }), /worker/i);
+    assert.equal(invoked, false);
+    assert.throws(() => extend({ run: f.out, 'max-attempts': 5, reason: 'Synthetic guard check.' }), /worker/i);
+    assert.deepEqual(await read(manifest), state, 'Recovery must neither charge nor change a possibly active attempt');
+  }
+});
+
+test('finish refuses a live or unaccounted final-revision attempt even with an unverified reason', async () => {
+  const f = await readyForVerify('finish-worker-guard', { mode: 'review' });
+  await write(path.join(f.out, 'decisions.json'), ['C-D1', 'C-R1', 'P-R1'].map(finding_id => ({ finding_id, disposition: 'accepted', rationale: 'Synthetic acceptance record.' })));
+  await ask({ run: f.out, stage: 'verify' }, invocation());
+  const manifest = path.join(f.out, 'run.json');
+  const state = await read(manifest);
+  state.attempts.push({ number: 3, stage: 'verify-final', status: 'running', timeout_ms: 300000,
+    worker_process: { pid: process.pid, identity: inspectProcess(process.pid).identity } });
+  state.status = 'running';
+  await write(manifest, state);
+  assert.throws(() => finish({ run: f.out, 'unverified-reason': 'Synthetic interrupted revision.' }), /worker.*alive/i);
+  assert.deepEqual(await read(manifest), state);
+  state.attempts.at(-1).worker_process.released = true;
+  await write(manifest, state);
+  assert.throws(() => finish({ run: f.out, 'unverified-reason': 'Synthetic interrupted revision.' }), /still recorded as running/);
+  assert.deepEqual(await read(manifest), state);
+  await assert.rejects(() => fs.access(path.join(f.out, 'RESULT.md')));
 });
 
 test('interrupted recovery is persisted before attempt or runtime budget rejection', async () => {
@@ -3017,7 +3119,7 @@ test('untrusted CLI model metadata remains exact JSON evidence and inert Markdow
   for(const name of ['RESULT.md','DISCUSSION.md']) {
     const markdown=await fs.readFile(path.join(f.out,name),'utf8');
     assert.doesNotMatch(markdown,/<img src=|!\[click\]\(https:|\n# invented heading/);
-    if(name==='RESULT.md') assert.match(markdown,/&lt;img/);
+    if(name==='RESULT.md') assert.match(markdown,/&#60;img/);
   }
 });
 

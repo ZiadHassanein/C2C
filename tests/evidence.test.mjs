@@ -46,6 +46,43 @@ test('portable paths reject absolute paths, traversal, alternate streams, and am
   assert.equal(evidencePath('', { empty: true }), '');
 });
 
+test('descriptive evidence hints tolerate citation formatting without rewriting sealed values', () => {
+  const paths = ['./src/export.js', '././src/export.js', 'src/export.js:42', 'src/', '.\\src\\export.js:1', './src/export.js:42'];
+  for (const hint of paths) {
+    const requested = Object.freeze({ ...request(), path: hint });
+    const requests = Object.freeze([requested]);
+    assert.equal(validateEvidenceRequests(requests, 'P-D'), requests);
+    assert.equal(requested.path, hint);
+    const record = createEvidenceRecord({ request: requested, request_source: { stage: 'draft', report_sha256: sha('report') }, status: 'unavailable', reason: 'No matching source is available in the authorized project.' }, [], scanner);
+    const preserved = JSON.stringify(record);
+    assert.equal(record.request.path, hint);
+    assert.equal(validateEvidenceLedger([record]).records, 1);
+    assert.equal(JSON.stringify(record), preserved);
+  }
+});
+
+test('citation formatting cannot hide traversal, drives, URI credentials or alternate streams', () => {
+  for (const hint of [
+    './', '/', '../secret/', './src/../secret:42', './src/./file:42', './src//file:42', 'src//',
+    'C:42', './C:42', 'C:\\private\\file:42', './C:/private/file:42', '\\\\host\\share\\file:42',
+    'https://user:password@example.com/src/file:42', 'file:///private/file:42',
+    'src/file:stream:42', 'src/file:0', 'src/file:01', 'src/file:-1', 'src/file:1:2',
+    'src/file:9007199254740992', 'src/ file:42', 'src/file\0:42',
+  ]) assert.throws(() => validateEvidenceRequests([{ ...request(), path: hint }]), undefined, hint);
+});
+
+test('accepted request hints do not relax file selection or credential restrictions', () => {
+  const project = fixture('citation-access');
+  const requested = { ...request(), path: './src/export.js:42' };
+  const record = create(project, 1, { request: requested });
+  assert.equal(record.request.path, requested.path);
+  assert.equal(record.evidence.path, 'src/export.js');
+  for (const file of ['./src/export.js', 'src/export.js:42', 'src/']) assert.throws(() => create(project, 1, { request: requested, file }));
+  fs.writeFileSync(path.join(project, '.env'), 'ordinary-looking content');
+  assert.throws(() => create(project, 1, { request: { ...request(), path: './.env:1' }, file: '.env' }), /Credential-like/);
+  assert.throws(() => create(project, 1, { request: requested, label: 'src/export.js:42' }), /repository-relative/);
+});
+
 test('supplied evidence records exact selected content and declared provenance without host path metadata', () => {
   const project = fixture('provenance');
   const source = options(project, 1, { label: 'reviewed/export-interface.js', source_revision: 'abc1234 (working tree)' });

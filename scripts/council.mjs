@@ -8,10 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { runProcess } from './process.mjs';
 import { ASSESSMENT_SCHEMA, validateAssessment, assessmentMarkdown } from './assessment.mjs';
 export { runProcess } from './process.mjs';
-import { resolveExecutable, probeProvider, providerSetupError, providerSetupGuidance, buildCodexArgs, peerAuthenticationFailure, authenticationFailureGuidance, peerUsageLimitFailure, usageLimitGuidance } from './adapters.mjs';
+import { resolveExecutable, probeProvider, providerSetupError, providerSetupGuidance, buildCodexArgs, peerAuthenticationFailure, authenticationFailureGuidance, peerUsageLimitFailure, usageLimitGuidance, peerNetworkFailure, networkFailureGuidance } from './adapters.mjs';
 export { resolveExecutable } from './adapters.mjs';
-import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock } from './state.mjs';
-import { renderDiscussion } from './discussion.mjs';
+import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock, inspectProcess, assertWorkersStopped } from './state.mjs';
+import { renderDiscussion, escapeAuthoredText } from './discussion.mjs';
 import { participantsFromOptions, validateParticipants, participantLabel, participantSummary, validateReportedModels, requiredStages, stageWorker } from './participants.mjs';
 import { prepareBudget, budgetSummary, recoverInterruptedAttempts, extendBudget } from './budget.mjs';
 import { readPeerProgress, createActivityObserver } from './progress.mjs';
@@ -47,7 +47,13 @@ export const REPORT_SCHEMA = obj({
 // Optional for saved/coordinator reports; strict worker output schemas require
 // the empty array when no additional evidence is needed.
 REPORT_SCHEMA.properties.evidence_requests = { type: 'array', maxItems: 10, items: EVIDENCE_REQUEST_SCHEMA };
-const WORKER_REPORT_SCHEMA = { ...REPORT_SCHEMA, required: Object.keys(REPORT_SCHEMA.properties) };
+const WORKER_REPORT_SCHEMA = { ...REPORT_SCHEMA, required: Object.keys(REPORT_SCHEMA.properties), properties: {
+  ...REPORT_SCHEMA.properties,
+  findings: { ...REPORT_SCHEMA.properties.findings, items: { ...REPORT_SCHEMA.properties.findings.items, properties: {
+    ...REPORT_SCHEMA.properties.findings.items.properties,
+    id: { type: 'string', pattern: '^[CP]-[DRVFS][1-9][0-9]*$' },
+  } } },
+} };
 const LEGACY_WORKER_SCHEMA = { ...REPORT_SCHEMA, properties: Object.fromEntries(Object.entries(REPORT_SCHEMA.properties).filter(([key]) => key !== 'evidence_requests')) };
 const DECISIONS_SCHEMA = { type: 'array', maxItems: 1050, items: obj({
   finding_id: str, disposition: { type: 'string', enum: ['accepted', 'rejected', 'unresolved'] }, rationale: str,
@@ -285,6 +291,7 @@ function providerFailureAdvice(state) {
     const provider = attempt.provider ?? state.peer;
     if (attempt.status === 'succeeded') recovered.add(provider);
     if (attempt.status === 'failed' && attempt.reason === 'authentication_error' && !recovered.has(provider)) return authenticationFailureGuidance(provider);
+    if (attempt.status === 'failed' && attempt.reason === 'network_error' && !recovered.has(provider)) return networkFailureGuidance(provider);
   }
   return null;
 }
@@ -336,7 +343,7 @@ export function parsePeerResponse(provider, stdout) {
     let envelope, events;
     try { envelope = JSON.parse(stdout.trim()); events = [envelope]; }
     catch {
-      events = stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
+      events = parseStreamEvents(stdout);
       required(!events.some(event => event.type === 'error' || (event.type === 'result' && event.is_error)), 'Claude reported a failed stream');
       envelope = events.findLast(event => event.type === 'result');
     }
@@ -344,13 +351,27 @@ export function parsePeerResponse(provider, stdout) {
     const report = envelope.structured_output ?? (typeof envelope.result === 'string' ? JSON.parse(envelope.result) : null);
     return { report: validateReport(report), session_id: envelope.session_id || null, usage: envelope.usage || null, model_usage: envelope.modelUsage || null, reported_models: reportedModels(events), estimated_cost_usd: envelope.total_cost_usd ?? null };
   }
-  const events = stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
+  const events = parseStreamEvents(stdout);
   required(!events.some(e => ['error', 'turn.failed'].includes(e.type)), 'Codex reported a failed turn');
   required(events.some(e => e.type === 'turn.completed'), 'Codex response is incomplete');
   const messages = events.filter(e => e.type === 'item.completed' && e.item?.type === 'agent_message');
   required(messages.length, 'Codex returned no final response');
   const report = JSON.parse(messages.at(-1).item.text);
   return { report: validateReport(report), session_id: events.find(e => e.type === 'thread.started')?.thread_id || null, usage: events.findLast(e => e.type === 'turn.completed')?.usage || null, reported_models: reportedModels(events), estimated_cost_usd: null };
+}
+
+function parseStreamEvents(stdout) {
+  return stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean).flatMap(line => {
+    let event;
+    try { event = JSON.parse(line); }
+    catch {
+      // Diagnostic prose is not a report. A broken JSON record could conceal
+      // a terminal error and must not be discarded as harmless formatting.
+      required(!/^[{[]/.test(line), 'Peer stream contains a malformed JSON record');
+      return [];
+    }
+    return event && typeof event === 'object' && !Array.isArray(event) ? [event] : [];
+  });
 }
 
 function reportedModels(events) {
@@ -367,7 +388,7 @@ function reportedModels(events) {
 function modelMetadataMarkdown(value) {
   // Transport metadata is untrusted. Keep exact values in JSON evidence and
   // render only inert text in Markdown (no remote images, links or raw HTML).
-  return value.replace(/[\r\n\t]/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/([\\`*_\[\]{}()#!|])/g, '\\$1');
+  return escapeAuthoredText(value);
 }
 
 export async function doctor(options = {}, { probe = probeProvider } = {}) {
@@ -497,6 +518,7 @@ function writeDiscussion(dir, state) {
 }
 
 export function discussion(options) {
+  notPeer();
   const initial = loadRun(options.run);
   const release = lock(initial.dir);
   try {
@@ -641,11 +663,12 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
     const { dir, state } = loadRun(options.run);
     const stage = options.stage;
     const worker = validateStage(dir, state, stage);
+    assertWorkersStopped(state);
     if (recoverInterruptedAttempts(state, now())) saveRun(dir, state);
     const providerAdvice = providerFailureAdvice(state);
     required(state.attempts.length < state.max_attempts, providerAdvice ?? 'Attempt budget exhausted; preserve this run and inspect whether an authorized extend can provide the remaining allowance');
     const remaining = state.budget_ms === null ? null : state.budget_ms - state.elapsed_ms;
-    required(remaining === null || remaining >= 1000, providerAdvice ?? 'Peer runtime budget exhausted; preserve this run and inspect whether an authorized extend can provide the remaining allowance');
+    required(remaining === null || remaining >= 10000, providerAdvice ?? 'Peer runtime budget exhausted or below the 10-second launch minimum; preserve this run and inspect whether an authorized extend can provide the remaining allowance');
     required(remaining === null || !state.runtime_accounting_incomplete, 'Cumulative runtime is unknown after an interrupted uncapped attempt; preserve the run instead of assuming unused time under a fixed budget');
     const budget = budgetSummary(state);
     required(budget.attempts_sufficient, providerAdvice ?? `Attempt allowance cannot cover ${budget.successful_calls_remaining} pending peer stages: ${budget.attempts_remaining} attempts remain. Inspect this run and use extend with authorized absolute limits; do not restart or discard failed attempts.`);
@@ -689,6 +712,7 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
       write(path.join(dir, attempt.security_report_file), securityText);
       seal(dir, state, attempt.security_report_file);
     }
+    if (!injectedInvoker) attempt.worker_process = { launch_pending: true };
     saveRun(dir, state); // Reserve attempt before any model launch.
     const started = Date.now();
     const stdoutPath = path.join(dir, `attempt-${attempt.number}-stdout.txt`);
@@ -698,12 +722,18 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
         ? await injectedInvoker({ provider: worker.provider, args, prompt, cwd: scratch, timeoutMs: attempt.timeout_ms, idleTimeoutMs: attempt.idle_timeout_ms ?? null })
         : await runProcess(executable, args, { prompt, cwd: scratch, timeoutMs: attempt.timeout_ms ?? undefined,
           idleTimeoutMs: attempt.idle_timeout_ms ?? undefined, isActivity: attempt.idle_timeout_ms ? createActivityObserver(worker.provider) : undefined,
-          peer: true, stdoutPath, stderrPath });
+          peer: true, stdoutPath, stderrPath, onSpawn(pid) {
+            const owner = inspectProcess(pid);
+            required(owner.status === 'alive' && typeof owner.identity === 'string' && owner.identity,
+              'Worker process identity could not be established before prompt delivery; preserve this attempt and inspect cleanup before retrying');
+            attempt.worker_process = { pid, identity: owner.identity };
+            saveRun(dir, state); // Persist identity before the provider receives the prompt.
+          } });
       if (injectedInvoker) { write(stdoutPath, result.stdout || ''); write(stderrPath, result.stderr || ''); }
       for (const key of ['code', 'signal', 'outputFiles', 'termination', 'activity']) if (result[key] !== undefined) attempt[key] = result[key];
       // An explicit usage/payment block takes precedence over incidental login
       // advice: repairing authentication is not evidence of restored allowance.
-      const providerFailure = peerUsageLimitFailure(worker.provider, result) ?? peerAuthenticationFailure(worker.provider, result);
+      const providerFailure = peerUsageLimitFailure(worker.provider, result) ?? peerAuthenticationFailure(worker.provider, result) ?? peerNetworkFailure(worker.provider, result);
       if (providerFailure) {
         const error = new Error(`${providerFailure.message} See attempt-${attempt.number}-stdout.txt and attempt-${attempt.number}-stderr.txt for local diagnostics.`);
         error.reason = providerFailure.reason;
@@ -750,6 +780,9 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
       }
       throw error;
     } finally {
+      if (attempt.worker_process && (attempt.termination?.directExitObserved === true || attempt.termination?.spawnObserved === false)) {
+        attempt.worker_process.released = true;
+      }
       attempt.elapsed_ms = Date.now() - started; attempt.ended_at = now();
       state.elapsed_ms += attempt.elapsed_ms; saveRun(dir, state);
     }
@@ -766,6 +799,7 @@ function assessmentSummary(dir, state) {
 }
 
 export function status(options) {
+  notPeer();
   const { dir, state, runtime } = loadRun(options.run, { allowLegacy: true });
   const snapshot = readJSON(path.join(dir, 'snapshot.json'));
   const changed = [], unavailable = [];
@@ -830,6 +864,7 @@ export function extend(options) {
   try {
     const { state } = loadRun(options.run);
     required(state.status !== 'complete', 'A complete run cannot be extended; its recorded evidence is final');
+    assertWorkersStopped(state);
     // Recover the old reservation before even an invalid amendment can reject.
     // This prevents a second command from charging the same interruption twice.
     if (recoverInterruptedAttempts(state, now())) saveRun(dir, state);
@@ -840,11 +875,14 @@ export function extend(options) {
 }
 
 export function finish(options) {
+  notPeer();
   const { dir } = loadRun(options.run);
   const release = lock(dir);
   try {
     const { state } = loadRun(options.run);
     required(state.status !== 'complete', 'Run is already complete');
+    assertWorkersStopped(state);
+    required(!state.attempts.some(attempt => attempt.status === 'running'), 'An attempt is still recorded as running; resolve worker cleanup and interrupted accounting on this saved run before finishing');
     const stages = requiredStages(state);
     for (const stage of stages.filter(s => s !== 'verify-final')) required(state.stages[stage]?.status === 'succeeded', `Peer ${stage} is incomplete; do not claim council completion`);
     const plan = readText(path.join(dir, 'final-plan.md'));
@@ -861,6 +899,7 @@ export function finish(options) {
     const unverified = boundary.needs_review || pendingFinalCheck;
     let unverifiedReason = null;
     if (options['unverified-reason'] !== undefined) {
+      required(unverified, '--unverified-reason applies only to an actual unreviewed revision');
       required(typeof options['unverified-reason'] === 'string' && options['unverified-reason'].trim().length >= 12 && options['unverified-reason'].length <= 500 && !/[\u0000-\u001f\u007f]/.test(options['unverified-reason']), 'Give a specific one-line --unverified-reason of 12–500 characters');
       checkSecrets(options['unverified-reason']);
       unverifiedReason = options['unverified-reason'].trim();
@@ -871,14 +910,15 @@ export function finish(options) {
     const unresolved = decisions.filter(d => d.disposition === 'unresolved').map(d => ({ ...d, severity: findings.find(f => f.id === d.finding_id).severity }));
     const openQuestions = reports.flatMap(r => r.report.open_questions.map(question => ({ source: r.name, question })));
     const peerVerdict = readJSON(path.join(dir, `peer-${boundary.stage}.json`)).verdict;
+    const sourceStatus = status(options);
     const completion = { completed_at: now(), outcome: state.version >= 6 && unverified ? 'complete_with_unreviewed_revision' : unresolved.length ? 'complete_with_unresolved_findings' : 'complete_with_recorded_decisions',
       verification_stage: boundary.stage, delivered_plan_reviewed: !changes.includes('final-plan.md'), adjudications_changed_since_verification: boundary.adjudications_changed,
       evidence_changed_since_verification: boundary.evidence_changed, unverified_revision_reason: unverifiedReason,
       evidence_requests: evidenceRequests(dir, state),
       changedSinceVerification: changes.length > 0, changed_artifacts: changes, reviewed_hashes: reviewedHashes, final_hashes: finalHashes,
       plan_changed_since_verification: changes.includes('final-plan.md'), decisions_changed_since_verification: changes.includes('decisions.json'),
-      unresolved, questions_raised_during_review: openQuestions, source_changes: status(options).changed_source_files,
-      unavailable_sources: status(options).unavailable_source_files,
+      unresolved, questions_raised_during_review: openQuestions, source_changes: sourceStatus.changed_source_files,
+      unavailable_sources: sourceStatus.unavailable_source_files,
       successful_peer_calls: state.attempts.filter(a => a.status === 'succeeded' && a.role !== 'author').length, attempts_used: state.attempts.length,
       ...(state.author_model ? { successful_worker_calls: state.attempts.filter(a => a.status === 'succeeded').length,
         worker_model_reports: state.attempts.map(attempt => ({ attempt: attempt.number, stage: attempt.stage, provider: attempt.provider, role: attempt.role, status: attempt.status, requested: attempt.requested_model, reported: attempt.reported_models || [], identity_status: attempt.model_identity_status || 'unreported' })) } : {}),
@@ -900,7 +940,7 @@ export function finish(options) {
       unverifiedReason ? `Provisional revision: ${modelMetadataMarkdown(unverifiedReason)}` : '',
       `Final peer verdict: ${peerVerdict}. Security review: ${completion.security_review.verdict}.`,
       completion.source_changes.length ? 'Source inputs have changed since the snapshot. This plan is based on the saved snapshot.' : '',
-      completion.unavailable_sources.length ? 'Some original inputs are missing or unreadable. Their current contents could not be compared; the saved snapshot remains the evidence used for this plan.' : '', '', '## Final plan', '', plan, '', '## Finding decisions', '', ...decisions.map(d => `- **${d.finding_id} — ${d.disposition}:** ${d.rationale}`), '', '## Questions raised during review', '', ...openQuestions.map(q => `- ${q.question} (${q.source})`), '', completion.note, ''];
+      completion.unavailable_sources.length ? 'Some original inputs are missing or unreadable. Their current contents could not be compared; the saved snapshot remains the evidence used for this plan.' : '', '', '## Final plan', '', plan, '', '## Finding decisions', '', ...decisions.map(d => `- **${d.finding_id} — ${d.disposition}:** ${escapeAuthoredText(d.rationale)}`), '', '## Questions raised during review', '', ...openQuestions.map(q => `- ${escapeAuthoredText(q.question)} (${q.source})`), '', completion.note, ''];
     lines.push('## Security review', '', security ? security.report.proposal_markdown : completion.security_review.limitations[0], '', ...completion.security_review.limitations.map(item => `- Limitation: ${item}`), '', 'Security review assesses the plan; it does not certify the implementation or prove proposed tests passed.');
     lines.push('', state.version >= 3 ? readText(path.join(dir, 'PROJECT_CONTEXT.md')).replace(/^# Project context and planning direction/, '## Project assessment before planning') : 'Legacy run: no mandatory project assessment was recorded; deployment and readiness were not established by this workflow.');
     write(path.join(dir, 'RESULT.md'), lines.filter(line => line !== undefined).join('\n'));
@@ -911,6 +951,7 @@ export function finish(options) {
 }
 
 export function recoverLock(options) {
+  notPeer();
   const { dir } = loadRun(options.run);
   return recoverRunLock(dir, { expectedHash: options['expected-sha256'], confirmedStopped: options['confirm-owner-stopped'] === 'yes' });
 }

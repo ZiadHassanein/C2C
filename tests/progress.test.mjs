@@ -329,3 +329,25 @@ test('initialization, lifecycle markers, retries, errors and heartbeat noise nev
     for (const event of noise) assert.equal(observe(event), false, `${provider}: ${JSON.stringify(event)}`);
   }
 });
+
+test('redacted real Claude 2.1.294 shapes recognize counters and report progress, never lifecycle or replays', () => {
+  const captured = fs.readFileSync(new URL('./fixtures/activity-claude-2.1.294.jsonl', import.meta.url), 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line));
+  const observe = createActivityObserver('claude');
+  const activity = captured.filter(event => observe(event));
+  assert.deepEqual(activity.map(event => event.subtype ?? event.event?.delta?.type ?? event.type),
+    ['thinking_tokens', 'thinking_tokens', 'input_json_delta', 'assistant']);
+  assert.equal(activity.at(-1).message.content[0].name, 'StructuredOutput');
+  assert.equal(captured.filter(event => observe(event)).length, 0, 'Captured identifiers and counters cannot renew idle waiting when replayed');
+});
+
+test('historical real Codex 0.160.1 shape recognizes final output, not unobserved intermediate activity', () => {
+  const captured = fs.readFileSync(new URL('./fixtures/activity-codex-0.160.1.jsonl', import.meta.url), 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line));
+  const observe = createActivityObserver('codex');
+  const activity = captured.filter(event => observe(event));
+  assert.equal(activity.length, 1);
+  assert.equal(activity[0].type, 'item.completed');
+  assert.equal(activity[0].item.type, 'agent_message');
+  assert.equal(captured.some(event => event.item?.type === 'reasoning' || event.type.includes('delta')), false,
+    'This capture provides no evidence of mid-generation renewal or a newer CLI version');
+  assert.equal(captured.filter(event => observe(event)).length, 0);
+});

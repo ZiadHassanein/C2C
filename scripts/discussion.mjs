@@ -18,11 +18,13 @@ function reportSpecs(state) {
     ? { ...spec, owner: 'author', stage: spec.name === 'coordinator-draft.json' ? 'author-draft' : 'author-review' } : spec);
 }
 
-// Encode punctuation before Markdown parsing, including URL punctuation and HTML.
-// Flatten authored newlines so they cannot introduce headings, lists, or link definitions.
-const authored = value => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
+// Keep prose readable while neutralizing markup, autolinks and forged blocks.
+// Original text remains intact in the JSON reports; this is only a derived view.
+export const escapeAuthoredText = value => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
   .replace(/[\u202a-\u202e\u2066-\u2069]/g, '')
-  .replace(/\s+/g, ' ').trim().replace(/[!-/:-@\[-`{-~]/g, char => `&#${char.charCodeAt(0)};`);
+  .replace(/\s+/g, ' ').trim().replace(/[&<>\\`*_\[\]{}()#!|~:@$]/g, char => `&#${char.charCodeAt(0)};`)
+  .replace(/\bwww\./gi, match => `${match.slice(0, -1)}&#46;`);
+const authored = escapeAuthoredText;
 
 function reportSource(state, entry) {
   if (entry.source === undefined) return entry.name;

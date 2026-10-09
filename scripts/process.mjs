@@ -102,12 +102,14 @@ export function processEnvironment(inheritedEnv, { peer = false, platform = proc
  * objects. Only true resets its clock; stderr and incomplete lines never do.
  * timeoutMs remains a separate hard cap. Omitting it in idle mode removes only
  * that cap; calls without idle mode retain the legacy 30-second default.
+ * onSpawn(pid), when supplied, must synchronously persist worker ownership
+ * before returning. No prompt bytes or stdin EOF are sent before it completes.
  * A timeout/abort can settle after forced pipe closure; this does not establish
  * that every descendant was killed. Detached descendants may escape the group.
  */
 export function runProcess(executable, args, {
   prompt = '', cwd, timeoutMs, idleTimeoutMs, isActivity, peer = false,
-  stdoutPath, stderrPath, signal: abortSignal, env: inheritedEnv = process.env,
+  stdoutPath, stderrPath, signal: abortSignal, env: inheritedEnv = process.env, onSpawn,
 } = {}) {
   return new Promise((resolve, reject) => {
     const chunks = { stdout: [], stderr: [] };
@@ -115,10 +117,10 @@ export function runProcess(executable, args, {
     const descriptors = {};
     const termination = {
       method: null, treeRequested: false, treeRequestSucceeded: null,
-      directKillRequested: false, directExitObserved: false, pipeClosureForced: false,
+      directKillRequested: false, directExitObserved: false, pipeClosureForced: false, spawnObserved: false,
     };
     let bytes = 0, child, failure, settled = false, closed = false, outputTruncated = false;
-    let exitCode = null, exitSignal = null, deadline, idleDeadline, drainTimer, settlementTimer;
+    let exitCode = null, exitSignal = null, deadline, idleDeadline, drainTimer, settlementTimer, hardDeadlineAt, idleDeadlineAt;
     let stopTerminator = () => {};
     // Existing metadata calls retain their fixed default. Worker idle mode has
     // no total deadline unless the caller explicitly supplies one.
@@ -181,6 +183,7 @@ export function runProcess(executable, args, {
     const resetIdleDeadline = () => {
       clearTimeout(idleDeadline);
       if (child && (child.exitCode !== null || child.signalCode !== null)) return;
+      idleDeadlineAt = Date.now() + idleTimeoutMs;
       idleDeadline = setTimeout(() => stop(failureFor(
         `Peer produced no recognized model activity for ${Math.ceil(idleTimeoutMs / 1000)} seconds`, 'idle_timeout')), idleTimeoutMs);
     };
@@ -190,7 +193,7 @@ export function runProcess(executable, args, {
       if (!event || typeof event !== 'object' || Array.isArray(event)) return;
       let substantive;
       try { substantive = isActivity(event) === true; }
-      catch (error) { stop(failureFor('Peer activity observer failed', 'activity_observer_error', error)); return; }
+      catch { activity.observer_error ??= 'activity_observer_error'; return; }
       if (!substantive) return;
       activity.observed_events++;
       activity.last_activity_at = new Date().toISOString();
@@ -242,6 +245,7 @@ export function runProcess(executable, args, {
       if (timeoutMs === null || hardTimeoutMs !== null && (!Number.isFinite(hardTimeoutMs) || hardTimeoutMs <= 0)) throw new Error('timeoutMs must be a positive finite number');
       if (idleTimeoutMs !== undefined && (!Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0)) throw new Error('idleTimeoutMs must be a positive finite number');
       if (idleTimeoutMs !== undefined && typeof isActivity !== 'function') throw new Error('idleTimeoutMs requires an isActivity callback');
+      if (onSpawn !== undefined && typeof onSpawn !== 'function') throw new Error('onSpawn must be a synchronous function');
       const normalizedPath = filename => process.platform === 'win32' ? path.resolve(filename).toLowerCase() : path.resolve(filename);
       if (stdoutPath && stderrPath && normalizedPath(stdoutPath) === normalizedPath(stderrPath)) {
         throw new Error('stdoutPath and stderrPath must name different files');
@@ -268,11 +272,15 @@ export function runProcess(executable, args, {
         cwd, env, shell: false, windowsHide: true,
         detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'],
       });
+      termination.spawnObserved = Number.isSafeInteger(child.pid) && child.pid > 0;
       process.once('SIGINT', interrupt);
       process.once('SIGTERM', interrupt);
       abortSignal?.addEventListener('abort', abort, { once: true });
-      if (hardTimeoutMs !== null) deadline = setTimeout(() => stop(failureFor(
-        `Peer deadline exceeded (${Math.ceil(hardTimeoutMs / 1000)} seconds)`, 'timeout')), hardTimeoutMs);
+      if (hardTimeoutMs !== null) {
+        hardDeadlineAt = Date.now() + hardTimeoutMs;
+        deadline = setTimeout(() => stop(failureFor(
+          `Peer deadline exceeded (${Math.ceil(hardTimeoutMs / 1000)} seconds)`, 'timeout')), hardTimeoutMs);
+      }
       if (activity) resetIdleDeadline();
       child.stdout.on('data', data => capture('stdout', data));
       child.stderr.on('data', data => capture('stderr', data));
@@ -299,9 +307,30 @@ export function runProcess(executable, args, {
         if (failure && termination.method === 'taskkill' && termination.treeRequestSucceeded === null) return;
         finish();
       });
-      // Register all handlers before writing; a synchronous stdin error must
-      // still preserve diagnostics and enter bounded owned-process cleanup.
-      child.stdin.end(prompt);
+      child.once('spawn', () => {
+        if (settled || failure) return;
+        try {
+          if (!termination.spawnObserved) throw new Error('Spawned worker PID is unavailable');
+          const registration = onSpawn?.(child.pid);
+          if (registration && typeof registration.then === 'function') {
+            // Reject the unsupported contract without leaking a rejected
+            // callback promise into an unhandled-rejection process crash.
+            Promise.resolve(registration).catch(() => {});
+            throw new Error('onSpawn must complete synchronously before prompt delivery');
+          }
+        } catch (error) { stop(failureFor('Worker registration failed before prompt delivery', 'worker_registration_error', error)); return; }
+        if (abortSignal?.aborted) { abort(); return; }
+        if (hardDeadlineAt !== undefined && Date.now() >= hardDeadlineAt) {
+          stop(failureFor(`Peer deadline exceeded (${Math.ceil(hardTimeoutMs / 1000)} seconds)`, 'timeout')); return;
+        }
+        if (idleDeadlineAt !== undefined && Date.now() >= idleDeadlineAt) {
+          stop(failureFor(`Peer produced no recognized model activity for ${Math.ceil(idleTimeoutMs / 1000)} seconds`, 'idle_timeout')); return;
+        }
+        if (settled || failure) return;
+        // Handlers and durable caller registration precede all prompt delivery.
+        try { child.stdin.end(prompt); }
+        catch (error) { stop(failureFor(error.message, 'stdin_error', error)); }
+      });
     } catch (error) {
       stop(failureFor(error.message, child ? 'stdin_error' : 'spawn_error', error));
     }

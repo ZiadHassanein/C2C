@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { discoverExecutables, resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure } from '../scripts/adapters.mjs';
+import { discoverExecutables, resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure, peerNetworkFailure } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-adapters-test-'));
@@ -32,6 +32,47 @@ async function npmFixture(label, { layout = 'nested', arch = 'x64', subdir = 'bi
   return { prefix, shim, packageRoot, executable };
 }
 const windowsOptions = prefix => ({ platform: 'win32', arch: 'x64', env: { PATH: prefix }, home: root });
+
+test('connection envelopes and api_error_status have distinct diagnoses without reading successful prose', () => {
+  const failed = { code: 1, stdout: JSON.stringify({ type: 'result', is_error: true, result: 'API Error: Connection refused (ECONNREFUSED)' }) };
+  assert.equal(peerNetworkFailure('claude', failed).reason, 'network_error');
+  assert.match(peerNetworkFailure('claude', failed).message, /approved execution path/);
+  assert.equal(peerAuthenticationFailure('claude', failed), null);
+  assert.equal(peerUsageLimitFailure('claude', failed), null);
+  const apiError = { code: 1, stdout: JSON.stringify({ type: 'assistant', error: 'api_error', api_error_status: 401 }) };
+  assert.equal(peerAuthenticationFailure('claude', apiError).reason, 'authentication_error');
+  assert.equal(peerNetworkFailure('claude', { code: 0, stdout: JSON.stringify({ type:'result', subtype:'success', result:'Test ECONNREFUSED and connection error cases.' }) }), null);
+  assert.equal(peerNetworkFailure('codex', { code: 0, stdout: JSON.stringify({ type:'item.completed', item:{type:'agent_message',text:'ECONNRESET'}}) }), null);
+  assert.equal(peerNetworkFailure('codex', { code: 1, stdout: JSON.stringify({ type:'turn.failed', error:{message:'getaddrinfo ENOTFOUND'}}) }).reason, 'network_error');
+});
+
+test('Windows native Codex fallbacks follow PATH and never select a prerelease implicitly', async () => {
+  const home = await fs.mkdtemp(path.join(root, 'app-fallback-'));
+  const local = path.join(home, 'local');
+  const primary = await file(path.join(home, 'path', 'codex.exe'));
+  const stable = await file(path.join(home, '.codex', '.sandbox-bin', 'codex.exe'));
+  const alpha = await file(path.join(local, 'OpenAI', 'Codex', 'bin', '1234abcd', 'codex.exe'));
+  const env = { PATH:path.dirname(primary), LOCALAPPDATA:local };
+  const candidates = discoverExecutables('codex', { home, platform:'win32', env });
+  assert.deepEqual([...candidates], [primary, stable, alpha]);
+  const calls = [];
+  const run = async (exe,args) => {
+    calls.push([exe,args]);
+    if(args[0]==='--version')return {code:0,stdout:exe===alpha?'codex-cli 0.162.0-alpha.2':'codex-cli 0.160.1'};
+    throw new Error('A prerelease should be rejected before other checks');
+  };
+  const onlyAlpha = [alpha]; Object.defineProperty(onlyAlpha,'automaticFallbacks',{value:[alpha]});
+  await assert.rejects(()=>probeProvider('codex',home,{platform:'win32',env:{},discover:()=>onlyAlpha,run}), /prerelease.*COUNCIL_CODEX_BIN/s);
+  assert.equal(calls.length,1);
+  assert.deepEqual(discoverExecutables('codex',{home,platform:'win32',env:{...env,COUNCIL_CODEX_BIN:alpha}}),[alpha]);
+});
+
+test('advertised auxiliary tool and fast-mode controls are disabled, without inventing unsupported flags', () => {
+  const features = ['shell_tool','unified_exec','view_image','browser_use_external','fast_mode','in_app_local_automation'];
+  const args=buildCodexArgs({schemaPath:'schema.json',codexFeatures:features});
+  for(const feature of features)assert.ok(args.some((arg,index)=>arg==='--disable'&&args[index+1]===feature));
+  assert.ok(!args.includes('remote_plugin'));
+});
 
 test('Windows npm Codex resolves nested, hoisted, and bundled platform binaries without running a shim', async () => {
   for (const layout of ['nested', 'hoisted', 'bundled']) {

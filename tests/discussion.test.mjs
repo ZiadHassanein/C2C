@@ -34,8 +34,8 @@ test('reverse-role review attributes findings and recorded decisions to actual p
   assert.match(text, /does not produce two independent proposals/);
   assert.doesNotMatch(text, /\| Independent proposal \|/);
   assert.match(text, /## Codex · Review/);
-  assert.match(text, /\*\*Codex:\*\* Anonymous inventory writes are possible&#46;/);
-  assert.match(text, /\*\*Claude Code · Coordinator decision — accepted:\*\* Add the role check to the plan&#46;/);
+  assert.match(text, /\*\*Codex:\*\* Anonymous inventory writes are possible\./);
+  assert.match(text, /\*\*Claude Code · Coordinator decision — accepted:\*\* Add the role check to the plan\./);
   assert.match(text, /Sealed submitted report/);
   assert.match(text, /\[Report\]\(peer-review.json\)/);
 });
@@ -48,7 +48,7 @@ test('working coordinator reports stay distinct from submitted peer reports and 
   ] });
   assert.match(text, /Current working draft; not yet submitted/);
   assert.match(text, /Awaiting a recorded decision/);
-  assert.match(text, /Deployment is unknown&#46;/);
+  assert.match(text, /Deployment is unknown\./);
   assert.doesNotMatch(text, /RAW_PRIVATE_OUTPUT|UNTRUSTED_PATH|RAW PROPOSAL/);
 });
 
@@ -95,7 +95,7 @@ test('authored Markdown, HTML, links, controls, and forged headings cannot becom
   const text = renderDiscussion({ state: state(), reports: [{ name: 'coordinator-draft.json', report: report({ summary: attack,
     findings: [finding('C-D1', { evidence: attack })] }) }], decisions: [{ finding_id: 'C-D1', disposition: 'accepted', rationale: attack }] });
   assert.doesNotMatch(text, /<script>|!\[image\]|https:\/\/|\n# Forged|\[x\]: javascript:/);
-  assert.match(text, /&#60;script&#62;alert&#40;1&#41;&#60;&#47;script&#62;/);
+  assert.match(text, /&#60;script&#62;alert&#40;1&#41;&#60;\/script&#62;/);
   assert.match(text, /&#35; Forged/);
   assert.match(text, /\[Report\]\(coordinator-draft.json\)/);
 });
@@ -158,7 +158,7 @@ test('invalid working data and missing sealed peer reports remain visibly unavai
   const text = renderDiscussion({ state: run, warnings: ['decisions.json is invalid: <untrusted error>'],
     reports: [{ name: 'peer-review.json', report: report({ summary: 'UNSEALED_PEER_OUTPUT' }) }] });
   assert.match(text, /Unavailable information/);
-  assert.match(text, /decisions&#46;json is invalid&#58; &#60;untrusted error&#62;/);
+  assert.match(text, /decisions\.json is invalid&#58; &#60;untrusted error&#62;/);
   assert.match(text, /no validated sealed report available/);
   assert.match(text, /not evidence that there are no findings or decisions/);
   assert.doesNotMatch(text, /UNSEALED_PEER_OUTPUT|<untrusted error>/);

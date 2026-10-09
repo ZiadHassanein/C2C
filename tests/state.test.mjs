@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
-import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock, inspectProcess } from '../scripts/state.mjs';
+import { atomicWriteFile, readRunState, writeRunState, acquireRunLock, recoverRunLock, inspectProcess, assertWorkersStopped } from '../scripts/state.mjs';
 
 const parent = fs.realpathSync(os.tmpdir());
 const root = fs.mkdtempSync(path.join(parent, 'council-state-test-'));
@@ -32,6 +32,29 @@ test('atomic file publication preserves complete data and leaves no temporary fi
   atomicWriteFile(file, { second: true });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { second: true });
   assert.deepEqual(fs.readdirSync(dir), ['artifact.json']);
+});
+
+test('Windows transient rename retries publish atomically and preserve the original failure on exhaustion', () => {
+  const dir=fixture('rename-retry'), destination=path.join(dir,'value.txt');
+  fs.writeFileSync(destination,'old');
+  const rename=fs.renameSync;
+  const sleeps=[];
+  let calls=0;
+  const denied=Object.assign(new Error('synthetic sharing violation'),{code:'EPERM'});
+  try {
+    fs.renameSync=(...args)=>{if(++calls<=2)throw denied;return rename(...args);};
+    atomicWriteFile(destination,'new',{platform:'win32',wait:ms=>sleeps.push(ms)});
+    assert.deepEqual(sleeps,[20,40]);
+    assert.equal(fs.readFileSync(destination,'utf8'),'new');
+    calls=0;fs.renameSync=()=>{calls++;throw denied;};
+    assert.throws(()=>atomicWriteFile(destination,'discarded',{platform:'win32',wait:()=>{}}),error=>error===denied);
+    assert.equal(calls,4);
+    assert.equal(fs.readFileSync(destination,'utf8'),'new');
+    assert.deepEqual(fs.readdirSync(dir),['value.txt']);
+    calls=0;
+    assert.throws(()=>atomicWriteFile(destination,'discarded',{platform:'linux',wait:()=>{throw new Error('Must not wait');}}),error=>error===denied);
+    assert.equal(calls,1);
+  } finally {fs.renameSync=rename;}
 });
 
 test('durable manifests recover a reserved attempt and its seals after zero-filled run.json', () => {
@@ -148,6 +171,48 @@ test('corrupt legacy runs with no checkpoint fail clearly without inventing reco
 });
 
 const syntheticIdentity = pid => ({ status: 'alive', identity: `start-${pid}` });
+
+test('worker recovery guard refuses pending, invalid, alive and ambiguous registrations without changing history', () => {
+  for (const worker of [{ launch_pending: true }, null, {}, { pid: -1, identity: 'old' }, { pid: 123, identity: '' }, { pid: 123, identity: 'old' }]) {
+    for (const inspect of [() => ({ status: 'alive', identity: 'old' }), () => ({ status: 'alive', identity: null }), () => ({ status: 'unknown', identity: null }), () => { throw new Error('Denied'); }]) {
+      const manifest = state(); reserve(manifest); manifest.elapsed_ms = 7200;
+      manifest.attempts[0].worker_process = worker;
+      manifest.limit_history = [{ reason: 'Existing limit amendment' }];
+      const before = JSON.stringify(manifest);
+      assert.throws(() => assertWorkersStopped(manifest, { inspect }), error => ['worker_still_running', 'worker_cleanup_unconfirmed'].includes(error.reason));
+      assert.equal(JSON.stringify(manifest), before);
+    }
+  }
+});
+
+test('worker recovery guard permits dead or reused PIDs but also checks failed unreleased attempts', () => {
+  const manifest = { attempts: [{ number: 1, status: 'failed', worker_process: { pid: 123, identity: 'original-process' } }] };
+  assert.throws(() => assertWorkersStopped(manifest, { inspect: () => ({ status: 'alive', identity: 'original-process' }) }), error => error.reason === 'worker_still_running');
+  for (const observed of [{ status: 'dead', identity: null }, { status: 'alive', identity: 'different-process' }]) {
+    assert.doesNotThrow(() => assertWorkersStopped(manifest, { inspect: () => observed }));
+  }
+  assert.equal(manifest.attempts[0].status, 'failed');
+});
+
+test('released and untracked legacy workers require no synthetic liveness claim or inspection', () => {
+  const manifest = { attempts: [{ number: 1, status: 'running' }, { number: 2, status: 'succeeded', worker_process: { pid: 123, identity: 'old', released: true } }] };
+  const before = JSON.stringify(manifest);
+  assert.doesNotThrow(() => assertWorkersStopped(manifest, { inspect: () => assert.fail('No registered unresolved worker to inspect') }));
+  assert.equal(JSON.stringify(manifest), before);
+});
+
+test('Linux zombie and terminated proc states cannot execute a remaining worker call', { skip: process.platform !== 'linux' }, t => {
+  const original = fs.readFileSync;
+  for (const processState of ['Z', 'X']) {
+    const fields = [processState, ...Array(18).fill('0'), '123'];
+    const readFile = t.mock.method(fs, 'readFileSync', function (file, ...args) {
+      if (file === `/proc/${process.pid}/stat`) return `${process.pid} (fixture worker) ${fields.join(' ')}`;
+      return original.call(this, file, ...args);
+    });
+    try { assert.deepEqual(inspectProcess(process.pid), { status: 'dead', identity: null }); }
+    finally { readFile.mock.restore(); }
+  }
+});
 
 test('lock publication permission failures preserve existing ownership and recorded allowance', t => {
   for (const code of ['EACCES', 'EPERM', 'EROFS']) {

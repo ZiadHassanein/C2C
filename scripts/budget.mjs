@@ -37,6 +37,11 @@ export function prepareBudget(options) {
   else defaults.idle_timeout_ms = null;
   if (options['author-model'] && (options.mode ?? 'plan') === 'plan') defaults.max_attempts = 6;
   const limits = parsedLimits(options, defaults, policy);
+  // An explicit call deadline must not be shortened by an implicit silence
+  // allowance. An explicitly selected inactivity guard remains authoritative.
+  if (policy === 'activity' && options['idle-timeout-seconds'] === undefined && limits.timeout_ms !== null) {
+    limits.idle_timeout_ms = Math.max(limits.idle_timeout_ms, limits.timeout_ms);
+  }
   return { ...limits, timeout_policy: policy, budget_profile: profile, initial_limits: { ...limits }, limit_history: [] };
 }
 
@@ -85,7 +90,7 @@ export function budgetSummary(state) {
     attempts_remaining: attemptsRemaining,
     attempts_sufficient: running.length ? null : attemptsRemaining >= pending.length,
     attempts_sufficient_if_running_fails: running.length ? attemptsRemaining >= pending.length : null,
-    assessment: running.length ? 'running_attempt_recorded' : !pending.length ? 'stages_complete' : attemptsRemaining < pending.length ? 'insufficient_attempts' : availableMs !== null && availableMs < 1000 ? 'runtime_exhausted' : 'ready_for_next_attempt',
+    assessment: running.length ? 'running_attempt_recorded' : !pending.length ? 'stages_complete' : attemptsRemaining < pending.length ? 'insufficient_attempts' : availableMs !== null && availableMs < 10000 ? 'runtime_exhausted' : 'ready_for_next_attempt',
     peer_seconds_used: incomplete ? null : Math.round(state.elapsed_ms / 1000),
     peer_seconds_used_known: Math.round(state.elapsed_ms / 1000),
     runtime_accounting_incomplete: incomplete,
@@ -93,6 +98,9 @@ export function budgetSummary(state) {
     peer_seconds_available: availableMs === null ? null : Math.floor(availableMs / 1000),
     full_timeout_seconds_needed: seconds(fullTimeoutMs),
     full_timeout_headroom: availableMs === null || fullTimeoutMs === null ? null : availableMs >= fullTimeoutMs,
+    recovery_warning: state.timeout_policy === 'activity' && state.timeout_ms === null && state.budget_ms !== null
+      ? 'Without a per-call deadline, a call reserves all remaining cumulative runtime. If the runner exits before saving completion, recovery can consume that entire remaining allowance even if the worker ran for less time. This is conservative allowance accounting, not measured model runtime; preserve the interrupted attempt and resume only within an authorized extension.'
+      : null,
     recorded_running_attempts: running.map(attempt => attempt.number),
     limit_changes: state.limit_history?.length ?? 0,
     note: incomplete

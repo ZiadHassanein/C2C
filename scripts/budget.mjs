@@ -101,6 +101,9 @@ export function budgetSummary(state) {
     recovery_warning: state.timeout_policy === 'activity' && state.timeout_ms === null && state.budget_ms !== null
       ? 'Without a per-call deadline, a call reserves all remaining cumulative runtime. If the runner exits before saving completion, recovery can consume that entire remaining allowance even if the worker ran for less time. This is conservative allowance accounting, not measured model runtime; preserve the interrupted attempt and resume only within an authorized extension.'
       : null,
+    activity_visibility_note: state.timeout_policy === 'activity' && (state.peer === 'codex' || state.author_model && state.coordinator === 'codex')
+      ? 'Historical Codex CLI capture showed final output only; current-version mid-call activity is not established. If this worker stays silent until completion, the idle guard is the effective call deadline. For a long review, an authorized --idle-timeout-seconds value up to 3600 may help; it cannot guarantee completion or override hard caps.'
+      : null,
     recorded_running_attempts: running.map(attempt => attempt.number),
     limit_changes: state.limit_history?.length ?? 0,
     note: incomplete

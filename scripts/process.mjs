@@ -104,6 +104,8 @@ export function processEnvironment(inheritedEnv, { peer = false, platform = proc
  * that cap; calls without idle mode retain the legacy 30-second default.
  * onSpawn(pid), when supplied, must synchronously persist worker ownership
  * before returning. No prompt bytes or stdin EOF are sent before it completes.
+ * Returning false withholds stdin when the caller has observed an early exit;
+ * exit code/stderr still follow the normal process-exit path.
  * A timeout/abort can settle after forced pipe closure; this does not establish
  * that every descendant was killed. Detached descendants may escape the group.
  */
@@ -312,6 +314,11 @@ export function runProcess(executable, args, {
         try {
           if (!termination.spawnObserved) throw new Error('Spawned worker PID is unavailable');
           const registration = onSpawn?.(child.pid);
+          if (registration === false) {
+            termination.promptWithheld = true;
+            child.stdin.destroy();
+            return;
+          }
           if (registration && typeof registration.then === 'function') {
             // Reject the unsupported contract without leaking a rejected
             // callback promise into an unhandled-rejection process crash.

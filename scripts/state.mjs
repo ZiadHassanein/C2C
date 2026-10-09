@@ -177,7 +177,7 @@ export function assertWorkersStopped(state, { inspect = inspectProcess } = {}) {
     if (!Object.hasOwn(attempt, 'worker_process')) continue;
     const worker = attempt.worker_process;
     if (worker?.released === true) continue;
-    const blocked = (reason, message) => { throw Object.assign(new Error(`${message} Preserve this run and its attempts; do not launch another worker or reset its state. Inspect the recorded worker through the host's approved process tools. No process was terminated by this check.`), { reason }); };
+    const blocked = (reason, message) => { throw Object.assign(new Error(`${message} Preserve this run and its attempts; do not launch another worker or reset its state. ${Number.isSafeInteger(worker?.pid) && worker.pid > 0 ? "Inspect the recorded worker through the host's approved process tools." : 'No durable worker PID is available to inspect; normal recovery cannot continue this run. Deliver a provisional checkpoint.'} No process was terminated by this check.`), { reason }); };
     if (!worker || typeof worker !== 'object' || Array.isArray(worker) || worker.launch_pending === true ||
         !Number.isSafeInteger(worker.pid) || worker.pid <= 0 || typeof worker.identity !== 'string' || !worker.identity) {
       blocked('worker_cleanup_unconfirmed', 'Previous worker launch or ownership is unresolved.');

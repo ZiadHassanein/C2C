@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { processEnvironment, runProcess } from '../scripts/process.mjs';
 import { assertWorkersStopped, inspectProcess } from '../scripts/state.mjs';
+import { createActivityObserver } from '../scripts/progress.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-process-tests-'));
@@ -162,6 +163,17 @@ test('successful calls return stdout, stderr and exit status while streaming fil
 
 const contentActivity = event => event.type === 'delta' && typeof event.text === 'string' && event.text.length > 0;
 
+test('a final-only captured Codex stream cannot renew idle before its delayed answer', async () => {
+  const events = (await fs.readFile(new URL('./fixtures/activity-codex-0.160.1.jsonl', import.meta.url), 'utf8')).trim().split(/\r?\n/).map(JSON.parse);
+  const initial = events.slice(0, 3).map(JSON.stringify).join('\n') + '\n';
+  const final = events.slice(3).map(JSON.stringify).join('\n') + '\n';
+  const error = await rejection(node(`process.stdout.write(${JSON.stringify(initial)});setTimeout(()=>process.stdout.write(${JSON.stringify(final)}),5000);`, {
+    idleTimeoutMs: 2000, isActivity: createActivityObserver('codex'),
+  }));
+  assert.equal(error.reason, 'idle_timeout');
+  assert.equal(error.activity.observed_events, 0);
+});
+
 test('substantive streamed activity keeps an idle-guarded worker alive beyond its idle interval', async () => {
   const started = Date.now();
   const result = await node(`let n=0;const emit=()=>console.log(JSON.stringify({type:'delta',text:'part '+(++n)}));emit();const timer=setInterval(()=>{emit();if(n===5)clearInterval(timer);},500);`, {
@@ -261,6 +273,16 @@ test('spawn registration completes before any prompt bytes or EOF reach the work
   assert.equal(result.code, 0);
   assert.equal(result.stdout, 'synthetic review input');
   assert.equal(result.termination.spawnObserved, true);
+});
+
+test('an early-exit registration outcome preserves exit diagnostics and withholds the prompt', async () => {
+  const result = await node("process.stderr.write('unsupported argument');process.exit(2);", {
+    prompt: 'must not be delivered', timeoutMs: 3000, onSpawn: () => false,
+  });
+  assert.equal(result.code, 2);
+  assert.equal(result.stderr, 'unsupported argument');
+  assert.equal(result.termination.promptWithheld, true);
+  assert.equal(result.termination.directExitObserved, true);
 });
 
 test('failed or asynchronous spawn registration withholds prompt delivery and cleans up', async () => {

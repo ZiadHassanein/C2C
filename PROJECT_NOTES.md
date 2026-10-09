@@ -1,6 +1,6 @@
 # Project notes and continuation guide
 
-Last updated: 2026-10-08. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
+Last updated: 2026-10-09. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
 
 ## Objective and current status
 
@@ -37,6 +37,10 @@ The user explicitly requested suitability for both small features and big-projec
 ## Decisions and reasons
 
 ### Version 2.1.0: wait for active reviews and distinguish launch barriers
+
+Verification refinements add an inert-child identity preflight before reserving an attempt, ordinary diagnostics for a worker already dead at registration, bracket-prefixed diagnostic tolerance and explicit conditional Codex silence warnings. Ambiguous no-PID registrations have a documented terminal/provisional outcome, not an automatic state override. CI now lists platform skips and requires essential registration/recovery tests to execute; releases must tag the exact green SHA through fast-forward or separately validated merge. Native cache discovery uses first compatible stable order, trusts configured installation locations like PATH, and does not claim an ACL/signature audit.
+
+The final local suite passed 407 tests: 398 passed, nine platform skips, zero failures; the new required-test gate passed on Windows. Final-source metadata checks found both installed CLIs ready with successful child-identity inspection in this host; no model call was used. Real Claude review and verification ran on the earlier pinned candidate, so they do not establish a final-source live exchange or behavior from a separate Claude host. The bounded final-revision check reviews selected source, not the full repository. Preserve those coverage limits; use the first ordinary authorized run as a canary and managed rollback for confirmed regressions, without buying credits or launching an extra paid test. Exact-revision native CI remains a release gate; its per-platform summaries distinguish skipped cases from passes.
 
 The follow-up reliability review led to versioned CLI diagnostics, stable native Windows Codex fallbacks, explicit unsupported Claude-shim guidance, network-error classification including Claude API status metadata, and broader advertised auxiliary-tool/fast-mode controls. Unknown enabled features are reported rather than assumed harmless. Harmless stream prose and descriptive path citations are accepted while malformed JSON, fatal errors, missing verification content, unsafe file selection and unexpected model fallback still fail. A published Max model name and Claude's documented context label no longer cause false identity rejections; raw model metadata is preserved.
 

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { discoverExecutables, resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure, peerNetworkFailure } from '../scripts/adapters.mjs';
+import { discoverExecutables, resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure, peerNetworkFailure, checkWorkerIdentity } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-adapters-test-'));
@@ -32,6 +32,13 @@ async function npmFixture(label, { layout = 'nested', arch = 'x64', subdir = 'bi
   return { prefix, shim, packageRoot, executable };
 }
 const windowsOptions = prefix => ({ platform: 'win32', arch: 'x64', env: { PATH: prefix }, home: root });
+
+test('owned child identity preflight rejects unavailable inspection without sending input', async () => {
+  for (const inspect of [() => ({ status: 'alive', identity: null }), () => { throw new Error('Denied'); }]) {
+    await assert.rejects(() => checkWorkerIdentity(root, { inspect }), error => error.reason === 'worker_registration_error' && error.termination.spawnObserved === true);
+  }
+  await checkWorkerIdentity(root);
+});
 
 test('connection envelopes and api_error_status have distinct diagnoses without reading successful prose', () => {
   const failed = { code: 1, stdout: JSON.stringify({ type: 'result', is_error: true, result: 'API Error: Connection refused (ECONNREFUSED)' }) };
@@ -65,6 +72,23 @@ test('Windows native Codex fallbacks follow PATH and never select a prerelease i
   await assert.rejects(()=>probeProvider('codex',home,{platform:'win32',env:{},discover:()=>onlyAlpha,run}), /prerelease.*COUNCIL_CODEX_BIN/s);
   assert.equal(calls.length,1);
   assert.deepEqual(discoverExecutables('codex',{home,platform:'win32',env:{...env,COUNCIL_CODEX_BIN:alpha}}),[alpha]);
+});
+
+test('automatic fallback continues after an unsupported prerelease without switching after authentication', async () => {
+  const candidates = ['alpha.exe', 'stable.exe'];
+  Object.defineProperty(candidates, 'automaticFallbacks', { value: candidates });
+  const result = await probeProvider('codex', root, { env: {}, platform: 'win32', discover: () => candidates, identityCheck: async () => {},
+    run: async (exe, args) => {
+      if (args[0] === '--version') return { code: 0, stdout: exe === 'alpha.exe' ? 'codex-cli 0.162.0-alpha.2' : 'codex-cli 0.160.1' };
+      assert.equal(exe, 'stable.exe');
+      if (args.includes('--help')) return { code: 0, stdout: '--ignore-user-config --output-schema --sandbox --ephemeral --disable --skip-git-repo-check --json --color' };
+      if (args[0] === 'features') return { code: 0, stdout: CODEX_DISABLED_FEATURES.map(name => `${name} stable true`).join('\n') };
+      assert.deepEqual(args, ['login', 'status']);
+      return { code: 0, stdout: 'Logged in using ChatGPT', stderr: '' };
+    },
+  });
+  assert.equal(result.executable, 'stable.exe');
+  assert.equal(result.candidate_checks[0].reason, 'cli_incompatible');
 });
 
 test('advertised auxiliary tool and fast-mode controls are disabled, without inventing unsupported flags', () => {

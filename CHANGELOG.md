@@ -4,6 +4,10 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 
 ## 2.1.0 — Wait for active reviews and clarify launch checks
 
+- Checks host process-identity inspection with an inert local child before reserving a planning attempt. Preserves the ordinary exit diagnostics of an already-exited worker. CI publishes per-platform skips and requires essential registration/recovery tests to execute successfully.
+- Coverage: real Claude review/verification exercised an earlier pinned 2.1 candidate. The final launch refinements have offline/process tests and metadata preflight, not a completed final-source live exchange. Peer verification covers supplied excerpts, not every source file. First ordinary authorized use is the canary; unexpected `worker_registration_error`, `worker_identity_unavailable`, CLI argument/schema rejection or `cli_incompatible` requires inspection and, for a confirmed release regression, rollback to the retained managed backup. Do not start an extra paid call to fill this gap.
+- Captured Codex 0.160.1 output was final-only; current intermediate activity is unverified. For a silent worker the idle guard is the effective call deadline. Long reviews can use an authorized `--idle-timeout-seconds` up to 3600; this does not guarantee completion or override hard caps.
+
 - New format 7 runs use activity-based waiting: recognized advancing model output renews a 10-minute standard or 20-minute project inactivity guard. There is no fixed call/total deadline by default. Attempts, cancellation, provider failures/limits and output bounds remain enforced.
 - Explicit call/total time caps still apply during activity. `--timeout-policy fixed` keeps the earlier profile deadlines; pinned older runs keep their original code and policy. No silent migration or new run just to escape a timeout.
 - Supports idle-guard adjustments and audited increases to existing numeric limits on the same run. Interrupted uncapped runtime remains unknown with a known lower bound; finite reservations are charged conservatively. These are not spending controls or performance guarantees.

@@ -310,7 +310,7 @@ function writeHandoff(dir, state) {
     'Peer runtime used: ' + runtimeUsedText(budget) + '; cumulative cap: ' + secondsText(budget.budget_seconds) + '.', '',
     `Budget profile: ${budget.profile}; per-call timeout: ${secondsText(budget.timeout_seconds)}; inactivity guard: ${secondsText(budget.idle_seconds)}; recorded limit changes: ${budget.limit_changes}.`,
     `Pending peer stages: ${budget.successful_calls_remaining}; attempts remaining: ${budget.attempts_remaining}; full-timeout headroom: ${budget.full_timeout_headroom === null ? 'not applicable without fixed caps' : budget.full_timeout_headroom ? 'available' : 'short'}.`,
-    budget.note, '',
+    budget.note, ...(budget.activity_visibility_note ? [budget.activity_visibility_note] : []), '',
     ...stages.map(stage => '- ' + stage + ': ' + (state.stages[stage]?.status || 'pending')),
     '', 'Next: ' + (state.status === 'complete' ? 'Read RESULT.md and preserve unresolved findings and post-verification changes.' : providerAdvice ?? (!budget.attempts_sufficient && !budget.recorded_running_attempts.length ? 'The remaining attempts cannot cover the pending stages. Inspect the failure and use extend within authorized limits; preserve this run and all earlier attempts.' : next ? 'Prepare the required coordinator artifacts, inspect saved evidence, then request the ' + next + ' stage if authorized and within the remaining budget.' : 'Address verification findings, complete decisions.json, then run finish.')),
     latest?.error ? 'Last attempt: ' + latest.status + '. ' + latest.error : '', '',
@@ -367,7 +367,7 @@ function parseStreamEvents(stdout) {
     catch {
       // Diagnostic prose is not a report. A broken JSON record could conceal
       // a terminal error and must not be discarded as harmless formatting.
-      required(!/^[{[]/.test(line), 'Peer stream contains a malformed JSON record');
+      required(!/^\{/.test(line), 'Peer stream contains a malformed JSON record');
       return [];
     }
     return event && typeof event === 'object' && !Array.isArray(event) ? [event] : [];
@@ -724,6 +724,11 @@ export async function ask(options, injectedInvoker, { probe } = {}) {
           idleTimeoutMs: attempt.idle_timeout_ms ?? undefined, isActivity: attempt.idle_timeout_ms ? createActivityObserver(worker.provider) : undefined,
           peer: true, stdoutPath, stderrPath, onSpawn(pid) {
             const owner = inspectProcess(pid);
+            if (owner.status === 'dead') {
+              attempt.worker_process = { pid, released: true };
+              saveRun(dir, state);
+              return false; // Preserve the real fast-exit diagnostic; no prompt.
+            }
             required(owner.status === 'alive' && typeof owner.identity === 'string' && owner.identity,
               'Worker process identity could not be established before prompt delivery; preserve this attempt and inspect cleanup before retrying');
             attempt.worker_process = { pid, identity: owner.identity };

@@ -113,6 +113,7 @@ test('stream parsing tolerates diagnostic prose but preserves malformed records,
   for(const provider of ['claude','codex']) {
     const result=await invocation()({provider});
     assert.equal(parsePeerResponse(provider,`Native CLI diagnostic\n${result.stdout}\nDone logging.`).report.summary, 'A useful report');
+    assert.equal(parsePeerResponse(provider,`[WARN] diagnostic\n${result.stdout}\n[1,2]`).report.summary, 'A useful report');
     assert.throws(()=>parsePeerResponse(provider,`${result.stdout}\n{"type":"error",`),/malformed JSON/);
   }
   const success=(await invocation()({provider:'codex'})).stdout;
@@ -2160,7 +2161,7 @@ test('an incompatible peer executable fails preflight without consuming an attem
   }
 });
 
-async function offlinePreflight(available, { signedOut = [], incompatible = [] } = {}) {
+async function offlinePreflight(available, { signedOut = [], incompatible = [], identityCheck } = {}) {
   const home = await fs.mkdtemp(path.join(testRoot, 'offline-cli-'));
   for (const provider of available) await write(path.join(home, `${provider}.exe`), 'Metadata fixture; never executed');
   const calls = [];
@@ -2170,6 +2171,7 @@ async function offlinePreflight(available, { signedOut = [], incompatible = [] }
     probe: async (provider, cwd) => {
       providers.push(provider);
       return probeProvider(provider, cwd, {
+        identityCheck,
         resolve: name => resolveExecutable(name, { platform: 'win32', env: { PATH: home }, home }),
         run: async (executable, args) => {
           assert.equal(executable, path.join(home, `${provider}.exe`));
@@ -2229,6 +2231,19 @@ test('doctor distinguishes incompatible CLI controls and unavailable login witho
   ]);
   for (const field of ['codex_chat_ready', 'claude_chat_ready', 'codex_only_ready', 'claude_only_ready']) assert.equal(result[field], false);
   assert.equal(fixture.calls.some(call => call.provider === 'codex' && call.args[0] === 'login'), false);
+});
+
+test('doctor and ask reject identity preflight failure before reserving an attempt', async () => {
+  const checks = await offlinePreflight(['codex', 'claude'], { identityCheck: async () => { throw new Error('Inspection unavailable'); } });
+  const diagnostic = await doctor({}, checks);
+  assert.deepEqual(diagnostic.providers.map(provider => provider.reason), ['worker_identity_unavailable', 'worker_identity_unavailable']);
+  for (const coordinator of ['codex', 'claude']) {
+    const f = await fixture(`identity-${coordinator}`, { coordinator });
+    await hostDraft(f);
+    const before = await fs.readFile(path.join(f.out, 'run.json'));
+    await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, () => assert.fail('No worker call is authorized'), checks), error => error.reason === 'worker_identity_unavailable');
+    assert.deepEqual(await fs.readFile(path.join(f.out, 'run.json')), before);
+  }
 });
 
 test('missing, incompatible and inaccessible-login peers consume no attempt or model call in either direction', async () => {

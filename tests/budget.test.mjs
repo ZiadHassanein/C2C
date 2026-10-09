@@ -10,6 +10,30 @@ const state = options => {
 };
 const at = '2026-10-07T12:00:00.000Z';
 
+test('Codex activity visibility note distinguishes historical silence from current unknowns', () => {
+  const note = budgetSummary({ ...activeState(), peer: 'codex' }).activity_visibility_note;
+  assert.match(note, /current-version mid-call activity is not established/);
+  assert.match(note, /effective call deadline/);
+  assert.match(note, /up to 3600/);
+  assert.equal(budgetSummary({ ...activeState(), peer: 'claude' }).activity_visibility_note, null);
+});
+
+test('total-only recovery at normal and maximum caps preserves the reservation basis and extension ceiling', () => {
+  for (const cap of [1800, 3600]) {
+    const run = activeState({ 'budget-seconds': cap });
+    assert.match(budgetSummary(run).recovery_warning, /not measured model runtime/);
+    run.attempts = [{ number: 1, status: 'running', timeout_ms: cap * 1000 }];
+    recoverInterruptedAttempts(run, at);
+    assert.equal(run.elapsed_ms, cap * 1000);
+    assert.equal(budgetSummary(run).assessment, 'runtime_exhausted');
+    assert.equal(run.attempts[0].runtime_charge_basis, 'reserved_timeout_after_interruption');
+    if (cap === 1800) {
+      extendBudget(run, { 'budget-seconds': 3600, reason: 'Authorized test extension' }, at);
+      assert.equal(budgetSummary(run).peer_seconds_available, 1800);
+    } else assert.throws(() => extendBudget(run, { 'budget-seconds': 3601, reason: 'Beyond ceiling' }, at));
+  }
+});
+
 test('activity profiles avoid implicit hard deadlines while explicit caps remain authoritative', () => {
   assert.deepEqual(prepareBudget({}).initial_limits, { timeout_ms: null, budget_ms: null, max_attempts: 4, idle_timeout_ms: 600000 });
   assert.deepEqual(prepareBudget({ 'budget-profile': 'project' }).initial_limits, { timeout_ms: null, budget_ms: null, max_attempts: 5, idle_timeout_ms: 1200000 });

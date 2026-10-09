@@ -387,6 +387,10 @@ The coordinating AI keeps the runner in a supported background command session a
 
 Advanced `prepare` options: `--idle-timeout-seconds 60..3600` adjusts the activity guard. `--timeout-seconds 10..900` and `--budget-seconds 10..3600` set hard call/total caps that activity cannot override. Use actual numbers, not these range expressions. `--timeout-policy fixed` restores the older standard 5-minute call/15-minute total or project 10-minute call/40-minute total defaults. Older pinned runs keep their original policy; an update does not change them.
 
+The captured Codex 0.160.1 output had no intermediate activity; current-version behavior is unverified. If a worker stays silent until its final answer, the inactivity guard becomes its effective call deadline. For long Codex reviews, an authorized `--idle-timeout-seconds 3600` allows up to an hour of silence. It does not guarantee completion or change explicit hard caps.
+
+`worker_identity_unavailable` means the host could not inspect an inert local child during preflight; no planning attempt was reserved. Use the host-approved execution path or keep a provisional plan. Native fallback discovery trusts local installations under the configured user/app directories, like PATH discovery; it is not a signature or directory-permission audit. Selection uses the first compatible stable fallback, not the highest version. Use `COUNCIL_CODEX_BIN` to select an approved exact binary.
+
 An explicit call cap raises the default idle allowance to at least that cap unless you also choose an idle setting. A total cap without a call cap has a recovery tradeoff: a crash can conservatively consume all remaining reserved time. C2C warns about this at preparation; it does not claim that time was measured or refund it from file timestamps.
 
 For an existing incomplete run, ask:

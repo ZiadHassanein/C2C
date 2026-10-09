@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
 import { runProcess } from './process.mjs';
+import { inspectProcess } from './state.mjs';
 
 const required = (ok, message) => { if (!ok) throw new Error(message); };
 const isFile = filename => { try { return fs.statSync(filename).isFile(); } catch { return false; } };
@@ -255,10 +256,24 @@ export function peerNetworkFailure(provider, { code, stdout = '', stderr = '' } 
   return failed ? { reason: 'network_error', message: networkFailureGuidance(provider) } : null;
 }
 
-// Only metadata and authentication-status commands run here, never a model turn.
+// An inert owned child waits for stdin, so fast metadata-command exits cannot
+// race this inspection. Use the same identity mechanism as real registration.
+export async function checkWorkerIdentity(cwd, { run = runProcess, inspect = inspectProcess, env = process.env } = {}) {
+  let observed = false;
+  const result = await run(process.execPath, ['-e', 'process.stdin.resume();process.stdin.on("end",()=>process.exit(0));'], {
+    cwd, env, peer: true, timeoutMs: 10000, onSpawn(pid) {
+      const owner = inspect(pid);
+      required(owner.status === 'alive' && typeof owner.identity === 'string' && owner.identity, 'Owned child identity is unavailable');
+      observed = true;
+    },
+  });
+  required(observed && result.code === 0, 'Owned child identity check did not complete');
+}
+
+// Only inert local, metadata and authentication-status commands run here, never a model turn.
 // doctor and ask share this preflight; ask must call it before reserving an attempt.
 export async function probeProvider(provider, cwd, { run = runProcess, resolve, discover = discoverExecutables,
-  env = process.env, platform = process.platform } = {}) {
+  env = process.env, platform = process.platform, identityCheck = checkWorkerIdentity } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
   let candidates;
   try { candidates = resolve ? [resolve(provider)] : discover(provider, { env, platform }); }
@@ -316,6 +331,11 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
       throw error;
     }
   }
+  try { await identityCheck(cwd, { env }); }
+  catch {
+    throw Object.assign(providerSetupError(provider, 'worker_identity_unavailable',
+      'The host cannot establish a spawned worker process identity. No model turn or planning attempt was reserved. Use the host-approved execution path or preserve a provisional plan; do not weaken recovery checks.'), { executable, version, candidate_checks: candidateChecks });
+  }
   let auth;
   try { auth = await run(executable, provider === 'codex' ? ['login', 'status'] : ['auth', 'status'], { cwd, timeoutMs: 15000, peer: true, env }); }
   catch { auth = { code: null, stdout: '', stderr: '' }; }
@@ -349,7 +369,7 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
   }
   candidateChecks.push({ executable, version, setup_status: authenticated ? 'ready' : 'unavailable', ...(!authenticated ? { reason: 'login_unavailable' } : {}) });
   return {
-    provider, executable, version, authenticated, candidate_checks: candidateChecks,
+    provider, executable, version, authenticated, candidate_checks: candidateChecks, worker_identity_check: 'passed',
     setup_status: authenticated ? 'ready' : 'unavailable',
     ...(!authenticated ? { reason: 'login_unavailable', guidance: providerSetupGuidance(provider) } : {}),
     auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,

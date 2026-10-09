@@ -8,6 +8,7 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 - Replaces repeated report detail with source-linked concern/proposal/decision excerpts. Every finding ID, disposition and superseding reference remains visible; full reports and decisions are unchanged.
 - Moves review limitations above the discussion, groups operational progress, and links the plan only when its file exists. Shortening this derived view adds no model calls and is not a claim of planning-token savings.
 - Existing runs retain their original pinned runtime and instructions; new plans use this release.
+- Windows startup preflight rechecks a missing identity once for its still-live inert child, then blocks if identity remains unavailable. This bounded metadata check sends no prompt and does not retry a model call.
 
 ## 2.1.2 — Deliver the revised plan
 

@@ -40,6 +40,28 @@ test('owned child identity preflight rejects unavailable inspection without send
   await checkWorkerIdentity(root);
 });
 
+test('Windows identity preflight rechecks one transient unavailable identity before releasing the inert child', async () => {
+  const pids = [];
+  await checkWorkerIdentity(root, { platform: 'win32', inspect(pid) {
+    pids.push(pid);
+    return pids.length === 1 ? { status: 'alive', identity: null } : { status: 'alive', identity: 'fixture-identity' };
+  } });
+  assert.equal(pids.length, 2);
+  assert.ok(Number.isSafeInteger(pids[0]) && pids[0] > 0);
+  assert.equal(pids[0], pids[1], 'Recheck the same owned child, never launch a replacement');
+});
+
+test('identity preflight never retries dead or unknown processes and persistent missing identity still blocks', async () => {
+  for (const [platform, status, expectedCalls] of [['win32', 'alive', 2], ['win32', 'dead', 1], ['win32', 'unknown', 1], ['linux', 'alive', 1]]) {
+    let calls = 0;
+    await assert.rejects(() => checkWorkerIdentity(root, { platform, inspect() {
+      calls++;
+      return { status, identity: null };
+    } }), error => error.reason === 'worker_registration_error' && error.termination.spawnObserved === true);
+    assert.equal(calls, expectedCalls, `${platform}/${status}`);
+  }
+});
+
 test('connection envelopes and api_error_status have distinct diagnoses without reading successful prose', () => {
   const failed = { code: 1, stdout: JSON.stringify({ type: 'result', is_error: true, result: 'API Error: Connection refused (ECONNREFUSED)' }) };
   assert.equal(peerNetworkFailure('claude', failed).reason, 'network_error');

@@ -258,11 +258,15 @@ export function peerNetworkFailure(provider, { code, stdout = '', stderr = '' } 
 
 // An inert owned child waits for stdin, so fast metadata-command exits cannot
 // race this inspection. Use the same identity mechanism as real registration.
-export async function checkWorkerIdentity(cwd, { run = runProcess, inspect = inspectProcess, env = process.env } = {}) {
+export async function checkWorkerIdentity(cwd, { run = runProcess, inspect = inspectProcess, env = process.env, platform = process.platform } = {}) {
   let observed = false;
   const result = await run(process.execPath, ['-e', 'process.stdin.resume();process.stdin.on("end",()=>process.exit(0));'], {
-    cwd, env, peer: true, timeoutMs: 10000, onSpawn(pid) {
-      const owner = inspect(pid);
+    cwd, env, peer: true, timeoutMs: platform === 'win32' ? 15000 : 10000, onSpawn(pid) {
+      let owner = inspect(pid);
+      // Cold Windows PowerShell startup can exhaust the bounded inspection.
+      // Recheck only this owned inert child, once, before stdin/EOF delivery.
+      // A second missing identity still fails closed; no model call is retried.
+      if (platform === 'win32' && owner.status === 'alive' && owner.identity === null) owner = inspect(pid);
       required(owner.status === 'alive' && typeof owner.identity === 'string' && owner.identity, 'Owned child identity is unavailable');
       observed = true;
     },

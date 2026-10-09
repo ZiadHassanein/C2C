@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.1.3 — Compact discussion, complete revised plan
+
+- Keeps the revised plan and discussion separate. Verification explicitly checks that adopted fixes are integrated into the plan's operative steps, preserving critique-only requests.
+- Replaces repeated report detail with source-linked concern/proposal/decision excerpts. Every finding ID, disposition and superseding reference remains visible; full reports and decisions are unchanged.
+- Moves review limitations above the discussion, groups operational progress, and links the plan only when its file exists. Shortening this derived view adds no model calls and is not a claim of planning-token savings.
+- Existing runs retain their original pinned runtime and instructions; new plans use this release.
+
 ## 2.1.2 — Deliver the revised plan
 
 - Reviewing an existing plan delivers a revised version with accepted fixes incorporated into its steps and checks. The discussion and change summary support that deliverable.

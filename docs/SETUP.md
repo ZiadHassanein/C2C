@@ -17,14 +17,14 @@ Use this page when you need help with installation, updating, or a failed setup 
 With [Node.js 18+ and npm/npx](https://nodejs.org/en/download), run in PowerShell on Windows or Terminal on macOS/Linux:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz install
 ```
 
 This downloads the named C2C release and runs its setup helper. It needs no Git, npm account or global package installation. Both apps receive the skill for your current user; start a new chat afterward. It does not install the provider CLIs, create accounts or sign in. [Optional CLI setup](../README.md#1-prepare-your-tools) is separate.
 
 Append `--dry-run` to `install`, `update` or `uninstall` to inspect the selected paths and planned changes without changing skill installations. The surrounding `npx` command can still download files into npm's cache. `--target codex`, `--target claude` or `--target both` selects the apps; `both` is the default.
 
-The launcher is pinned to **v2.1.2**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
+The launcher is pinned to **v2.1.3**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
 
 <details>
 <summary>Install from a Git clone or downloaded ZIP</summary>
@@ -38,7 +38,7 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-Without Git, [download the v2.1.2 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
+Without Git, [download the v2.1.3 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
 
 `node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `check-update`, `update`, `uninstall`, `doctor`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
 
@@ -49,11 +49,11 @@ Without Git, [download the v2.1.2 ZIP](https://github.com/ZiadHassanein/C2C/arch
 The default installer adds the skill to both apps. To choose one, run **one** of these instead:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz install --target codex
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz install --target codex
 ```
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz install --target claude
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz install --target claude
 ```
 
 This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI, whether selected automatically or requested. Missing unused CLIs do not block a valid route. See [routing and provisional planning](../references/protocol.md#planning-with-unavailable-tools).
@@ -100,7 +100,7 @@ Store run folders on a local filesystem supporting hard links and atomic renames
 From any folder with npm/npx available:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz doctor
 ```
 
 Or open a terminal in your cloned/extracted C2C folder and run:
@@ -139,7 +139,7 @@ An inaccessible or expired login leaves that worker unavailable. C2C follows its
 **In chat:** say “Update C2C and keep this plan on its current version.” The AI checks the active run before updating. For a direct terminal update:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz update
 ```
 
 This discovers the latest stable tag in the official C2C repository. Append `--target codex` or `--target claude` for one app, or `--dry-run` to preview. During a prepared run, include `--run "/absolute/path/to/run"` so its retained runtime is checked first. Changed installations are protected. An identical installation needs no replacement. Start a new chat to use the updated instructions for a new plan.
@@ -216,7 +216,7 @@ Downloading updates alone does not update installed copies. Matching content, in
 **Finish or stop active C2C runs first.** Removing the skill does not stop a worker that is already running. Then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz uninstall
 ```
 
 The command moves unchanged managed C2C folders out of skill discovery into recoverable backups. It protects customized, unrecognized or linked files instead of deleting them. A missing target is a no-op. It leaves parent settings, other skills, apps, logins, and projects/plans saved elsewhere untouched. Start a new chat in each affected app; an existing chat may still contain previously loaded instructions.
@@ -224,7 +224,7 @@ The command moves unchanged managed C2C folders out of skill discovery into reco
 Preview first, without changing skill installations:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz uninstall --dry-run
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz uninstall --dry-run
 ```
 
 Add `--target codex` or `--target claude` to remove the skill from only one app. Keep the printed rollback command to restore it; rollback protects any installation added or changed afterward. For an interrupted operation, use its printed recovery guidance. [Transaction recovery](#update-the-skill) also applies to managed removal.
@@ -238,7 +238,7 @@ From a downloaded/cloned C2C folder:
 node scripts/setup.mjs uninstall
 ```
 
-This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.1.2 installed copy also contains the helper. For example, with default paths:
+This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.1.3 installed copy also contains the helper. For example, with default paths:
 
 PowerShell on Windows:
 
@@ -278,13 +278,13 @@ Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans
 If PowerShell blocks `npx.ps1`, use `npx.cmd` in the same command. No execution-policy change is needed:
 
 ```powershell
-npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz install
+npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz install
 ```
 
 If npm 12 rejects the remote package URL, permit it for this command only:
 
 ```sh
-npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.tar.gz install
+npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.tar.gz install
 ```
 
 This follows npm's [remote URL setting](https://docs.npmjs.com/cli/v12/using-npm/config/#allow-remote); do not change global npm policy. Keep the exact release URL and replace the final action with `update`, `uninstall` or `doctor` as needed. On Windows, the `npx.cmd` form can also include this option. If npm/npx is unavailable or your environment disallows remote packages, use the local Git/ZIP method instead.
@@ -312,7 +312,7 @@ Exact versioned IDs distinguish participants; different effort, alias, or contex
 
 The generated `DISCUSSION.md` is the default place to follow the discussion. C2C links it at the start, keeps chat focused on questions, blockers and necessary progress, then gives a short final decision brief with the plan and discussion links. Ask “show the main disagreements and plan changes as you go” if you also want live chat summaries. Quiet/final-only requests are honored within the host app's requirements. The AI handles the runner commands for you.
 
-The file identifies each agent's submitted points, the coordinator's decisions, and unresolved questions. It updates at saved transitions, not on every output token; a pending call is not a completed review. C2C does not invent dialogue or stream private reasoning. [Call counts](#usage-and-privacy) depend on whether the selected author runs in the current chat or in the background.
+The file uses compact concern/proposed-change/decision rows. Every finding ID and disposition remains visible; an ellipsis marks an excerpt, with full evidence and replies in linked reports and `decisions.json`. Review status and missing evidence stay prominent. It updates at saved transitions, not on every output token; a pending call is not a completed review. `final-plan.md` remains the separate, usable revised plan. C2C does not invent dialogue or stream private reasoning. [Call counts](#usage-and-privacy) depend on whether the selected author runs in the current chat or in the background.
 
 Open the run's generated `DISCUSSION.md` to read the evidence-backed account. It stays local and is excluded from peer inputs. To refresh it after local report or decision edits, ask the AI to refresh the discussion. For manual inspection from the repository folder:
 
@@ -358,7 +358,7 @@ Every new council plan includes a security review and relevant test checks. The 
 |---|---|
 | `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `npx` is missing, PowerShell blocks it, or npm rejects the remote URL | Follow [npx and PowerShell help](#npx-and-powershell-help); local Node setup remains available without npm/npx. |
-| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.2.zip), extract it, and open a terminal in the folder containing `scripts`. |
+| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.3.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/setup.mjs` or `scripts/install.mjs` | You are in the wrong folder or using an older source copy. Open a terminal in the extracted or cloned current release, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise apply [available-provider routing](#choose-the-participants). If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
 | `doctor` reports signed out | Treat that worker as unavailable and apply [routing rules](#choose-the-participants). If you choose setup repair, check the environment/access row below before renewing the selected native login. |

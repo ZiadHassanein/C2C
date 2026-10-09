@@ -513,7 +513,9 @@ function writeDiscussion(dir, state) {
     try { changesSinceVerification = Object.entries(lastVerification.reviewed_hashes).filter(([file,hash]) => sha(readText(path.join(dir,file))) !== hash).map(([file]) => file); }
     catch { warnings.push('Current artifacts could not all be compared with the verified versions; their revision status is unknown.'); }
   }
-  write(destination, DISCUSSION_MARKER + renderDiscussion({state,reports,decisions,changesSinceVerification,warnings,evidenceRequests:evidenceRequests(dir,state)}));
+  let planAvailable = false;
+  try { planAvailable = fs.statSync(path.join(dir,'final-plan.md')).isFile(); } catch {}
+  write(destination, DISCUSSION_MARKER + renderDiscussion({state,reports,decisions,changesSinceVerification,warnings,evidenceRequests:evidenceRequests(dir,state),planAvailable}));
   return { run:dir, discussion:destination, warnings };
 }
 
@@ -579,11 +581,12 @@ function stagePrompt(dir, state, stage) {
         .filter(([file, hash]) => sha(readText(path.join(dir, file))) !== hash).map(([file]) => file);
     }
   }
-  const instruction = baseStage === 'draft'
+  let instruction = baseStage === 'draft'
     ? 'Independently propose a practical plan. You have not been given the coordinator proposal. Include goals, scope, alternatives, steps, dependencies, acceptance criteria and relevant risks. Do not invent requirements or repository facts.'
     : baseStage === 'review'
       ? `Independently critique the ${author ? 'peer' : 'coordinator'} proposal against the shared brief. In plan mode compare it with your independent proposal. Check missing requirements, feasibility, complexity, alternatives and verification. Test its weakest material assumption against a concrete failure case, consider the strongest practical alternative and explain its tradeoff. The other participant's review is deliberately withheld. Agreement requires supplied evidence; do not force agreement or invent criticism.`
       : 'Review this consolidated plan, security review (when supplied), and decision record against the brief and evidence. Independently scrutinize accepted, rejected and unresolved dispositions, including your own earlier advice. Separate a supported concern from its proposed remedy: check adopted or adapted remedies for feasibility, scope/cost, new failure cases and meaningful acceptance checks, not merely whether a check is mentioned. Challenge missing security coverage, unsupported acceptance and weak rejection rationales. When coordinator_review or decisions materially counter your proposal or recommendations, reply concisely in summary using the relevant finding IDs: defend with supplied evidence, revise, or explain what remains unresolved. Do not manufacture counterarguments or answer every trivial point. Record any substantive correction as a new finding; do not repeat resolved concerns. A single bounded revision check may follow consequential changes; do not request extra rounds for agreement alone.';
+  if (stage === 'verify' || stage === 'verify-final') instruction += ' Unless the user requested critique only, check that accepted fixes are integrated into the operative plan steps and checks, with superseded instructions replaced. A findings list or instructions to amend an older plan is not the revised plan deliverable.';
   const prefix = author ? baseStage === 'draft' ? 'C-D' : 'C-R' : stage === 'draft' ? 'P-D' : stage === 'review' ? 'P-R' : stage === 'verify-final' ? 'P-F' : 'P-V';
   const specialty = state.pairing !== 'same' ? '' : author
     ? baseStage === 'draft'
@@ -935,7 +938,9 @@ export function finish(options) {
       security_review: security ? { required: true, verdict: security.report.verdict, limitations: security.report.limitations, open_questions: security.report.open_questions, changed_since_verification: changes.includes('security-review.json'), plan_changed_since_verification: changes.includes('final-plan.md') } : { required: false, verdict: 'not_required_by_legacy_run', limitations: ['Legacy run: the mandatory security-review artifact was not enforced.'] },
       note: 'Workflow completion is not a correctness guarantee or permission to implement. Any post-review edits have not been reviewed by the peer again.' };
     write(path.join(dir, 'completion.json'), completion);
-    const lines = ["# C2C — result", '', `${participantLabel(state, 'coordinator')} → ${participantLabel(state, 'peer')}. Pairing: ${state.pairing || 'cross'}.`,
+    const lines = ["# C2C — result", '', '[Open the revised plan](final-plan.md)',
+      ...(availableDiscussion(dir) ? ['[Discussion and decisions](DISCUSSION.md)'] : []), '',
+      `${participantLabel(state, 'coordinator')} → ${participantLabel(state, 'peer')}. Pairing: ${state.pairing || 'cross'}.`,
       ...(state.author_model ? [`Background planner: ${participantLabel(state, 'author')}.` , `Successful worker calls: ${completion.successful_worker_calls} (including ${completion.successful_peer_calls} peer calls).`,
         `Author model metadata: ${completion.worker_model_reports.filter(item => item.role === 'author' && item.reported.length).map(item => `attempt ${item.attempt}: ${item.reported.map(modelMetadataMarkdown).join(', ')} (${item.status})`).join('; ') || 'not reported by the CLI; requested identity is unverified'}.`] : []),
       participantSummary(state).identity_note, `Peer model metadata: ${completion.peer_model_reports.filter(item => item.reported.length).map(item => `attempt ${item.attempt}: ${item.reported.map(modelMetadataMarkdown).join(', ')} (${item.status})`).join('; ') || 'not reported by the CLI; distinct runtime identities are unverified'}.`, `Outcome: ${completion.outcome}.`, `Successful peer calls: ${completion.successful_peer_calls}; attempts: ${state.attempts.length}; runtime: ${runtimeUsedText(completion.budget)}.`, `Final allowance: per-call cap ${secondsText(completion.budget.timeout_seconds)}, cumulative cap ${secondsText(completion.budget.budget_seconds)}, inactivity guard ${secondsText(completion.budget.idle_seconds)}, ${completion.budget.max_attempts} attempts. Recorded limit changes: ${completion.budget.limit_changes}; earlier attempts and runtime remain charged.`, '',
@@ -951,7 +956,7 @@ export function finish(options) {
     write(path.join(dir, 'RESULT.md'), lines.filter(line => line !== undefined).join('\n'));
     for (const file of ['final-plan.md', 'decisions.json', 'completion.json', 'RESULT.md', ...(security ? ['security-review.json'] : [])]) seal(dir, state, file);
     state.status = 'complete'; state.completion = completion; saveRun(dir, state);
-    return { run: dir, result: path.join(dir, 'RESULT.md'), discussion: availableDiscussion(dir), ...completion };
+    return { run: dir, plan: path.join(dir, 'final-plan.md'), result: path.join(dir, 'RESULT.md'), discussion: availableDiscussion(dir), ...completion };
   } finally { release(); }
 }
 

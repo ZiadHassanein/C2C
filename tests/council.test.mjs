@@ -364,10 +364,14 @@ test('generated completion preserves reviewed plan bytes and required calls acro
     assert.deepEqual(result.changed_artifacts, []);
     assert.deepEqual(result.final_hashes, result.reviewed_hashes);
     assert.equal(result.outcome, 'complete_with_recorded_decisions');
+    assert.equal(result.plan, path.join(f.out, 'final-plan.md'));
+    assert.equal(await fs.readFile(result.plan, 'utf8'), finalPlan);
     assert.ok((result.worker_model_reports ?? result.peer_model_reports).every(item => item.identity_status === 'unreported' && item.reported.length === 0));
     const resultText = await fs.readFile(path.join(f.out, 'RESULT.md'), 'utf8');
     const discussionText = await fs.readFile(path.join(f.out, 'DISCUSSION.md'), 'utf8');
     assert.ok(resultText.includes(finalPlan));
+    assert.match(resultText, /\[Open the revised plan\]\(final-plan.md\)/);
+    assert.match(resultText, /\[Discussion and decisions\]\(DISCUSSION.md\)/);
     assert.ok(resultText.includes(result.outcome));
     assert.match(resultText, /not reported by the CLI/);
     assert.match(discussionText, /Run: \*\*complete\*\*/);
@@ -2022,12 +2026,14 @@ test('adjudication preserves adapted remedies, actual peer replies and later cor
   assert.match(verification.packet.stage_instruction,/accepted, rejected and unresolved dispositions, including your own earlier advice/);
   assert.match(verification.packet.stage_instruction,/coordinator_review or decisions materially counter your proposal/);
   assert.match(verification.packet.stage_instruction,/reply concisely in summary using the relevant finding IDs/);
+  assert.match(verification.packet.stage_instruction,/Unless the user requested critique only.*accepted fixes are integrated into the operative plan steps and checks/);
   assert.match(verification.prompt,/every substantive correction, including one mentioned in summary or proposal_markdown, must have a finding ID/);
   assert.deepEqual(await read(path.join(f.out,'peer-verify.json')),peerVerify);
   const current=decode(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8'));
   const peerSection=current.split('## Claude Code · Final verification')[1];
   assert.ok(peerSection.includes(reply));
-  assert.ok(peerSection.includes(peerVerify.findings[0].evidence));
+  assert.ok(peerSection.includes('[Report](peer-verify.json)'));
+  assert.ok(peerSection.includes(peerVerify.findings[0].claim));
   assert.ok(current.includes(adapted));
   assert.ok(current.includes(oldRationale));
   assert.match(peerSection,/Awaiting a recorded decision/);
@@ -2047,7 +2053,8 @@ test('adjudication preserves adapted remedies, actual peer replies and later cor
   assert.equal(finalDecisions.find(decision=>decision.finding_id==='P-R1').rationale,updatedRationale);
   assert.deepEqual(finalDecisions.filter(decision=>!['P-R1','P-V1'].includes(decision.finding_id)),decisions.filter(decision=>decision.finding_id!=='P-R1'));
   const finalDiscussion=decode(await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8'));
-  assert.ok(finalDiscussion.includes(`**Codex · Coordinator decision — accepted:** ${updatedRationale}`));
+  assert.ok(finalDiscussion.includes(`**accepted** — Original reason: ${oldRationale}`));
+  assert.ok(finalDiscussion.includes('[Full responses](decisions.json)'));
   assert.ok(finalDiscussion.includes(currentCheck));
   assert.deepEqual(await Promise.all(preservedFiles.map(file=>fs.readFile(path.join(f.out,file),'utf8'))),earlierReports);
 });
@@ -2392,6 +2399,15 @@ test('discussion refresh shows working proposals without mutating authoritative 
   assert.equal(cli.status,0,cli.stderr);
   assert.equal(JSON.parse(cli.stdout).discussion,file);
   assert.equal(status({run:f.out}).attempts_used,0);
+  assert.doesNotMatch(await fs.readFile(file,'utf8'), /\[Open the revised plan\]/);
+  await write(path.join(f.out,'final-plan.md'),'# Revised candidate\nExisting steps with adopted fixes.');
+  discussion({run:f.out});
+  assert.match(await fs.readFile(file,'utf8'), /\[Open the revised plan\]\(final-plan.md\)/);
+  assert.equal(await fs.readFile(path.join(f.out,'final-plan.md'),'utf8'),'# Revised candidate\nExisting steps with adopted fixes.');
+  await fs.unlink(path.join(f.out,'final-plan.md'));
+  await fs.mkdir(path.join(f.out,'final-plan.md'));
+  discussion({run:f.out});
+  assert.doesNotMatch(await fs.readFile(file,'utf8'), /\[Open the revised plan\]/);
 });
 
 test('discussion updates before and after a real stage transition without entering peer context', async () => {
@@ -2448,7 +2464,7 @@ test('discussion preserves unresolved responses and post-verification revisions 
   let current=await fs.readFile(path.join(f.out,'DISCUSSION.md'),'utf8');
   assert.match(current,/Claude Code coordinates · Codex reviews/);
   assert.match(current,/plan changed after final peer verification/);
-  assert.match(current,/Coordinator decision — unresolved/);
+  assert.match(current,/\*\*unresolved\*\* — The owner must choose/);
   assert.throws(() => finish({run:f.out}), /bounded verify-final/);
   const completed = finish({run:f.out, 'unverified-reason':'Synthetic fixture intentionally preserves an unreviewed revision for provenance checks.'});
   current=await fs.readFile(completed.discussion,'utf8');
@@ -2621,12 +2637,12 @@ test('all worker stages preserve gapped and out-of-order IDs and authored refere
       assert.equal(await fs.readFile(path.join(f.out, file), 'utf8'), savedReports.get(file), 'Later stages must not rewrite sealed reports');
       assert.ok(view.includes(reports.get(stage).summary));
       for (const finding of reports.get(stage).findings) {
-        assert.ok(view.includes(`### ${finding.id} · major`));
-        assert.ok(view.includes(finding.evidence));
-        assert.ok(view.includes(finding.action));
-        assert.ok(view.includes(finding.verification));
+        assert.ok(view.includes(`**${finding.id} · major**`));
+        assert.ok(view.includes(`[Report](${file})`));
+        assert.ok(view.includes(`Resolve ${finding.id} without changing the other finding.`));
+        assert.ok(view.includes(finding.claim));
       }
-      assert.ok(!view.includes(`### ${prefix}2 ·`), 'Missing IDs must not be silently assigned');
+      assert.ok(!view.includes(`**${prefix}2 ·`), 'Missing IDs must not be silently assigned');
     }
   }
 });

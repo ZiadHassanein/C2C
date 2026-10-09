@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.1.3: compact discussion and explicit revised-plan delivery
+
+The renderer now uses source-linked concern/proposal/decision excerpts instead of duplicating complete findings, evidence and checks. Every finding ID and disposition remains visible; shortened text is marked, omitted finding/evidence references are retained, and full reports/decisions stay unchanged. Questions and limitations remain labeled as reported, not inferred current consensus. Review status and unavailable-information warnings precede the discussion; operational progress is collapsible. This reduces presentation repetition without changing the reports used for synthesis or adding a worker call. It does not establish planning-token savings or equivalent model quality.
+
+The coordinator must deliver the revised version of a supplied plan separately from discussion. Verification instructions explicitly check adopted fixes in operative steps and checks while respecting critique-only scope. `finish` returns a direct `plan` path and the result links it first; discussion links it only when a plan file exists. Unreviewed edits remain provisional, and old runs retain their original runtime/instruction pins.
+
+Regression coverage checks all dispositions and IDs, long/malicious/Unicode excerpts, full source preservation, exact omitted references, missing or invalid reports, pending evidence links, plan-file presence, both provider directions and existing same-provider roles. Fixture verification checks the instruction contract, not whether a live model follows it. Private user examples and measurements remain outside the repository. Exact-candidate native CI and managed release installation remain required gates.
+
 ### Version 2.1.2: make the revised plan the primary deliverable
 
 A supplied-plan review must integrate accepted fixes into the plan's operative steps, decisions and checks. A findings list or amendment specification alone leaves the user to finish synthesis. Preserve sound content, identifiers and boundaries; write a revised copy when originals cannot change. Keep explicit critique-only requests narrower. Deliver the plan first with a short change summary and discussion link. Unresolved facts remain blocked, and consolidation after verification is an unreviewed revision. This is an instructional handoff fix; it adds no worker stage or implementation authority.

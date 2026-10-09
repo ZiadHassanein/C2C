@@ -61,6 +61,8 @@ Keep the **next user action** separate from the **first implementation action**.
 
 ## Check before delivery
 
+For an existing-plan review, deliver its revised version in `final-plan.md`, not a review report that tells someone else how to repair it. Briefly identify the original filename/version and the main changes; retain sound structure, identifiers and constraints, replacing superseded instructions in place. Keep the debate in the separate generated `DISCUSSION.md`. If originals are protected, deliver a revised copy. Read full source reports and decision rationales for synthesis; the compact discussion contains excerpts and is only a navigation aid.
+
 Check the assembled plan before peer verification, then check corrections again before `finish` and delivery. For a draft or usage-limit fallback, apply the same check within available limits and state missing review. Resolve contradictions in the plan itself:
 
 - The recommendation, scope, technical decisions, milestone order and Start here block agree with the latest finding dispositions and actual project evidence.

@@ -34,8 +34,8 @@ test('reverse-role review attributes findings and recorded decisions to actual p
   assert.match(text, /does not produce two independent proposals/);
   assert.doesNotMatch(text, /\| Independent proposal \|/);
   assert.match(text, /## Codex · Review/);
-  assert.match(text, /\*\*Codex:\*\* Anonymous inventory writes are possible\./);
-  assert.match(text, /\*\*Claude Code · Coordinator decision — accepted:\*\* Add the role check to the plan\./);
+  assert.match(text, /Anonymous inventory writes are possible\./);
+  assert.match(text, /\*\*accepted\*\* — Add the role check to the plan\./);
   assert.match(text, /Sealed submitted report/);
   assert.match(text, /\[Report\]\(peer-review.json\)/);
 });
@@ -76,7 +76,7 @@ test('running status is explicitly a saved snapshot, not an assertion of process
   assert.match(text, /cannot prove the process is still active/);
 });
 
-test('all finding details, disagreements, open questions, and unresolved responses survive rendering', () => {
+test('all findings and dispositions remain visible with source links for full evidence and assumptions', () => {
   const run = state({ stages: { review: { status: 'succeeded' } }, seals: { 'peer-review.json': 'hash' } });
   const input = { state: run, reports: [{ name: 'peer-review.json', report: report({ findings: [finding('P-R1'), finding('P-R2'), finding('P-R3')],
     open_questions: ['Who can delete inventory?'], assumptions: ['One seller.'], limitations: ['No repository access.'] }) }],
@@ -84,9 +84,10 @@ test('all finding details, disagreements, open questions, and unresolved respons
       { finding_id: 'P-R2', disposition: 'unresolved', rationale: 'The owner must choose a deletion policy.' }] };
   const text = renderDiscussion(input);
   assert.deepEqual(discussionSummary(input).findings, { accepted: 0, rejected: 1, unresolved: 1, awaiting_response: 1 });
-  for (const phrase of ['The proposal has no authorization step', 'Check the admin role for every inventory mutation',
-    'An unauthenticated request must fail', 'Coordinator decision — rejected', 'Coordinator decision — unresolved', 'Awaiting a recorded decision',
-    'Who can delete inventory', 'One seller', 'No repository access']) assert.ok(text.includes(phrase), phrase);
+  for (const phrase of ['P-R1', 'P-R2', 'P-R3', 'Check the admin role for every inventory mutation',
+    '**rejected**', '**unresolved**', 'Awaiting a recorded decision', 'Who can delete inventory',
+    '1 assumption(s) in the linked report', 'No repository access', '[Report](peer-review.json)', '[Full responses](decisions.json)']) assert.ok(text.includes(phrase), phrase);
+  assert.doesNotMatch(text, /The proposal has no authorization step|An unauthenticated request must fail/);
   assert.match(text, /rejected finding does not prove the peer agreed/);
 });
 
@@ -109,8 +110,8 @@ test('adapted remedies and peer replies remain separately attributed without inv
   const decisions=[{finding_id:'P-R1',disposition:'accepted',rationale}];
   const decode=text=>text.replace(/&#(\d+);/g,(_,code)=>String.fromCharCode(Number(code)));
   const before=decode(renderDiscussion({state:run,reports,decisions}));
-  assert.ok(before.includes(`**Proposed change:** ${concern.action}`));
-  assert.ok(before.includes(`**Codex · Coordinator decision — accepted:** ${rationale}`));
+  assert.ok(before.includes(`**Proposed:** ${concern.action}`));
+  assert.ok(before.includes(`**accepted** — ${rationale}`));
   assert.match(before,/accepted concern may use an adapted remedy/);
   assert.match(before,/Counts do not establish peer agreement/);
   assert.match(before,/no unrecorded reply is inferred/);
@@ -229,8 +230,10 @@ test('same-provider discussions distinguish the model roles and retain disagreem
     assert.notEqual(summary.coordinator, summary.peer);
     assert.equal(summary.findings.unresolved, 1);
     const text = renderDiscussion(input).replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
-    assert.ok(text.includes(`${peerModel} (peer):** Anonymous inventory writes are possible.`));
-    assert.ok(text.includes(`${coordinatorModel} (coordinator) · Coordinator decision — unresolved:`));
+    assert.ok(text.includes(`${peerModel} (peer) · Review`));
+    assert.ok(text.includes(`${coordinatorModel} (coordinator) coordinates`));
+    assert.match(text, /Anonymous inventory writes are possible/);
+    assert.match(text, /\*\*unresolved\*\*/);
     assert.match(text, /separate model sessions/);
     assert.match(text, /do not attest the runtime model identity/);
     assert.match(text, /access policy still needs an owner decision/);
@@ -256,4 +259,66 @@ test('discussion model metadata comes only from the successful stage attempt', (
   assert.doesNotMatch(text, /WRONG_FAILED_MODEL/);
   run.attempts[1].reported_models = [];
   assert.match(renderDiscussion(input), /requested model is not independently verified/);
+});
+
+test('long discussion is compact without dropping findings, source evidence or superseding references', () => {
+  const long = 'A detailed public explanation with evidence and alternatives. '.repeat(100);
+  const findings = Array.from({ length: 30 }, (_, i) => finding(`P-R${i + 1}`, {
+    claim: `Concern ${i + 1}. ${long}`, action: `Proposed fix ${i + 1}. ${long}`, evidence: long, verification: long,
+  }));
+  const decisions = findings.slice(0, 29).map((item, i) => ({ finding_id: item.id,
+    disposition: ['accepted', 'rejected', 'unresolved'][i % 3], rationale: `${long} Superseded by P-R30.` }));
+  const input = { state: state({ mode: 'review', stages: { review: { status: 'succeeded' } }, seals: { 'peer-review.json': 'hash' } }),
+    reports: [{ name: 'peer-review.json', report: report({ summary: long, findings, limitations: [long], open_questions: [long] }) }], decisions };
+  const before = JSON.stringify(input);
+  const text = renderDiscussion(input);
+  assert.equal(JSON.stringify(input), before, 'The compact view must never rewrite source reports or decisions');
+  assert.ok(text.length < before.length / 10, 'Repeated detail belongs in linked sources, not hidden in HTML');
+  assert.match(text, /ellipsis.*shortened text, not a complete summary/);
+  for (const item of findings) assert.ok(text.includes(`**${item.id} · major**`), item.id);
+  assert.match(text, /references: P-R30/);
+  for (const decision of decisions) assert.ok(text.includes(`**${decision.disposition}**`));
+  assert.match(text, /Awaiting a recorded decision/);
+  assert.match(text, /\[Report\]\(peer-review.json\)/);
+  assert.match(text, /\[Full responses\]\(decisions.json\)/);
+});
+
+test('revision warnings stay above excerpts and the plan link requires an existing file', () => {
+  const input = { state: state({ status: 'complete', stages: { verify: { status: 'succeeded' } },
+    completion: { changed_artifacts: ['final-plan.md'], peer_verdict: 'needs_changes', unverified_revision_reason: 'New corrections need review.' } }),
+    reports: [{ name: 'coordinator-draft.json', report: report() }] };
+  assert.doesNotMatch(renderDiscussion(input), /\[Open the revised plan\]/);
+  const text = renderDiscussion({ ...input, planAvailable: true });
+  assert.match(text, /\[Open the revised plan\]\(final-plan.md\)/);
+  for (const message of ['plan changed after final peer verification', 'Final peer verdict: **needs changes**', 'New corrections need review.']) {
+    assert.ok(text.indexOf(message) < text.indexOf('<details>'), message);
+  }
+});
+
+test('shortened responses keep exact omitted IDs rather than treating an ID prefix as present', () => {
+  const text = renderDiscussion({ state: state(), reports: [{ name: 'coordinator-draft.json', report: report({ findings: [finding('C-D1')] }) }],
+    decisions: [{ finding_id: 'C-D1', disposition: 'accepted', rationale: 'P-R10 was checked. ' + 'Earlier context. '.repeat(30) + ' P-R1 and C-D-E1 supersede that context.' }] });
+  assert.match(text, /references: P-R1, C-D-E1/);
+});
+
+test('excerpt cuts keep Unicode and markup inert, including adversarial table content', () => {
+  const input = { state: state(), reports: [{ name: 'coordinator-draft.json', report: report({
+    summary: '😀'.repeat(300), findings: [finding('C-D1', { claim: '| <img src="https://bad.example"> ' + 'x'.repeat(200) })],
+  }) }] };
+  const text = renderDiscussion(input);
+  assert.ok(text.includes('😀'.repeat(280) + ' …'));
+  assert.doesNotMatch(text, /<img|https:\/\/|�/);
+  assert.match(text, /&#124; &#60;img/);
+});
+
+test('pending evidence links its validated report and unavailable evidence keeps the reason', () => {
+  const input = { state: state(), reports: [{ name: 'coordinator-draft.json', report: report() }], evidenceRequests: [
+    { id: 'C-D-E1', status: 'pending', question: 'Who owns access?', source: 'coordinator-draft.json' },
+    { id: 'P-R-E1', status: 'unavailable', question: 'What is production state?', reason: 'No supplied deployment evidence.', artifact: 'evidence-1.json' },
+    { id: 'P-R-E2', status: 'pending', question: 'Unknown source?', source: 'https://bad.example', artifact: '../outside.json' },
+  ] };
+  const text = renderDiscussion(input);
+  assert.match(text, /pending:\*\* Who owns access\? \[Record\]\(coordinator-draft.json\)/);
+  assert.match(text, /No supplied deployment evidence\. \[Record\]\(evidence-1.json\)/);
+  assert.doesNotMatch(text, /https:\/\/bad|outside.json/);
 });

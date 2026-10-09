@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 const files = JSON.parse(fs.readFileSync('package.json', 'utf8')).scripts.test.split(' ').slice(2);
 if (!files.length || files.some(file => !/^tests\/[a-z-]+\.test\.mjs$/.test(file))) throw new Error('Unexpected test command');
-const child = spawn(process.execPath, ['--test', '--test-reporter=tap', ...files], { shell: false, windowsHide: true });
+// Native process/timeout tests spawn their own children. Bound file-level
+// parallelism so cold OS helpers are not competing with every suite at once.
+const child = spawn(process.execPath, ['--test', '--test-concurrency=2', '--test-reporter=tap', ...files], { shell: false, windowsHide: true });
 let output = '';
 child.stdout.on('data', chunk => { output += chunk; process.stdout.write(chunk); });
 child.stderr.pipe(process.stderr);

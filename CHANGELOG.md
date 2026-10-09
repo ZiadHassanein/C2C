@@ -4,6 +4,8 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 
 ## 2.1.0 — Wait for active reviews and clarify launch checks
 
+- Known recovery limits: a previously recovered PID can later become uninspectable after reuse, pausing the run again; unresolved registrations without a PID require a provisional checkpoint. Preserve state and never signal an unrelated process. A possible CLI stdin-wait conflict during registration is unverified; include missing-input/no-stdin exits in ordinary-use canary diagnostics. [Recovery details](docs/SETUP.md#when-a-peer-call-takes-longer).
+
 - Checks host process-identity inspection with an inert local child before reserving a planning attempt. Preserves the ordinary exit diagnostics of an already-exited worker. CI publishes per-platform skips and requires essential registration/recovery tests to execute successfully.
 - Coverage: real Claude review/verification exercised an earlier pinned 2.1 candidate. The final launch refinements have offline/process tests and metadata preflight, not a completed final-source live exchange. Peer verification covers supplied excerpts, not every source file. First ordinary authorized use is the canary; unexpected `worker_registration_error`, `worker_identity_unavailable`, CLI argument/schema rejection or `cli_incompatible` requires inspection and, for a confirmed release regression, rollback to the retained managed backup. Do not start an extra paid call to fill this gap.
 - Captured Codex 0.160.1 output was final-only; current intermediate activity is unverified. For a silent worker the idle guard is the effective call deadline. Long reviews can use an authorized `--idle-timeout-seconds` up to 3600; this does not guarantee completion or override hard caps.

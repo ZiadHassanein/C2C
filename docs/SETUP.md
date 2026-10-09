@@ -391,6 +391,10 @@ The captured Codex 0.160.1 output had no intermediate activity; current-version 
 
 `worker_identity_unavailable` means the host could not inspect an inert local child during preflight; no planning attempt was reserved. Use the host-approved execution path or keep a provisional plan. Native fallback discovery trusts local installations under the configured user/app directories, like PATH discovery; it is not a signature or directory-permission audit. Selection uses the first compatible stable fallback, not the highest version. Use `COUNCIL_CODEX_BIN` to select an approved exact binary.
 
+Two recovery limits remain. Resume a run in its original host and OS process namespace. After a hard crash, a recovered worker record may be checked again on later commands; if its old PID is reused and that new process cannot be inspected, C2C can pause with `worker_cleanup_unconfirmed` even after a prior successful recovery. Preserve the checkpoint and never kill the unrelated process or edit the manifest to bypass the guard. The check can clear once that process exits. An unresolved `launch_pending` record with no PID still has no normal recovery path.
+
+Registration waits for process inspection before delivering the prompt. A CLI-specific stdin-wait conflict is unverified: watch ordinary authorized work for a worker exiting with “missing input” or “no stdin data,” as well as registration/argument/schema failures. Preserve diagnostics, stop unchanged retries, and use the retained managed rollback for a confirmed release regression. Do not weaken process checks or spend extra credits to manufacture a passing canary. See the [release coverage limits](../CHANGELOG.md).
+
 An explicit call cap raises the default idle allowance to at least that cap unless you also choose an idle setting. A total cap without a call cap has a recovery tradeoff: a crash can conservatively consume all remaining reserved time. C2C warns about this at preparation; it does not claim that time was measured or refund it from file timestamps.
 
 For an existing incomplete run, ask:

@@ -1,0 +1,116 @@
+{
+  "fixture_version": 1,
+  "fictional": true,
+  "requirements": [
+    {
+      "id": "D1",
+      "criterion": "Integrates 30-day availability only for new exports while preserving existing stored deadlines and ownership.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/APPROVED-CHANGE.md",
+          "quote": "Existing exports retain their stored deadlines, including old 7-day exports."
+        }
+      ]
+    },
+    {
+      "id": "D2",
+      "criterion": "Updates the storage lifecycle and acceptance checks, preserving the 24-hour buffer/day-31 earliest purge instead of only editing D1.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/APPROVED-CHANGE.md",
+          "quote": "All newly created 30-day exports must therefore remain stored through day 30 and purge no earlier than day 31."
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "criterion": "Sequences verified replacement of the fixed 8-day deletion rule before the new 30-day writer.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/APPROVED-CHANGE.md",
+          "quote": "Disable/replace the fixed 8-day lifecycle rule and verify the new deletion behavior before enabling the 30-day writer"
+        }
+      ]
+    },
+    {
+      "id": "D4",
+      "criterion": "Preserves queue field compatibility for mixed versions plus delayed 72-hour jobs.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/CONTRACT.md",
+          "quote": "Queued jobs can run up to 72 hours after enqueue."
+        }
+      ]
+    },
+    {
+      "id": "D5",
+      "criterion": "Rollback honors already-issued 30-day deadlines and does not reset all records/deletion rules to day 7/8.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/APPROVED-CHANGE.md",
+          "quote": "A rollback may use the 7-day writer for later exports, but it must honor already-issued 30-day deadlines."
+        }
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "id": "DR1",
+      "criterion": "Explains the cross-section failure: correct DB expiry cannot prevent independent day-8 storage deletion.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/CONTRACT.md",
+          "quote": "Object storage deletes files using stored purge_after; this job does not read expires_at or the plan text."
+        }
+      ]
+    },
+    {
+      "id": "DR2",
+      "criterion": "Keeps link renewal capped by per-record expiry and does not claim restore/rollout was validated.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/CONTRACT.md",
+          "quote": "Renewed signed links may not outlive expires_at."
+        }
+      ]
+    }
+  ],
+  "implementability": [
+    {
+      "id": "DI1",
+      "criterion": "First action identifies writer, lifecycle rule and affected P2-P5 checks; the plan can start with bounded inspection/reconciliation.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/PLAN.md",
+          "quote": "Reconcile objects versus stored deadlines before switching deletion rules."
+        }
+      ]
+    },
+    {
+      "id": "DI2",
+      "criterion": "Tests old/new cohorts, day-8 survival/day-30 expiry/day-31 purge, rollback and delayed jobs; marks all execution evidence pending.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/APPROVED-CHANGE.md",
+          "quote": "No deployment or restore test result is supplied."
+        }
+      ]
+    }
+  ],
+  "harmful_remedy_examples": [
+    "Change only the headline decision and leave day-8 deletion",
+    "Enable the new writer before storage policy is safe",
+    "Rollback by deleting 30-day objects on day 8",
+    "Rename queue fields before old workers/jobs drain"
+  ],
+  "scoring_note": "Judge the final plan against raw supplied evidence, accepting alternative correct designs. Agreement, disagreement count, length and confident language earn no credit. Evidence quotations identify the oracle, not required wording. Score harmful retained remedies and unsupported findings separately. These are fictional fixtures, not model measurements."
+}

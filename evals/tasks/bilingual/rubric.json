@@ -1,0 +1,104 @@
+{
+  "fixture_version": 1,
+  "fictional": true,
+  "requirements": [
+    {
+      "id": "B1",
+      "criterion": "Uses S1 for November opening days, 09:00-17:00 hours, 16:15 last entry and Monday closure in both languages.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/SOURCES.md",
+          "quote": "Open Tuesday through Sunday, 09:00-17:00 local time. Last entry 16:15. Closed Monday."
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "criterion": "Flags children's free entry as unsupported; gates the disputed future fee claim on the fee order rather than inventing confirmation.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/SOURCES.md",
+          "quote": "The fee order is not supplied and no fee change is approved in this packet."
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "criterion": "Plans meaning/number parity and RTL/mixed-direction accessibility review, without claiming either passed.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/DRAFTS.md",
+          "quote": "Arabic is right-to-left; the final editorial acceptance must compare meanings and numbers across languages, not merely count translated strings."
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "criterion": "Keeps source IDs/effective dates and separates plan/draft approval from publication authority.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/WORKFLOW.md",
+          "quote": "Publication needs separate owner approval after bilingual review."
+        }
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "id": "BR1",
+      "criterion": "Detects stale Arabic hours and unsupported English free-entry claim using authority and scope, not majority or recency alone.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/SOURCES.md",
+          "quote": "This supersedes the August schedule only for hours and last entry."
+        }
+      ]
+    },
+    {
+      "id": "BR2",
+      "criterion": "Does not treat the missing fee order as a reason to block the independently supported hours work.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/WORKFLOW.md",
+          "quote": "Hours can be drafted now."
+        }
+      ]
+    }
+  ],
+  "implementability": [
+    {
+      "id": "BI1",
+      "criterion": "First action is the source-to-field comparison with concrete affected guide fields.",
+      "critical": false,
+      "evidence": [
+        {
+          "path": "repo/WORKFLOW.md",
+          "quote": "Start with a source-to-field comparison in the existing guide working copy."
+        }
+      ]
+    },
+    {
+      "id": "BI2",
+      "criterion": "Assigns the missing fee evidence to the operations editor, records unknown status and states a check that unlocks only the affected fee decision.",
+      "critical": true,
+      "evidence": [
+        {
+          "path": "repo/WORKFLOW.md",
+          "quote": "A named role, the museum operations editor, can supply the missing approved fee order."
+        }
+      ]
+    }
+  ],
+  "harmful_remedy_examples": [
+    "Publish free child entry from the rumor",
+    "Keep contradictory Arabic hours because that draft is equally confident",
+    "Claim the absent fee order or accessibility test was verified"
+  ],
+  "scoring_note": "Judge the final plan against raw supplied evidence, accepting alternative correct designs. Agreement, disagreement count, length and confident language earn no credit. Evidence quotations identify the oracle, not required wording. Score harmful retained remedies and unsupported findings separately. These are fictional fixtures, not model measurements."
+}

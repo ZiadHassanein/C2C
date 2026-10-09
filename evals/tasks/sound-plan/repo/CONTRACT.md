@@ -1,0 +1,4 @@
+# Existing endpoint and approved behavior
+
+POST /articles/:id/approve is callable by signed-in editors and contributors. Only an editor currently assigned to the article's project may approve it. Assignment can be revoked while a request is in flight. Approval writes and assignment verification must occur in one database transaction with locking that serializes against revocation. The helper withAssignedEditorTransaction(articleId, userId, operation) already implements this guarantee and is used by the analogous reject endpoint.
+Contributors can read and submit drafts but cannot approve. Approval changes workflow state to 'approved'; public publishing requires a separate owner action. The database is shared by the application and revocation worker. No lock-contention timing or user-reported latency incident is supplied.

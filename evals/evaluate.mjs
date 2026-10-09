@@ -7,7 +7,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const checkout = path.dirname(here);
-export const ARMS = ['solo', 'independent-review', 'c2c', 'external'];
+export const ARMS = ['solo', 'independent-review', 'independent-synthesis', 'c2c', 'external'];
+export const TASKS = ['feature', 'production', 'bilingual', 'mixed-upload', 'shared-premise', 'sound-plan', 'revision-dependency'];
+const LEGACY_TASKS = ['feature', 'production'];
 const GROUPS = ['requirements', 'risks', 'implementability'];
 const hash = value => createHash('sha256').update(value).digest('hex');
 const json = value => JSON.stringify(value, null, 2) + '\n';
@@ -19,6 +21,24 @@ const modelKey = value => `${value.provider}:${value.model}`;
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const count = value => Number.isSafeInteger(value) && value >= 0;
 const inside = (parent, child) => { const rel = path.relative(parent, child); return rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel)); };
+const frozenBaseline = await readJSON(path.join(here, 'baselines', 'c2c-2.2.0.capture.json'));
+
+export async function validateCaptureManifest(capture) {
+  assert(capture?.format_version === 1 && capture.status === 'capture-required' && capture.suite_version === 'c2c-outcomes-v2', 'Malformed baseline capture format/status.');
+  assert(nonempty(capture.capture_id) && nonempty(capture.tool_version) && /^[a-f0-9]{40}$/.test(capture.source_revision), 'Malformed baseline capture identity.');
+  assert(canonical(capture.tasks) === canonical(TASKS) && Array.isArray(capture.outcomes) && capture.outcomes.length === 0, 'Baseline template must list the frozen suite and contain no claimed outcomes.');
+  const instructions = ['SKILL.md', 'references/protocol.md', 'references/model-selection.md', 'references/project-assessment.md', 'references/plan-presentation.md'];
+  assert(canonical(Object.keys(capture.instruction_sha256 ?? {}).sort()) === canonical(instructions.sort()) && Object.values(capture.instruction_sha256).every(value => /^[a-f0-9]{64}$/.test(value)), 'Malformed baseline instruction hashes.');
+  const expected = [];
+  for (const task of TASKS) {
+    const base = path.join(here, 'tasks', task);
+    expected.push(`evals/tasks/${task}/task.md`, `evals/tasks/${task}/rubric.json`);
+    for (const name of await fs.readdir(path.join(base, 'repo'))) expected.push(`evals/tasks/${task}/repo/${name}`);
+  }
+  assert(canonical(Object.keys(capture.suite_sha256 ?? {}).sort()) === canonical(expected.sort()), 'Baseline suite file inventory changed.');
+  for (const name of expected) assert(hash(await fs.readFile(path.join(checkout, name))) === capture.suite_sha256[name], `Baseline suite evidence changed: ${name}. Create a new version; never overwrite the frozen capture.`);
+  return capture;
+}
 
 async function newPrivateDirectory(directory) {
   const resolved = path.resolve(directory);
@@ -31,13 +51,27 @@ async function newPrivateDirectory(directory) {
 }
 
 async function sourceTask(task) {
-  assert(['feature', 'production'].includes(task), 'Task must be feature or production.');
+  assert(TASKS.includes(task), `Task must be one of ${TASKS.join(', ')}.`);
   const base = path.join(here, 'tasks', task);
   const files = { 'task.md': await fs.readFile(path.join(base, 'task.md'), 'utf8') };
   for (const name of (await fs.readdir(path.join(base, 'repo'))).sort()) {
     files[`repo/${name}`] = await fs.readFile(path.join(base, 'repo', name), 'utf8');
   }
-  return { files, rubric: await readJSON(path.join(base, 'rubric.json')) };
+  const rubric = await readJSON(path.join(base, 'rubric.json'));
+  if (!LEGACY_TASKS.includes(task)) for (const group of GROUPS) for (const item of rubric[group]) {
+    assert(Array.isArray(item.evidence) && item.evidence.length > 0, 'Expanded rubric criteria need raw evidence.');
+    for (const ref of item.evidence) assert(nonempty(ref.quote) && files[ref.path]?.includes(ref.quote), `Rubric evidence does not match ${task}/${item.id}.`);
+  }
+  return { files, rubric };
+}
+
+export function validateBaseline(baseline, arms) {
+  assert(baseline && typeof baseline === 'object' && !Array.isArray(baseline), 'Baseline must be an object.');
+  assert(arms.includes(baseline.arm) && arms.includes(baseline.candidate_arm) && baseline.arm !== baseline.candidate_arm, 'Baseline and candidate must be different preregistered arms.');
+  assert(nonempty(baseline.capture_id) && nonempty(baseline.tool_version) && /^[a-f0-9]{40}$/.test(baseline.source_revision), 'Baseline requires capture_id, exact tool_version and full source_revision.');
+  assert(Object.keys(baseline).sort().join(',') === 'arm,candidate_arm,capture_id,source_revision,tool_version', 'Unknown baseline fields.');
+  assert(baseline.capture_id === frozenBaseline.capture_id && baseline.tool_version === frozenBaseline.tool_version && baseline.source_revision === frozenBaseline.source_revision, 'Baseline does not match the frozen capture manifest.');
+  return baseline;
 }
 
 function validateConfig(config) {
@@ -49,16 +83,26 @@ function validateConfig(config) {
   assert(new Set(keys).size === keys.length, 'Duplicate available model.');
   assert(config.limits && count(config.limits.max_calls) && config.limits.max_calls > 0 && count(config.limits.max_seconds) && config.limits.max_seconds > 0, 'Declare positive whole-task call/time limits.');
   for (const key of ['max_input_tokens', 'max_output_tokens']) assert(config.limits[key] === null || count(config.limits[key]), `${key} must be an integer or null (no declared token cap).`);
+  const legacy = config.protocol === 'c2c-outcomes-v1';
+  assert(config.protocol === undefined || legacy || config.protocol === 'c2c-outcomes-v2', 'Unknown outcome protocol.');
+  const tasks = config.tasks ?? (legacy ? LEGACY_TASKS : TASKS);
+  assert(Array.isArray(tasks) && tasks.length > 0 && new Set(tasks).size === tasks.length && tasks.every(task => TASKS.includes(task)), 'Select distinct supported tasks.');
+  if (legacy) assert(config.baseline === undefined && !config.controls && !arms.includes('independent-synthesis') && canonical(tasks) === canonical(LEGACY_TASKS), 'Legacy protocol cannot include new controls, arms or tasks.');
+  if (config.baseline !== undefined) validateBaseline(config.baseline, arms);
+  if (config.controls) for (const key of ['tools', 'research_inputs', 'settings', 'role_policy']) assert(nonempty(config.controls[key]), `Preregister control: ${key}.`);
   return {
     arms: ARMS.filter(arm => arms.includes(arm)),
     available_models: config.available_models.map(({ provider, model }) => ({ provider, model })).sort((a, b) => modelKey(a).localeCompare(modelKey(b))),
     limits: config.limits,
-    protocol: 'c2c-outcomes-v1',
+    protocol: legacy ? 'c2c-outcomes-v1' : 'c2c-outcomes-v2',
+    ...(!legacy ? { tasks: TASKS.filter(task => tasks.includes(task)), ...(config.baseline ? { baseline: config.baseline } : {}), ...(config.controls ? { controls: config.controls } : {}) } : {}),
   };
 }
 
 export async function packet(task, config, directory) {
   const protocol = validateConfig(config);
+  if (protocol.baseline) await validateCaptureManifest(frozenBaseline);
+  assert((protocol.tasks ?? LEGACY_TASKS).includes(task), 'Task was not preregistered for this comparison.');
   const { files, rubric } = await sourceTask(task);
   const manifest = { version: 1, task, task_hash: hash(canonical(files)), rubric_hash: hash(canonical(rubric)), protocol, protocol_hash: hash(canonical(protocol)) };
   const out = await newPrivateDirectory(directory);
@@ -75,6 +119,8 @@ function validateMetadata(meta, protocol) {
   assert(protocol.arms.includes(meta.arm), 'Outcome arm was not preregistered for this comparison.');
   assert(['live', 'native-evaluation', 'synthetic'].includes(meta.provenance), 'Declare provenance: live, native-evaluation, or synthetic.');
   assert(nonempty(meta.tool_version) && nonempty(meta.execution_notes) && nonempty(meta.completed_at) && Number.isFinite(Date.parse(meta.completed_at)), 'tool_version, execution_notes and an ISO completed_at are required.');
+  if (protocol.baseline && [protocol.baseline.arm, protocol.baseline.candidate_arm].includes(meta.arm)) assert(/^[a-f0-9]{40}$/.test(meta.source_revision), 'Baseline comparisons require each implementation source_revision.');
+  if (protocol.baseline && meta.arm === protocol.baseline.arm) assert(meta.tool_version === protocol.baseline.tool_version && meta.source_revision === protocol.baseline.source_revision && meta.capture_id === protocol.baseline.capture_id, 'Baseline metadata must match the frozen capture ID, tool version and source revision.');
   assert(Array.isArray(meta.models) && meta.models.length > 0, 'Record every actual model and role, including the host.');
   for (const model of meta.models) {
     assert(nonempty(model.provider) && nonempty(model.model) && nonempty(model.role), 'Actual provider, exact model ID and role are required.');
@@ -91,6 +137,7 @@ export async function importOutcome(packetDirectory, plan, metadata, directory) 
   assert(nonempty(plan), 'Plan must contain actual output.');
   const manifest = await readJSON(path.join(packetDirectory, 'manifest.json'));
   const { files, rubric } = await sourceTask(manifest.task);
+  assert((manifest.protocol.tasks ?? LEGACY_TASKS).includes(manifest.task), 'Task was not preregistered for this comparison.');
   assert(manifest.version === 1 && hash(canonical(rubric)) === manifest.rubric_hash, 'Task rubric changed; use the frozen task revision.');
   const observed = {};
   for (const name of Object.keys(files)) observed[name] = await fs.readFile(path.join(packetDirectory, name), 'utf8');
@@ -113,6 +160,7 @@ async function readOutcome(directory) {
   const files = await readJSON(path.join(directory, 'task-files.json'));
   assert(hash(plan) === record.plan_hash && hash(canonical(files)) === record.task_hash && hash(canonical(rubric)) === record.rubric_hash, 'Outcome evidence was modified.');
   assert(hash(canonical(validateConfig(record.protocol))) === record.protocol_hash, 'Outcome protocol was modified.');
+  assert((record.protocol.tasks ?? LEGACY_TASKS).includes(record.task), 'Outcome task was not preregistered.');
   validateMetadata(record.metadata, record.protocol);
   return { record, plan, rubric, files };
 }
@@ -168,19 +216,21 @@ export function validateScore(score, id, plan, rubric) {
     implementability: score.implementability.filter(row => row.met).length,
     harmful_remedies: score.harmful_remedies.length,
     unsupported_findings: score.unsupported_findings.length,
+    critical_failures: GROUPS.reduce((total, group) => total + score[group].filter(row => !row.met && rubric[group].find(item => item.id === row.id)?.critical === true).length, 0),
   };
 }
 
 export async function report(directory) {
   const mapping = await readJSON(path.join(directory, 'mapping.private.json'));
   assert(Array.isArray(mapping) && mapping.length > 0, 'No imported outcomes to compare.');
-  const rows = [], limitations = [];
+  const rows = [], limitations = [], efficiencyLimitations = [];
   for (const entry of mapping) {
-    const { record, plan, rubric } = await readOutcome(entry.directory);
+    const { record, plan, rubric, files } = await readOutcome(entry.directory);
     assert(hash(canonical(record)) === entry.outcome_hash, 'Imported metadata changed after blinding.');
     const reviewerPlan = await fs.readFile(path.join(directory, 'review', entry.id, 'plan.md'), 'utf8');
     const reviewerRubric = await readJSON(path.join(directory, 'review', entry.id, 'rubric.json'));
     assert(hash(reviewerPlan) === record.plan_hash && hash(canonical(reviewerRubric)) === record.rubric_hash, 'Reviewer evidence changed after blinding.');
+    for (const [name, content] of Object.entries(files)) assert(await fs.readFile(path.join(directory, 'review', entry.id, name), 'utf8') === content, 'Reviewer task evidence changed after blinding.');
     let score;
     try { score = await readJSON(path.join(directory, 'review', entry.id, 'score.json')); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -193,11 +243,14 @@ export async function report(directory) {
     if (meta.elapsed_seconds > record.protocol.limits.max_seconds || meta.calls > record.protocol.limits.max_calls) limitations.push(`Call/time allowance exceeded: ${record.task}/${meta.arm}.`);
     for (const key of ['input_tokens', 'output_tokens']) {
       const cap = record.protocol.limits[`max_${key}`];
-      if (cap !== null && (meta.usage[key] === null || meta.usage[key] > cap)) limitations.push(`Token allowance exceeded or unknown: ${record.task}/${meta.arm}/${key}.`);
+      if (meta.usage[key] === null) efficiencyLimitations.push(`Unknown whole-task ${key}${cap === null ? '' : '; token allowance cannot be verified'}: ${record.task}/${meta.arm}.`);
+      else if (cap !== null && meta.usage[key] > cap) limitations.push(`Token allowance exceeded: ${record.task}/${meta.arm}/${key}.`);
     }
-    rows.push({ task: record.task, arm: meta.arm, task_hash: record.task_hash, rubric_hash: record.rubric_hash, protocol_hash: record.protocol_hash, protocol: record.protocol, metrics, metadata: meta, evaluator: score?.evaluator ?? null });
+    const judgments = score ? Object.fromEntries(GROUPS.map(group => [group, score[group].map(({ id, met }) => ({ id, met }))])) : null;
+    rows.push({ task: record.task, arm: meta.arm, task_hash: record.task_hash, rubric_hash: record.rubric_hash, protocol_hash: record.protocol_hash, protocol: record.protocol, metrics, judgments, metadata: meta, evaluator: score?.evaluator ?? null });
   }
-  for (const task of ['feature', 'production']) {
+  assert(new Set(rows.map(row => `${row.task}:${row.arm}`)).size === rows.length, 'Duplicate task/arm in report mapping.');
+  for (const task of rows[0].protocol.tasks ?? LEGACY_TASKS) {
     const taskRows = rows.filter(row => row.task === task);
     for (const arm of rows[0]?.protocol.arms ?? []) if (!taskRows.some(row => row.arm === arm)) limitations.push(`Missing task/arm: ${task}/${arm}.`);
     for (const key of ['task_hash', 'rubric_hash', 'protocol_hash']) if (new Set(taskRows.map(row => row[key])).size > 1) limitations.push(`Unmatched ${key}: ${task}.`);
@@ -206,11 +259,40 @@ export async function report(directory) {
   const evaluators = rows.filter(row => row.evaluator).map(row => canonical({ id: row.evaluator.id, kind: row.evaluator.kind, model: row.evaluator.model }));
   if (new Set(evaluators).size > 1) limitations.push('Evaluator configuration differs; independent replications need separate batches.');
   const usageComplete = rows.length > 0 && rows.every(row => row.metadata.usage.input_tokens !== null && row.metadata.usage.output_tokens !== null);
+  const qualityEligible = limitations.length === 0;
+  const efficiencyEligible = qualityEligible && usageComplete;
+  const baseline = rows[0].protocol.baseline;
+  const promotionBlockers = [];
+  if (!baseline) promotionBlockers.push('No baseline and candidate pair was preregistered.');
+  if (baseline && canonical(rows[0].protocol.tasks) !== canonical(frozenBaseline.tasks)) promotionBlockers.push('Promotion requires the complete frozen baseline suite; selected subsets remain descriptive.');
+  if (!rows[0].protocol.controls) promotionBlockers.push('Tools, research inputs, settings and role policy were not preregistered.');
+  if (!qualityEligible) promotionBlockers.push('Matched quality evidence is incomplete or invalid.');
+  if (baseline && qualityEligible) for (const task of rows[0].protocol.tasks ?? LEGACY_TASKS) {
+    const previous = rows.find(row => row.task === task && row.arm === baseline.arm);
+    const candidate = rows.find(row => row.task === task && row.arm === baseline.candidate_arm);
+    if (candidate.metrics.critical_failures > 0) promotionBlockers.push(`Critical failure in candidate: ${task}.`);
+    for (const group of GROUPS) for (const criterion of previous.judgments[group]) {
+      if (criterion.met && !candidate.judgments[group].find(item => item.id === criterion.id)?.met) promotionBlockers.push(`Quality regression: ${task}/${criterion.id}.`);
+    }
+    for (const key of ['harmful_remedies', 'unsupported_findings']) if (candidate.metrics[key] > previous.metrics[key]) promotionBlockers.push(`Increased ${key}: ${task}.`);
+  }
   return {
-    status: limitations.length ? 'insufficient-matched-evidence' : 'descriptive-matched-observations',
+    status: qualityEligible ? 'descriptive-matched-observations' : 'insufficient-matched-evidence',
     superiority_claim_supported: false,
-    efficiency_comparison_available: limitations.length === 0 && usageComplete,
-    limitations: [...new Set(limitations)],
+    quality_comparison_available: qualityEligible,
+    efficiency_comparison_available: efficiencyEligible,
+    quality_limitations: [...new Set(limitations)],
+    efficiency_limitations: [...new Set([...limitations, ...efficiencyLimitations])],
+    limitations: [...new Set([...limitations, ...efficiencyLimitations])],
+    promotion: {
+      baseline: baseline ?? null,
+      quality_gate_passed: promotionBlockers.length === 0,
+      resource_gate_passed: efficiencyEligible,
+      eligible_for_followup: promotionBlockers.length === 0 && efficiencyEligible,
+      release_or_gain_claim_supported: false,
+      blockers: [...new Set([...promotionBlockers, ...(!efficiencyEligible ? ['Resource evidence is incomplete or invalid; no efficiency or budget promotion.'] : [])])],
+      interpretation: 'A passed gate supports only a follow-up evaluation of this preregistered suite. It is not release approval, equivalence, an efficiency benefit, or statistical evidence of superiority.',
+    },
     interpretation: 'No general superiority, equal-quality, or token-saving claim follows from this small convenience sample. Metrics are evaluator judgments; metadata is supplied, not provider-attested. Compare paired task results only. Role/model use may differ within the same preregistered available pool. Unknown usage is not zero. Repeat with independent evaluators, more tasks and implementation outcomes before generalizing.',
     rows,
   };
@@ -228,7 +310,7 @@ async function main(argv) {
   else if (command === 'import') result = await importOutcome(options.packet, await fs.readFile(options.plan, 'utf8'), await readJSON(options.meta), options.out);
   else if (command === 'blind') result = await blind(await readJSON(options.runs), options.out);
   else if (command === 'report') result = await report(options.batch);
-  else throw new Error('Usage: packet --task feature|production --config FILE --out DIR; import --packet DIR --plan FILE --meta FILE --out DIR; blind --runs JSON_FILE --out DIR; report --batch DIR');
+  else throw new Error(`Usage: packet --task ${TASKS.join('|')} --config FILE --out DIR; import --packet DIR --plan FILE --meta FILE --out DIR; blind --runs JSON_FILE --out DIR; report --batch DIR`);
   process.stdout.write(json(result));
 }
 

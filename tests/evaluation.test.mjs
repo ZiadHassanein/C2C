@@ -378,3 +378,24 @@ test('changed blinded task evidence and duplicate mappings cannot support report
   await write(mapPath, [...mapping, mapping[0]]);
   await assert.rejects(report(batch), /Duplicate task\/arm/);
 });
+
+test('2.3 capture is independently registered without replacing the 2.2 baseline', async t => {
+  const capture = await read(path.join(checkout, 'evals/baselines/c2c-2.3.0.capture.json'));
+  await validateCaptureManifest(capture);
+  const baseline = { ...BASELINE, capture_id: capture.capture_id, tool_version: capture.tool_version, source_revision: capture.source_revision };
+  assert.deepEqual(validateBaseline(BASELINE, BASELINE_CONFIG.arms), BASELINE);
+  assert.deepEqual(validateBaseline(baseline, BASELINE_CONFIG.arms), baseline);
+  assert.throws(() => validateBaseline({ ...baseline, source_revision: BASELINE.source_revision }, BASELINE_CONFIG.arms), /frozen capture/);
+  const root = await workspace(t), dir = path.join(root, 'registered-2-3');
+  await packet('sound-plan', { ...BASELINE_CONFIG, baseline }, dir);
+  const metadata = { ...baselineMeta(meta('external')), tool_version: baseline.tool_version, source_revision: baseline.source_revision, capture_id: baseline.capture_id };
+  const outcome = await importOutcome(dir, PLAN, metadata, path.join(root, 'valid'));
+  assert.equal(outcome.metadata.capture_id, capture.capture_id);
+  await assert.rejects(importOutcome(dir, PLAN, baselineMeta(meta('external')), path.join(root, 'wrong-baseline')), /Baseline metadata/);
+  assert.deepEqual(capture.outcomes, []);
+  const config = { ...BASELINE_CONFIG, baseline };
+  const { batch } = await completeBatch(t, value => ({ ...baselineMeta(value), ...(value.arm === baseline.arm ? { tool_version: baseline.tool_version, source_revision: baseline.source_revision, capture_id: baseline.capture_id } : {}) }), () => config, config.arms);
+  const comparison = await report(batch);
+  assert.equal(comparison.promotion.eligible_for_followup, true);
+  assert.equal(comparison.superiority_claim_supported, false);
+});

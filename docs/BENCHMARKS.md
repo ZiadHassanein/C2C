@@ -25,7 +25,7 @@ The [outcome harness](../evals/README.md) supports frozen tasks, selected compar
 
 The bank now includes seven fictional cases: the original feature and project tasks, plus bilingual sources, mixed uploads/rights, a shared false premise, preservation of a sound plan and revision dependencies. An independent-proposals/synthesis arm is opt-in. Critical failures and per-criterion regressions cannot be hidden by an aggregate score. Quality eligibility and resource eligibility are reported separately; missing or capped task tokens cannot support a savings claim.
 
-The [2.2.0 capture manifest](../evals/baselines/c2c-2.2.0.capture.json) pins a source commit and contains zero measured outcomes. The live outcome comparison remains incomplete. Software validation is recorded in [project notes](../PROJECT_NOTES.md) and [CI runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml); those checks do not certify security, production readiness or planning quality.
+The separate [2.2.0](../evals/baselines/c2c-2.2.0.capture.json) and [2.3.0](../evals/baselines/c2c-2.3.0.capture.json) capture manifests pin their source commits and contain zero measured outcomes. The live outcome comparison remains incomplete. Software validation is recorded in [project notes](../PROJECT_NOTES.md) and [CI runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml); those checks do not certify security, production readiness or planning quality.
 
 ## Inspect observed usage
 

@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const packageFiles = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/usage.mjs', 'scripts/plan-quality.mjs', 'scripts/guidance.mjs', 'scripts/projection.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'scripts/runtime.mjs', 'scripts/updates.mjs', 'package.json', 'LICENSE'];
+const packageFiles = ['SKILL.md', 'agents/openai.yaml', 'references/protocol.md', 'references/project-assessment.md', 'references/plan-presentation.md', 'references/model-selection.md', 'scripts/council.mjs', 'scripts/process.mjs', 'scripts/assessment.mjs', 'scripts/adapters.mjs', 'scripts/state.mjs', 'scripts/discussion.mjs', 'scripts/participants.mjs', 'scripts/budget.mjs', 'scripts/progress.mjs', 'scripts/evidence.mjs', 'scripts/usage.mjs', 'scripts/plan-quality.mjs', 'scripts/guidance.mjs', 'scripts/projection.mjs','scripts/review-diff.mjs', 'scripts/install.mjs', 'scripts/install-baselines.json', 'scripts/setup.mjs', 'scripts/runtime.mjs', 'scripts/updates.mjs', 'package.json', 'LICENSE'];
 const temporaryParent = await fs.realpath(os.tmpdir());
 const testRoot = await fs.mkdtemp(path.join(temporaryParent, 'council-install-compat-'));
 after(async () => {

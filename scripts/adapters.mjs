@@ -138,13 +138,45 @@ export function parseCodexFeatures(stdout) {
   return [...names];
 }
 
-export function buildCodexArgs({ schemaPath, model, codexFeatures = CODEX_DISABLED_FEATURES }) {
+// Reviewed 2026-10-09: levels are client/model dependent, not a static model
+// entitlement catalogue. Callers research compatibility before selecting one.
+// https://learn.chatgpt.com/docs/config-file/config-reference
+// https://code.claude.com/docs/en/cli-reference
+export const EFFORT_LEVELS = Object.freeze({
+  codex: Object.freeze(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']),
+  claude: Object.freeze(['low', 'medium', 'high', 'xhigh', 'max']),
+});
+export function validateEffort(provider, effort) {
+  required(Object.hasOwn(EFFORT_LEVELS, provider), 'Unknown worker provider');
+  if (effort === undefined || effort === null) return null;
+  required(typeof effort === 'string' && EFFORT_LEVELS[provider].includes(effort),
+    `Unsupported ${provider} effort; choose ${EFFORT_LEVELS[provider].join(', ')} for a compatible model, or omit the option when support is unknown`);
+  return effort;
+}
+
+// An explicit per-run choice must not lose to an inherited Claude effort env
+// override. Change only the owned child's effort setting; omission preserves
+// the existing environment. Managed/model caps may still clamp silently.
+// https://code.claude.com/docs/en/model-config#adjust-effort-level
+export function workerEnvironment(provider, effort, inheritedEnv = process.env, platform = process.platform) {
+  const requested = validateEffort(provider, effort);
+  const env = { ...inheritedEnv };
+  if (provider === 'claude' && requested !== null) {
+    for (const key of Object.keys(env)) if ((platform === 'win32' ? key.toUpperCase() : key) === 'CLAUDE_CODE_EFFORT_LEVEL') delete env[key];
+    env.CLAUDE_CODE_EFFORT_LEVEL = requested;
+  }
+  return env;
+}
+
+export function buildCodexArgs({ schemaPath, model, effort, codexFeatures = CODEX_DISABLED_FEATURES }) {
+  const requested = validateEffort('codex', effort);
   const supported = new Set(codexFeatures);
   for (const name of REQUIRED_CODEX_FEATURES) required(supported.has(name), `Codex is missing required ${name} feature control`);
   const args = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--json', '--color', 'never', '--output-schema', schemaPath,
     '-c', 'approval_policy="never"', '-c', 'web_search="disabled"'];
   for (const feature of CODEX_DISABLED_FEATURES) if (supported.has(feature)) args.push('--disable', feature);
   if (model) args.push('--model', model);
+  if (requested !== null) args.push('-c', `model_reasoning_effort="${requested}"`);
   args.push('-');
   return args;
 }
@@ -277,15 +309,16 @@ export async function checkWorkerIdentity(cwd, { run = runProcess, inspect = ins
 // Only inert local, metadata and authentication-status commands run here, never a model turn.
 // doctor and ask share this preflight; ask must call it before reserving an attempt.
 export async function probeProvider(provider, cwd, { run = runProcess, resolve, discover = discoverExecutables,
-  env = process.env, platform = process.platform, identityCheck = checkWorkerIdentity } = {}) {
+  env = process.env, platform = process.platform, identityCheck = checkWorkerIdentity, effort } = {}) {
   required(['codex', 'claude'].includes(provider), 'Unknown peer provider');
+  const requestedEffort = validateEffort(provider, effort);
   let candidates;
   try { candidates = resolve ? [resolve(provider)] : discover(provider, { env, platform }); }
   catch (error) {
     if (['cli_not_found', 'cli_override_unusable'].includes(error.reason)) throw error;
     throw providerSetupError(provider, 'cli_check_failed', `${provider} executable discovery could not complete.`);
   }
-  let executable, version, codexFeatures, codexUnreviewedEnabled = [], claudePartialMessages = false;
+  let executable, version, codexFeatures, codexUnreviewedEnabled = [], claudePartialMessages = false, claudeEffort = false, claudeEffortLevels = null;
   const candidateChecks = [];
   const check = async (args, label) => {
     let result;
@@ -302,6 +335,8 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     version = undefined;
     codexFeatures = undefined;
     claudePartialMessages = false;
+    claudeEffort = false;
+    claudeEffortLevels = null;
     try {
       version = (await check(['--version'], 'version check')).stdout.trim();
       if (!env.COUNCIL_CODEX_BIN && candidates.automaticFallbacks?.includes(candidate) && (!/\b\d+\.\d+\.\d+\b/.test(version) || /\d+\.\d+\.\d+-[a-z0-9]/i.test(version))) {
@@ -312,7 +347,16 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
       // Optional progress support belongs to the selected binary, not a reason
       // to skip an otherwise compatible installation or run another command.
       const hasFlag = flag => new RegExp(`(?:^|\\s)${flag}(?=[\\s,=]|$)`).test(help.stdout);
-      if (provider === 'claude') claudePartialMessages = hasFlag('--include-partial-messages');
+      if (provider === 'claude') {
+        claudePartialMessages = hasFlag('--include-partial-messages');
+        claudeEffort = hasFlag('--effort');
+        const effortHelp = help.stdout.match(/(?:^|\n)[ \t]*--effort(?=[\s,=]|$)[\s\S]*?(?=\n[ \t]*--[a-z]|$)/)?.[0];
+        const choices = effortHelp?.match(/(?:choices|options)\s*:\s*([^\n)]+)/i)?.[1];
+        if (choices) claudeEffortLevels = [...new Set(choices.match(/\b(?:low|medium|high|xhigh|max)\b/g) ?? [])];
+        if (requestedEffort !== null && (!claudeEffort || claudeEffortLevels && !claudeEffortLevels.includes(requestedEffort))) {
+          throw providerSetupError(provider, 'cli_incompatible', `Claude does not advertise support for the requested --effort ${requestedEffort}; preserve the selection rather than silently omitting or lowering it.`);
+        }
+      }
       if (provider === 'codex') {
         const featuresText = (await check(['features', 'list'], 'feature discovery')).stdout;
         codexFeatures = parseCodexFeatures(featuresText);
@@ -378,7 +422,8 @@ export async function probeProvider(provider, cwd, { run = runProcess, resolve, 
     ...(!authenticated ? { reason: 'login_unavailable', guidance: providerSetupGuidance(provider) } : {}),
     auth_method: authMethod, authentication_check: 'local_status_only', request_auth_verified: false,
     auth_route: authRoute, route_environment_overrides: routeOverrides,
-    ...(provider === 'claude' ? { subscription_type: subscriptionType, claude_partial_messages: claudePartialMessages } : {}),
+    ...(provider === 'claude' ? { subscription_type: subscriptionType, claude_partial_messages: claudePartialMessages,
+      claude_effort: claudeEffort, claude_effort_levels: claudeEffortLevels } : {}),
     authentication_note: 'CLI credential status does not validate token freshness, refresh success, or model access. No peer terminal or app needs to stay open.',
     billing_check: 'not_checked', included_allowance_verified: false,
     quota_status: 'unknown', overage_status: 'unknown',

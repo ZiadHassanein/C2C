@@ -36,6 +36,18 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.4.0: explicit effort and revision review
+
+Select worker effort separately from exact model identity. Optional prepare-time `--peer-effort` and `--author-effort` are sealed with the run and passed only to owned child processes. New-task guidance selects compatible researched settings when known, preserves user-fixed levels, and records the reason for omission otherwise. Requested effort is not effective attestation: a CLI/model/managed cap may apply an unreported value. Never infer configuration or quality from a minimum reasoning-token count. Preserve isolated worker configuration and all spending restrictions.
+
+Final revision packets retain the full current plan, evidence, decisions and security report, and add a bounded textual comparison against the sealed first verification input. Excerpts disclose truncation and preserve exact hashes and line endings. The comparison helps locate changes; it is not an applyable patch or proof that unchanged dependencies remain correct. Changes justified by evidence, user decisions or coordinator corrections remain valid alongside finding-driven edits. Existing successful-stage immutability, one final revision check and honest unreviewed-revision outcomes remain; do not add rounds to force agreement.
+
+Universal outcome/dependency guidance applies to both provider routes while their distinct roles remain intact. Finding severity is based on consequence and evidence; supported concerns and proposed remedies require separate scrutiny. Guidance discourages cosmetic plan changes after verification and unnecessary host wakeups, while preserving host-required progress and cancellation. Planning-depth guidance is included in applicable scoped retrieval.
+
+The evaluation harness separately registers the frozen 2.3.0 source and unchanged seven-task suite; the 2.2.0 capture remains valid. Both are templates with zero measured outcomes. Offline regressions establish software behavior, not planning superiority or a token-saving percentage. Arbitrary repository evidence stays outside system instructions, and integrity hashes are not normalized to conceal changes.
+
+Validation covers effort routing and sealed selections, failed attempts, exact-text diff reconstruction and size fallback, preserved authoritative context, installation/update/rollback, old runtimes and both baseline registrations. An independent source review checked provenance and compatibility; an offline instruction walkthrough resolved status-link and post-completion amendment ambiguities. These checks use fictional reports or static evidence, not a live CLI exchange. Publication and installation require the exact candidate's local tests and native CI to pass.
+
 ### Version 2.3.0: evidence links and observed resources
 
 Implement the research recommendations with measurement and structural checks before optimization claims. The optional plan map lives in the existing decision record; it traces material requirements, source evidence or assumptions, decisions, dependent steps and acceptance checks. Exact anchors, known references, cycles and recording gaps are checked deterministically, without claiming factual truth, semantic completeness or readiness. Every recorded finding disposition remains linked, including rejected and unresolved concerns. Plan-text edits conservatively retain every known step for full-context revision review. Structural map changes require review; appending only new verifier finding links does not create a redundant call.

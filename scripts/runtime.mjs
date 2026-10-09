@@ -12,7 +12,7 @@ export const RUNTIME_FILES = Object.freeze([
   'references/project-assessment.md', 'references/protocol.md', 'package.json',
   'scripts/adapters.mjs', 'scripts/assessment.mjs', 'scripts/budget.mjs',
   'scripts/council.mjs', 'scripts/discussion.mjs', 'scripts/evidence.mjs',
-  'scripts/guidance.mjs', 'scripts/plan-quality.mjs', 'scripts/projection.mjs', 'scripts/usage.mjs',
+  'scripts/guidance.mjs', 'scripts/plan-quality.mjs', 'scripts/projection.mjs', 'scripts/usage.mjs', 'scripts/review-diff.mjs',
   'scripts/participants.mjs', 'scripts/process.mjs', 'scripts/progress.mjs',
   'scripts/runtime.mjs', 'scripts/state.mjs',
 ].sort());

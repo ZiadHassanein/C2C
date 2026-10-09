@@ -2,6 +2,15 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.4.0 — Explicit effort and clearer revision checks
+
+- Adds pinned, per-worker effort selection with separate requested and unreported effective settings. Compatible CLI flags are checked before launching; omitted effort retains existing CLI settings/defaults with its effective value unknown. No global settings or billing changes.
+- Gives final revision verification a bounded textual comparison alongside the full plan, source evidence, decisions and security review. Exact integrity checks, existing stage limits and honest unreviewed-revision outcomes remain intact.
+- Shares material outcome, dependency and acceptance guidance across provider routes. Defines finding severity and triage without forcing criticism or agreement; includes planning-depth guidance in scoped retrieval.
+- Reduces unnecessary host wakeups through supported completion notifications or bounded waiting with backoff. Host progress and cancellation requirements still apply.
+- Registers a separate frozen 2.3.0 baseline for the seven-task evaluation suite, preserving the 2.2.0 capture. Neither template contains measured outcomes; this release makes no numerical saving or planning-quality claim.
+- Preserves active runtime pins and the revised-plan, discussion and result handoff.
+
 ## 2.3.0 — Evidence links and measured resources
 
 - Adds optional requirement/source/assumption/decision/step/check links inside the existing decision record. `quality` detects broken references, dependency cycles and missing recorded checks; it does not certify factual truth or semantic coverage. Plan-text revisions retain a full-plan impact review.

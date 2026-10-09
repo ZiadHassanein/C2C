@@ -21,7 +21,8 @@ const modelKey = value => `${value.provider}:${value.model}`;
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const count = value => Number.isSafeInteger(value) && value >= 0;
 const inside = (parent, child) => { const rel = path.relative(parent, child); return rel === '' || (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel)); };
-const frozenBaseline = await readJSON(path.join(here, 'baselines', 'c2c-2.2.0.capture.json'));
+const frozenBaselines = await Promise.all(['2.2.0', '2.3.0'].map(version => readJSON(path.join(here, 'baselines', `c2c-${version}.capture.json`))));
+const findBaseline = baseline => frozenBaselines.find(capture => capture.capture_id === baseline.capture_id && capture.tool_version === baseline.tool_version && capture.source_revision === baseline.source_revision);
 
 export async function validateCaptureManifest(capture) {
   assert(capture?.format_version === 1 && capture.status === 'capture-required' && capture.suite_version === 'c2c-outcomes-v2', 'Malformed baseline capture format/status.');
@@ -70,7 +71,7 @@ export function validateBaseline(baseline, arms) {
   assert(arms.includes(baseline.arm) && arms.includes(baseline.candidate_arm) && baseline.arm !== baseline.candidate_arm, 'Baseline and candidate must be different preregistered arms.');
   assert(nonempty(baseline.capture_id) && nonempty(baseline.tool_version) && /^[a-f0-9]{40}$/.test(baseline.source_revision), 'Baseline requires capture_id, exact tool_version and full source_revision.');
   assert(Object.keys(baseline).sort().join(',') === 'arm,candidate_arm,capture_id,source_revision,tool_version', 'Unknown baseline fields.');
-  assert(baseline.capture_id === frozenBaseline.capture_id && baseline.tool_version === frozenBaseline.tool_version && baseline.source_revision === frozenBaseline.source_revision, 'Baseline does not match the frozen capture manifest.');
+  assert(findBaseline(baseline), 'Baseline does not match a registered frozen capture manifest.');
   return baseline;
 }
 
@@ -101,7 +102,7 @@ function validateConfig(config) {
 
 export async function packet(task, config, directory) {
   const protocol = validateConfig(config);
-  if (protocol.baseline) await validateCaptureManifest(frozenBaseline);
+  if (protocol.baseline) await validateCaptureManifest(findBaseline(protocol.baseline));
   assert((protocol.tasks ?? LEGACY_TASKS).includes(task), 'Task was not preregistered for this comparison.');
   const { files, rubric } = await sourceTask(task);
   const manifest = { version: 1, task, task_hash: hash(canonical(files)), rubric_hash: hash(canonical(rubric)), protocol, protocol_hash: hash(canonical(protocol)) };
@@ -264,7 +265,7 @@ export async function report(directory) {
   const baseline = rows[0].protocol.baseline;
   const promotionBlockers = [];
   if (!baseline) promotionBlockers.push('No baseline and candidate pair was preregistered.');
-  if (baseline && canonical(rows[0].protocol.tasks) !== canonical(frozenBaseline.tasks)) promotionBlockers.push('Promotion requires the complete frozen baseline suite; selected subsets remain descriptive.');
+  if (baseline && canonical(rows[0].protocol.tasks) !== canonical(findBaseline(baseline).tasks)) promotionBlockers.push('Promotion requires the complete frozen baseline suite; selected subsets remain descriptive.');
   if (!rows[0].protocol.controls) promotionBlockers.push('Tools, research inputs, settings and role policy were not preregistered.');
   if (!qualityEligible) promotionBlockers.push('Matched quality evidence is incomplete or invalid.');
   if (baseline && qualityEligible) for (const task of rows[0].protocol.tasks ?? LEGACY_TASKS) {

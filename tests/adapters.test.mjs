@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { discoverExecutables, resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, peerAuthenticationFailure, peerUsageLimitFailure, peerNetworkFailure, checkWorkerIdentity } from '../scripts/adapters.mjs';
+import { discoverExecutables, resolveExecutable, probeProvider, parseCodexFeatures, buildCodexArgs, CODEX_DISABLED_FEATURES, EFFORT_LEVELS, validateEffort, workerEnvironment, peerAuthenticationFailure, peerUsageLimitFailure, peerNetworkFailure, checkWorkerIdentity } from '../scripts/adapters.mjs';
 
 const tempParent = await fs.realpath(os.tmpdir());
 const root = await fs.mkdtemp(path.join(tempParent, 'council-adapters-test-'));
@@ -643,6 +643,79 @@ test('unavailable metadata and login checks keep static setup reasons without ex
       }
     }
   }
+});
+
+test('explicit effort labels are validated without substituting levels or enabling workflows', () => {
+  for (const provider of ['codex', 'claude']) {
+    for (const value of EFFORT_LEVELS[provider]) assert.equal(validateEffort(provider, value), value);
+    for (const value of ['', 'HIGH', ' high ', 'auto', 'ultracode', 1, {}, ['high'], 'high"\nfoo=true']) {
+      assert.throws(() => validateEffort(provider, value), /Unsupported .* effort/);
+    }
+    assert.equal(validateEffort(provider), null);
+    assert.equal(validateEffort(provider, null), null);
+  }
+  for (const value of ['none', 'minimal', 'ultra']) assert.throws(() => validateEffort('claude', value), /Unsupported claude effort/);
+});
+
+test('explicit Codex effort is a config override and preserves worker restrictions', () => {
+  for (const effort of EFFORT_LEVELS.codex) {
+    const args = buildCodexArgs({ schemaPath: 'schema.json', model: 'gpt-6-astra', effort });
+    assert.ok(args.includes('--ignore-user-config'));
+    assert.ok(args.includes('approval_policy="never"'));
+    assert.ok(args.includes('web_search="disabled"'));
+    assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only');
+    assert.ok(args.includes(`model_reasoning_effort="${effort}"`));
+    assert.equal(args.at(-1), '-');
+  }
+  assert.equal(buildCodexArgs({ schemaPath: 'schema.json' }).some(arg => arg.startsWith('model_reasoning_effort=')), false);
+});
+
+test('explicit Claude effort changes only its child effort environment with Windows case handling', () => {
+  const inherited = { CLAUDE_CODE_EFFORT_LEVEL: 'low', claude_code_effort_level: 'medium', ANTHROPIC_AUTH_TOKEN: 'fake-private-token', ANTHROPIC_MODEL: 'selected-model', UNRELATED: 'keep' };
+  const original = { ...inherited };
+  const windows = workerEnvironment('claude', 'xhigh', inherited, 'win32');
+  assert.deepEqual(windows, { CLAUDE_CODE_EFFORT_LEVEL: 'xhigh', ANTHROPIC_AUTH_TOKEN: 'fake-private-token', ANTHROPIC_MODEL: 'selected-model', UNRELATED: 'keep' });
+  const posix = workerEnvironment('claude', 'max', inherited, 'linux');
+  assert.equal(posix.CLAUDE_CODE_EFFORT_LEVEL, 'max');
+  assert.equal(posix.claude_code_effort_level, 'medium');
+  assert.deepEqual(workerEnvironment('claude', null, inherited, 'win32'), inherited);
+  assert.deepEqual(workerEnvironment('codex', 'high', inherited, 'win32'), inherited);
+  assert.deepEqual(inherited, original);
+});
+
+test('explicit Claude effort rejects unsupported flags or advertised choices before identity and auth checks', async () => {
+  for (const extra of ['', '\n --effort-unsupported <level>', '\n --no-effort <level>', '\n --effort <level> (choices: "low", "medium", "high")']) {
+    const fixture = fakeProbe({ provider: 'claude', help: claudeHelp + extra, auth: '{"loggedIn":true}' });
+    await assert.rejects(() => probeProvider('claude', root, { ...fixture, effort: 'xhigh', identityCheck: async () => assert.fail('Effort rejection must precede identity check') }), error => {
+      assert.equal(error.reason, 'cli_incompatible');
+      assert.match(error.message, /requested --effort xhigh/);
+      return true;
+    });
+    assert.deepEqual(fixture.calls, [['--version'], ['--help']]);
+  }
+});
+
+test('explicit Claude effort capability uses only local help and omission stays compatible', async () => {
+  for (const extra of ['\n --effort <level> Choose the session effort', '\n --effort <level> (choices: "low", "medium", "high", "xhigh", "max")']) {
+    const fixture = fakeProbe({ provider: 'claude', help: claudeHelp + extra, auth: '{"loggedIn":true}' });
+    const result = await probeProvider('claude', root, { ...fixture, effort: 'xhigh', identityCheck: async () => {} });
+    assert.equal(result.claude_effort, true);
+    assert.deepEqual(result.claude_effort_levels, extra.includes('choices:') ? EFFORT_LEVELS.claude : null);
+    assert.deepEqual(fixture.calls, [['--version'], ['--help'], ['auth', 'status']]);
+  }
+  const legacy = fakeProbe({ provider: 'claude', help: claudeHelp, auth: '{"loggedIn":true}' });
+  assert.equal((await probeProvider('claude', root, { ...legacy, identityCheck: async () => {} })).claude_effort, false);
+});
+
+test('explicit effort capability belongs to the selected compatible Claude candidate', async () => {
+  const fixture = candidateProbe('claude', [
+    { executable: '/fixture/old', version: 'old', help: claudeHelp },
+    { executable: '/fixture/current', version: 'current', help: `${claudeHelp}\n --effort <level> (choices: "low", "medium", "high", "xhigh", "max")` },
+  ]);
+  const info = await probeProvider('claude', root, { ...fixture, effort: 'max', identityCheck: async () => {} });
+  assert.equal(info.executable, '/fixture/current');
+  assert.equal(info.claude_effort, true);
+  assert.deepEqual(fixture.calls.map(call => call.command), ['--version', '--help', '--version', '--help', 'auth status']);
 });
 
 test('Claude preflight validates flags and successful authentication status without feature probing', async () => {

@@ -1788,7 +1788,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','scripts/evidence.mjs','scripts/runtime.mjs','scripts/usage.mjs','scripts/plan-quality.mjs','scripts/guidance.mjs','scripts/projection.mjs','scripts/updates.mjs','scripts/install.mjs','scripts/install-baselines.json','scripts/setup.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','scripts/evidence.mjs','scripts/runtime.mjs','scripts/usage.mjs','scripts/plan-quality.mjs','scripts/guidance.mjs','scripts/projection.mjs','scripts/review-diff.mjs','scripts/updates.mjs','scripts/install.mjs','scripts/install-baselines.json','scripts/setup.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -3645,11 +3645,49 @@ test('new finding links do not trigger a redundant revision while structural map
     const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
     assert.ok(packet.revision_impact.changed_nodes.includes('S1'));
     assert.equal(packet.revision_impact.full_context_required,true);
+    assert.equal(packet.plan_changes.changed,false);
+    assert.equal(packet.plan_changes.full_context_required,true);
     assert.match(packet.final_plan,/Implement/);
     assert.equal(packet.previous_verification.findings[0].id,'P-V1');
     return invocation(report())(request);
   });
   assert.equal(finish({run:f.out}).plan_map_changed_since_verification,false);
+});
+
+test('final revision compares exact reviewed text while preserving full plan, dissent and evidence', async () => {
+  const f = await readyForVerify('textual-revision', { mode: 'review' });
+  const planFile = path.join(f.out, 'final-plan.md');
+  const before = '# Export plan\r\nUse stable ordering.\r\nSkip malformed fields.  \r\n';
+  const after = '# Export plan\r\nUse stable ordering.\r\nReject malformed fields and return a bounded validation error.\r\n';
+  await write(planFile, before);
+  await ask({run:f.out,stage:'verify'},invocation(report(['P-V1'])));
+  const sealed = (await read(path.join(f.out,'run.json'))).stages.verify.reviewed_hashes['final-plan.md'];
+  syncDecisions({run:f.out});
+  const decisions = await read(path.join(f.out,'decisions.json'));
+  decisions.find(row=>row.finding_id==='P-V1').disposition='accepted';
+  decisions.find(row=>row.finding_id==='P-V1').rationale='Reject invalid fields instead of silently losing required export content.';
+  await write(path.join(f.out,'decisions.json'),decisions);
+  await write(planFile,after);
+  const view=preview({run:f.out,stage:'verify-final'});
+  await ask({run:f.out,stage:'verify-final'},async request=>{
+    assert.equal(createHash('sha256').update(request.prompt).digest('hex'),view.prompt.sha256);
+    const packet=JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    assert.equal(packet.final_plan,after);
+    assert.equal(packet.plan_changes.before.sha256,sealed);
+    assert.equal(packet.plan_changes.after.sha256,createHash('sha256').update(after).digest('hex'));
+    assert.equal(packet.plan_changes.changed,true);
+    assert.equal(packet.plan_changes.complete,true);
+    assert.equal(packet.plan_changes.is_patch,false);
+    assert.match(JSON.stringify(packet.plan_changes.hunks),/Skip malformed fields/);
+    assert.match(JSON.stringify(packet.plan_changes.hunks),/Reject malformed fields/);
+    assert.equal(packet.previous_verification.findings[0].id,'P-V1');
+    assert.deepEqual(packet.decisions,decisions);
+    assert.deepEqual(packet.security_review,await read(path.join(f.out,'security-review.json')));
+    assert.ok(packet.shared_context.inputs.some(input=>input.content.includes('INPUT_CONTEXT_TOKEN')));
+    return invocation(report())(request);
+  });
+  assert.equal(finish({run:f.out}).delivered_plan_reviewed,true);
+  assert.equal(await fs.readFile(planFile,'utf8'),after);
 });
 
 test('experimental context profile is sealed and preview matches the exact projected packet', async () => {

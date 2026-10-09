@@ -175,7 +175,7 @@ Even a complete batch is **descriptive evidence for the selected tasks**, never 
 of general superiority, equal quality or guaranteed savings. The harness checks
 provenance consistency and quotation presence, not truth or evaluator competence.
 
-## Frozen 2.2.0 baseline capture and promotion guards
+## Frozen baseline captures and promotion guards
 
 [The capture manifest](baselines/c2c-2.2.0.capture.json) pins the existing 2.2.0
 source commit, its five instruction hashes, and the expanded suite's file hashes.
@@ -183,8 +183,13 @@ It is a **capture-required template with zero outcomes**, not an executed
 baseline. The expanded fixture suite was prepared after that source revision.
 Do not replace older baseline evidence or rewrite this manifest for a changed
 suite; add a separately versioned manifest and keep the earlier source available.
-The current harness validates this one registered capture; a future registration
-requires its own reviewed manifest support, not silently changing its identity.
+The separately registered [2.3.0 capture](baselines/c2c-2.3.0.capture.json) pins
+the source before effort, review-diff and orchestration changes, using the same
+seven-task suite. It also contains **zero measured outcomes**. To select it, use
+`capture_id: "c2c-2.3.0-outcomes-v2"`, `tool_version: "2.3.0"` and
+`source_revision: "ec26754e6e8733067e9bfe59fc65ec33508631fb"` in the baseline
+configuration and imported baseline metadata. The harness rejects mixed
+identities; the 2.2.0 capture and its prior packets remain valid.
 
 To compare the frozen 2.2.0 workflow against a candidate, use `external` for the
 exact pinned baseline procedure and `c2c` for the candidate. Add these fields to

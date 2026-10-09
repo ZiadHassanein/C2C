@@ -7,14 +7,14 @@ const files = Object.freeze({ protocol: 'references/protocol.md', assessment: 'r
 const topics = Object.freeze({
   start: ['assessment#gather-evidence-without-expanding-scope', 'assessment#choose-an-actionable-direction'],
   assess: ['assessment#distinguish-deployment-from-readiness', 'assessment#json-contract', 'assessment#persist-and-revisit'],
-  prepare: ['protocol#choose-an-available-route', 'protocol#pairing-and-model-identity', 'protocol#no-paid-limit-recovery', 'protocol#commands', 'protocol#launch-preview-and-local-permissions'],
-  models: ['models#research-once-per-task', 'models#filter-before-choosing', 'models#assign-real-roles', 'models#recommend-models-for-execution'],
+  prepare: ['protocol#planning-depth-and-deliverables', 'protocol#choose-an-available-route', 'protocol#pairing-and-model-identity', 'models#worker-effort', 'protocol#no-paid-limit-recovery', 'protocol#commands', 'protocol#launch-preview-and-local-permissions'],
+  models: ['models#research-once-per-task', 'models#filter-before-choosing', 'models#assign-real-roles', 'models#worker-effort', 'models#recommend-models-for-execution'],
   exchange: ['protocol#exchange-sequence', 'protocol#file-contract', 'protocol#report-schema', 'protocol#decision-record', 'protocol#security-and-testing', 'protocol#bounded-evidence-requests'],
   verify: ['protocol#final-revision-check', 'protocol#decision-record', 'presentation#check-before-delivery'],
   same: ['protocol#single-provider-planning-perspectives', 'protocol#pairing-and-model-identity'],
   recover: ['protocol#resume-checklist', 'protocol#budgets-and-bounded-recovery', 'protocol#compatibility-and-recovery', 'protocol#authentication-permissions-and-limits'],
   fallback: ['protocol#planning-with-unavailable-tools', 'protocol#change-route-after-a-worker-block', 'protocol#no-paid-limit-recovery', 'protocol#planning-when-usage-limits-block-the-exchange'],
-  present: ['presentation#put-the-decision-brief-first', 'presentation#show-scope-and-sequence', 'presentation#keep-safety-and-verification-actionable', 'presentation#show-what-review-changed', 'presentation#make-the-execution-entry-point-explicit', 'presentation#check-before-delivery', 'presentation#put-technical-depth-after-the-decisions'],
+  present: ['protocol#planning-depth-and-deliverables', 'presentation#put-the-decision-brief-first', 'presentation#show-scope-and-sequence', 'presentation#keep-safety-and-verification-actionable', 'presentation#show-what-review-changed', 'presentation#make-the-execution-entry-point-explicit', 'presentation#check-before-delivery', 'presentation#put-technical-depth-after-the-decisions'],
   update: ['protocol#updates-during-a-chat'],
 });
 const slug = text => text.toLowerCase().replace(/[`*_]/g, '').replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-');

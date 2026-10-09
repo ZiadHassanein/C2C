@@ -28,6 +28,8 @@ For a roadmap, use a compact milestone table:
 
 Detail the first useful milestone; keep later ones proportionate to their uncertainty. For a small feature, ordered steps with their checks are enough. Do not invent dates, owners, infrastructure, or staffing. Explain a consequential sequencing choice rather than letting the list imply it is settled.
 
+For material dependencies, connect requirements to their evidence or explicit assumptions, decisions, affected steps and acceptance checks. Use the optional [plan map](protocol.md#optional-plan-map) inside `decisions.json` when it helps check those links; size it to consequential scope, not the length of the prose. Keep exact anchors in this same plan, plus each consequential step's boundary, output and prerequisites. A factual gap or user choice gates only affected actions; harmless deferred choices and unrelated authorized discovery remain distinct.
+
 Record technical choices that control the first work item or architecture: the choice, reason/tradeoff, and whether it is confirmed, proposed, or awaiting evidence. Reuse suitable project tools and patterns; leave routine coding details to implementation. A short paragraph or compact decision table is enough.
 
 For content, show the intended audience/purpose, format, language/tone, outline or editing approach, source/claim gaps and applicable media plan. Distinguish existing assets and inspected evidence from proposed images, descriptions, rights assumptions and alt-text work. Keep editorial readiness separate from publication state. For mixed work, connect these requirements to the software milestones without duplicating the plan.
@@ -70,6 +72,7 @@ Check the assembled plan before peer verification, then check corrections again 
 - The recommendation, scope, technical/editorial decisions, milestone order and Start here block agree with the latest finding dispositions and actual project evidence.
 - Accepted fixes appear in the operative plan; the user can follow it without reconciling an older plan against separate review notes. Preserve an explicit critique-only scope.
 - The first work item has a concrete location/action, prerequisites and observable acceptance result, or an explicit discovery/blocking condition. Dependencies do not require an unfinished later milestone or form a cycle.
+- When a map is recorded, `quality --run RUN` agrees with the current plan excerpts, evidence and finding dispositions. Missing mapping is `not_recorded`; `recorded` is a structural result, not semantic coverage or readiness. Check changed decisions and their downstream effects against the full plan after revisions.
 - Execution advice fits that work item and the user's limits; sources, eligibility gaps and savings labels are accurate. Price differences are not presented as token or subscription savings, and the recommendation grants no new implementation authority.
 - Applicable security, acceptance checks and unresolved decisions remain actionable; proposed checks are not reported as executed. Content claims, source/media gaps and publication state are accurate. Review status identifies material edits after verification and remaining limitations.
 

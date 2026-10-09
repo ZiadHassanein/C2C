@@ -316,7 +316,11 @@ export function comparePlanImpact(options = {}) {
     for (const ref of descendants(seeds, combinedDependents)) if (stepIds.has(ref)) impacted.add(ref);
     if (result.changed_sources.some(ref => !sourceRefs.has(ref))) result.reasons.push('unmapped_source_change');
     if (result.changed_findings.some(ref => !findingRefs.has(ref))) result.reasons.push('unmapped_finding_change');
-    if (before.planText !== after.planText && result.changed_nodes.length === 0) result.reasons.push('unmapped_plan_change');
+    // Changed anchors do not establish that every textual edit was mapped. A
+    // simultaneous unanchored change may affect an otherwise independent step.
+    // Narrow impact only for map/source/finding changes with unchanged plan
+    // text; content edits always retain the full fallback and all known steps.
+    if (before.planText !== after.planText) result.reasons.push('unmapped_plan_change');
     if (result.changed_artifacts.some(name => !['final-plan.md', 'decisions.json'].includes(name))) result.reasons.push('other_artifact_change');
     if (!result.reasons.length) { result.status = 'mapped'; result.affected_steps = sorted(impacted); }
     return result;

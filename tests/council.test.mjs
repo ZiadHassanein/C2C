@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, preview, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, validateReport, parsePeerResponse, doctor,
+  prepare, preview, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, quality, usage, guide, validateReport, parsePeerResponse, doctor,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -105,6 +105,14 @@ async function inputFixture(label) {
   return {root,project,out,brief,context,assessment:assessmentFile};
 }
 const prepareOptions = f => ({project:f.project,brief:f.brief,assessment:f.assessment,context:[f.context],coordinator:'codex',mode:'plan','timeout-policy':'fixed',out:f.out});
+function mappedPlan(decisions = [], text = '# Final plan\nImplement escaping and deterministic ordering.\n') {
+  return { decisions, plan_map: { version: 1, nodes: [
+    { id: 'R1', kind: 'requirement', quote: 'escaping', requires: [], sources: ['input-1'] },
+    { id: 'D1', kind: 'decision', quote: 'deterministic ordering', requires: ['R1'], findings: decisions.map(item => item.finding_id) },
+    { id: 'S1', kind: 'step', quote: 'Implement', requires: ['D1'], boundary: 'escaping', output: 'deterministic ordering' },
+    { id: 'T1', kind: 'check', quote: 'ordering', requires: ['S1'], status: 'proposed' },
+  ] } };
+}
 async function fixture(label, extra = {}) {
   const f = await inputFixture(label);
   await prepare({...prepareOptions(f),...extra});
@@ -1780,7 +1788,7 @@ test('ordinary unsuccessful child exits retain signal and termination evidence',
 });
 
 const packageRoot=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','scripts/evidence.mjs','scripts/runtime.mjs','scripts/updates.mjs','scripts/install.mjs','scripts/install-baselines.json','scripts/setup.mjs','package.json','LICENSE'];
+const installFiles=['SKILL.md','agents/openai.yaml','references/protocol.md','references/project-assessment.md','references/plan-presentation.md','references/model-selection.md','scripts/council.mjs','scripts/process.mjs','scripts/assessment.mjs','scripts/adapters.mjs','scripts/state.mjs','scripts/discussion.mjs','scripts/participants.mjs','scripts/budget.mjs','scripts/progress.mjs','scripts/evidence.mjs','scripts/runtime.mjs','scripts/usage.mjs','scripts/plan-quality.mjs','scripts/guidance.mjs','scripts/projection.mjs','scripts/updates.mjs','scripts/install.mjs','scripts/install-baselines.json','scripts/setup.mjs','package.json','LICENSE'];
 async function installerFixture(label) {
   const root=await fs.mkdtemp(path.join(testRoot,`install-${label}-`));
   const codexHome=path.join(root,'codex-home');
@@ -3580,4 +3588,168 @@ test('preview rejects invalid stages and tampered evidence without repairing or 
   const changed = await runFileBytes(f.out);
   assert.throws(() => preview({ run: f.out, stage: 'draft' }), /Sealed artifact changed/);
   assert.deepEqual(await runFileBytes(f.out), changed);
+});
+
+test('plan map wrapper stays in the existing artifact and preserves all three deliverables', async () => {
+  const f = await readyForVerify('mapped-wrapper');
+  const document = mappedPlan(await read(path.join(f.out, 'decisions.json')));
+  await write(path.join(f.out, 'decisions.json'), document);
+  const before = await runFileBytes(f.out);
+  const checked = quality({run:f.out});
+  assert.equal(checked.plan_quality.status, 'recorded');
+  assert.deepEqual(checked.available_sources.map(item => item.id), ['E1','input-1','input-3']);
+  assert.deepEqual(await runFileBytes(f.out), before, 'Quality is read-only');
+  await ask({run:f.out,stage:'verify'}, async request => {
+    const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    assert.deepEqual(packet.decisions, document.decisions);
+    assert.deepEqual(packet.plan_map, document.plan_map);
+    assert.equal(packet.shared_context.inputs[1].source_id, 'input-3');
+    assert.equal(packet.plan_quality.status, 'recorded');
+    return invocation(report())(request);
+  });
+  const result = finish({run:f.out});
+  assert.equal(result.plan_quality.status, 'recorded');
+  for (const file of [result.plan,result.discussion,result.result]) assert.ok((await fs.stat(file)).isFile());
+  assert.equal(result.resource_usage.coordinator.status, 'unobserved');
+});
+
+test('missing maps retain legacy behavior and broken supplied maps cannot finish', async () => {
+  const f = await readyForVerify('broken-map');
+  assert.equal(quality({run:f.out}).plan_quality.status, 'not_recorded');
+  const doc = mappedPlan(await read(path.join(f.out, 'decisions.json')));
+  doc.plan_map.nodes[2].requires = ['missing'];
+  await write(path.join(f.out,'decisions.json'),doc);
+  assert.equal(quality({run:f.out}).plan_quality.status, 'invalid');
+  await ask({run:f.out,stage:'verify'},invocation(report()));
+  assert.throws(() => finish({run:f.out}), /Invalid recorded plan map/);
+  assert.notEqual(status({run:f.out}).status, 'complete');
+});
+
+test('new finding links do not trigger a redundant revision while structural map edits do', async () => {
+  const f = await readyForVerify('map-revision');
+  await write(path.join(f.out,'decisions.json'),mappedPlan(await read(path.join(f.out,'decisions.json'))));
+  await ask({run:f.out,stage:'verify'},invocation(report(['P-V1'])));
+  syncDecisions({run:f.out});
+  const doc = await read(path.join(f.out,'decisions.json'));
+  assert.equal(doc.plan_map.version,1);
+  doc.decisions.find(item => item.finding_id === 'P-V1').disposition = 'rejected';
+  doc.decisions.find(item => item.finding_id === 'P-V1').rationale = 'Counterevidence supports retaining the exact reviewed plan.';
+  doc.plan_map.nodes[1].findings.push('P-V1');
+  await write(path.join(f.out,'decisions.json'),doc);
+  assert.equal(quality({run:f.out}).plan_quality.status,'recorded');
+  assert.throws(() => preview({run:f.out,stage:'verify-final'}), /No revised plan/);
+  doc.plan_map.nodes[2].boundary = 'deterministic ordering';
+  await write(path.join(f.out,'decisions.json'),doc);
+  assert.throws(() => finish({run:f.out}), /bounded verify-final/);
+  await ask({run:f.out,stage:'verify-final'},async request => {
+    const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    assert.ok(packet.revision_impact.changed_nodes.includes('S1'));
+    assert.equal(packet.revision_impact.full_context_required,true);
+    assert.match(packet.final_plan,/Implement/);
+    assert.equal(packet.previous_verification.findings[0].id,'P-V1');
+    return invocation(report())(request);
+  });
+  assert.equal(finish({run:f.out}).plan_map_changed_since_verification,false);
+});
+
+test('experimental context profile is sealed and preview matches the exact projected packet', async () => {
+  const f = await fixture('projected-packet',{mode:'review','context-profile':'verify-compact'});
+  const plan = '# Final plan\nImplement escaping and deterministic ordering.\n' + 'Retain complete source evidence and security checks.\n'.repeat(40);
+  await write(path.join(f.out,'coordinator-draft.json'),{...report(),proposal_markdown:plan});
+  await hostReview(f);
+  await ask({run:f.out,stage:'review'},invocation(report()));
+  await write(path.join(f.out,'security-review.json'),report());
+  await write(path.join(f.out,'final-plan.md'),plan);
+  await write(path.join(f.out,'decisions.json'),mappedPlan());
+  const before = preview({run:f.out,stage:'verify'});
+  assert.equal(before.projection.applied,'exact-text-references');
+  assert.ok(before.projection.saved_bytes>0);
+  await ask({run:f.out,stage:'verify'},async request => {
+    assert.equal(before.prompt.sha256,createHash('sha256').update(request.prompt).digest('hex'));
+    const packet=JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    assert.equal(packet.final_plan,plan);
+    assert.equal(packet.coordinator_proposal.proposal_markdown_reference,'final_plan');
+    assert.deepEqual(packet.security_review,report());
+    return invocation(report())(request);
+  });
+  const state=await read(path.join(f.out,'run.json'));
+  state.context_profile='full'; await write(path.join(f.out,'run.json'),state);
+  assert.throws(()=>status({run:f.out}),/Context profile changed/);
+});
+
+test('usage ledger includes measured failures, leaves old counters unknown and ignores private raw data', async () => {
+  const f=await fixture('usage-failed',{coordinator:'claude','max-attempts':'6'});
+  await hostDraft(f);
+  const usageEvent=JSON.stringify({type:'turn.failed',usage:{input_tokens:10,cached_input_tokens:3,output_tokens:5},error:{message:'Synthetic failure'}});
+  await assert.rejects(ask({run:f.out,stage:'draft'},async()=>({code:1,stdout:usageEvent,stderr:'fixture failure'})),/exited with code/);
+  let ledger=usage({run:f.out});
+  assert.equal(ledger.counters.total_tokens.observed_sum,15);
+  assert.equal(ledger.attempts.failed,1);
+  assert.equal(ledger.coordinator.status,'unobserved');
+  await ask({run:f.out,stage:'draft'},invocation(report()));
+  ledger=usage({run:f.out});
+  assert.equal(ledger.counters.total_tokens.observed_sum,45);
+  assert.equal(ledger.attempts.retries,1);
+  const state=await read(path.join(f.out,'run.json'));
+  delete state.attempts[0].usage_observation;
+  state.attempts[0].usage={input_tokens:99999,privateText:'PRIVATE_USAGE_441'};
+  await write(path.join(f.out,'run.json'),state);
+  ledger=usage({run:f.out});
+  assert.equal(ledger.counters.total_tokens.observed_sum,30);
+  assert.equal(ledger.counters.total_tokens.unknown_attempts,1);
+  assert.ok(!JSON.stringify(ledger).includes('PRIVATE_USAGE_441'));
+});
+
+test('usage survives thrown partial output and successful transport with invalid report', async () => {
+  const f=await fixture('partial-usage',{coordinator:'claude','max-attempts':'6'}); await hostDraft(f);
+  const stdout=JSON.stringify({type:'turn.completed',usage:{input_tokens:12,output_tokens:6}});
+  await assert.rejects(ask({run:f.out,stage:'draft'},async()=>{const e=new Error('Interrupted fixture');e.stdout=stdout;throw e;}),/Interrupted fixture/);
+  await assert.rejects(ask({run:f.out,stage:'draft'},async()=>({code:0,stdout,stderr:''})),/report|response|message/i);
+  const result=usage({run:f.out});
+  assert.equal(result.attempts.failed,2);
+  assert.equal(result.counters.total_tokens.observed_sum,36);
+  assert.equal(status({run:f.out}).stages.draft,undefined);
+});
+
+test('guide CLI and quality/usage inspection are read-only and use the retained package', async () => {
+  const f=await fixture('guide-run');
+  const before=await runFileBytes(f.out);
+  const content=guide({run:f.out,topic:'exchange'});
+  assert.match(content.markdown,/Exchange sequence/);
+  const runner=fileURLToPath(new URL('../scripts/council.mjs',import.meta.url));
+  for(const args of [['guide','--topic','verify'],['quality','--compact'],['usage','--compact']]) {
+    const result=spawnSync(process.execPath,[runner,...args,'--run',f.out],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr);
+    if(args[0]==='guide') assert.match(result.stdout,/C2C guidance/);
+  }
+  assert.deepEqual(await runFileBytes(f.out),before);
+  assert.throws(()=>guide({topic:'unknown'}),/Unknown guidance/);
+});
+
+test('failed usage prefers captured process output when the persistent log is incomplete', async () => {
+  const f=await fixture('partial-log-usage',{coordinator:'claude'}); await hostDraft(f);
+  await assert.rejects(ask({run:f.out,stage:'draft'},async()=>{
+    await write(path.join(f.out,'attempt-1-stdout.txt'),'{"type":"turn.');
+    const error=new Error('Synthetic log interruption');
+    error.stdout=JSON.stringify({type:'turn.failed',usage:{input_tokens:7,output_tokens:2}});
+    throw error;
+  }),/Synthetic log interruption/);
+  assert.equal(usage({run:f.out}).counters.total_tokens.observed_sum,9);
+  assert.equal(await fs.readFile(path.join(f.out,'attempt-1-stdout.txt'),'utf8'),'{"type":"turn.');
+});
+
+test('quality source discovery exposes supplied source IDs and hashes without revision prose', async () => {
+  const f=await fixture('quality-source-view',{mode:'review'}); await hostDraft(f); await hostReview(f);
+  const review=report(); review.evidence_requests=[{id:'P-R-E1',path:'contract.txt',question:'Which ordering is required?'}];
+  await ask({run:f.out,stage:'review'},invocation(review));
+  await write(path.join(f.project,'contract.txt'),'Preserve deterministic ordering.');
+  evidence({run:f.out,request:'P-R-E1',status:'supplied',file:'contract.txt',reason:'The supplied contract answers the ordering question.','source-revision':'PRIVATE_REVISION_QUALITY_437'});
+  await write(path.join(f.out,'final-plan.md'),'# Final plan\nImplement escaping and deterministic ordering.\n');
+  const doc=mappedPlan(); doc.plan_map.nodes[0].sources=['P-R-E1'];
+  await write(path.join(f.out,'decisions.json'),doc);
+  const checked=quality({run:f.out});
+  assert.equal(checked.plan_quality.status,'recorded');
+  assert.ok(checked.available_sources.some(item=>item.id==='P-R-E1'));
+  assert.ok(checked.available_sources.every(item=>Object.keys(item).sort().join(',')==='id,sha256'));
+  assert.ok(!JSON.stringify(checked).includes('PRIVATE_REVISION_QUALITY_437'));
 });

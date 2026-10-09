@@ -21,6 +21,9 @@ Pre-1.4 runs have no recorded runtime identity. The new updater refuses `--run` 
 ```text
 node RUNNER version
 node RUNNER doctor
+node RUNNER guide --topic prepare
+node RUNNER guide --topic verify --run RUN
+node RUNNER guide --section protocol#decision-record --run RUN
 node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --context CONTEXT --coordinator HOST --mode plan --out RUN
 node RUNNER preview --run RUN --stage STAGE
 node RUNNER ask --run RUN --stage author-draft
@@ -30,6 +33,8 @@ node RUNNER ask --run RUN --stage review
 node RUNNER ask --run RUN --stage verify
 node RUNNER ask --run RUN --stage verify-final
 node RUNNER decisions --run RUN
+node RUNNER quality --run RUN
+node RUNNER usage --run RUN
 node RUNNER evidence --run RUN --request P-R-E1 --status supplied --file src/contract.txt --source-revision REVISION --reason "This scoped source answers the requested contract."
 node RUNNER progress --run RUN
 node RUNNER status --run RUN
@@ -39,6 +44,8 @@ node RUNNER finish --run RUN
 ```
 
 Replace `HOST` with `codex` when starting in Codex or `claude` when starting in Claude Code. The initiating chat coordinates; neither provider is the permanent lead. Append `--compact` to routine commands to receive single-line JSON with every field preserved. This changes only console formatting; saved artifacts remain readable. `ask` already returns the complete validated report: use that result and open the report file only if it was unavailable or truncated.
+
+`guide` reads applicable local reference sections without a model call. Choose one `--topic` (`start`, `assess`, `prepare`, `models`, `exchange`, `verify`, `same`, `recover`, `fallback`, `present`, or `update`) or one `--section` such as `protocol#decision-record`. Use `--domain content` or `--domain mixed` for their assessment guidance; the default is `software`. With `--run RUN`, use the run's pinned instructions. Reuse sections already read; the entry skill's universal constraints still apply.
 
 Read the `doctor` field for the selected route, even when the command exits successfully:
 
@@ -59,6 +66,7 @@ For `--author-model`, also require the coordinator provider's `codex_only_ready`
 | `--brief` | UTF-8 task brief file to snapshot. |
 | `--assessment` | Required UTF-8 project-assessment JSON; evidence-based deployment/readiness and a clear direction. See the [assessment contract](project-assessment.md). |
 | `--context` | Explicit UTF-8 context file to snapshot; repeat for multiple files, omit when the brief suffices. |
+| `--context-profile` | `full` (default), or experimental `verify-compact` for exact whole-proposal deduplication during verification. Selected at preparation and sealed for the run; see [token efficiency](#token-efficiency). |
 | `--coordinator` | Required: `codex` or `claude`, matching the current chat. There is no default or environment-based guess. |
 | `--pairing` | `cross` (manual CLI default) calls the other provider; `same` calls a different model from the coordinator's provider. The skill selects the eligible route below before preparing. |
 | `--mode` | `plan` includes draft, review, and verify; `review` critiques a supplied or coordinator-authored plan, then verifies the synthesis. |
@@ -259,7 +267,7 @@ All JSON is UTF-8. Reports use the report schema below; the assessment uses its 
 | `final-plan.md` | Coordinator | Usable synthesized/revised plan with accepted fixes incorporated, before peer verification; revise afterward when warranted. Findings or amendment instructions alone do not replace it, unless critique-only was explicitly requested. |
 | `security-review.json` | Coordinator | Required before verification in version 2 and newer runs; standard report schema with `C-S…` finding IDs. |
 | `security-review-submitted.json` | Runner | Sealed copy saved at the first verification launch; its finding objects must remain unchanged in the current security review. |
-| `decisions.json` | Coordinator | Before verification, then updated with verification findings before finish. |
+| `decisions.json` | Coordinator | Finding dispositions before verification and before finish; optionally includes the compact `plan_map` in the same file. |
 | `peer-verify.json` | Runner from peer | Created by successful verification. |
 | `DISCUSSION.md` | Runner | Generated view of available proposals, critiques, findings and coordinator responses; never sent as peer context. |
 | `RESULT.md` | Runner | Generated and sealed by `finish`; the completion outcome and verification limits. Deliver its direct link alongside the plan and discussion after completion. |
@@ -309,6 +317,8 @@ node RUNNER finish --run RUN --unverified-reason "The authorized allowance is ex
 ```
 
 All original required stages, finding dispositions and evidence-request resolutions must still exist. This option cannot manufacture a missing council. Completion records the latest successful verification, exact artifact hashes, whether the delivered plan was reviewed, and the reason for an unreviewed revision. Describe such a result as provisional. Unresolved findings or `needs_changes`/`insufficient_context` verdicts remain visible even when bytes match. Formats 1–5 retain their original completion behavior.
+
+When both revisions have valid [plan maps](#optional-plan-map), the informational `revision_impact` view identifies changed nodes, source hashes/revisions, findings and artifacts, then follows both the old and new prerequisite graph to affected steps. A changed acceptance check also affects the work it accepts. Missing/invalid maps or unmodeled changes fall back to full context. The complete current plan, actual source excerpts, security conditions and all findings/dispositions remain required in every case; the graph cannot establish that an unchanged section is semantically unaffected.
 
 ## Security and testing
 
@@ -497,9 +507,13 @@ Run UUIDs, source byte counts/hashes and derived identity labels stay in local r
 
 These controls preserve models, effort, security and review stages. Selected background authors add genuine calls when the host does not match. Per-attempt provider usage is retained when returned. The [offline harness](https://github.com/ZiadHassanein/C2C/blob/main/benchmarks/README.md) checks exact task content and workflow invariants. [Evaluation methods](https://github.com/ZiadHassanein/C2C/blob/main/docs/BENCHMARKS.md) distinguish input-text proxies from billed usage, live speed and model judgment; no total-saving or equal-quality guarantee is made.
 
+The preparation-only `--context-profile verify-compact` is experimental; `full` remains the default. With a valid recorded map, verification may replace a coordinator or peer proposal's entire `proposal_markdown` with an explicit reference only when it equals the current `final_plan` exactly and the reference makes the packet smaller. Similar prose, partial matches and mapped IDs do not qualify. All other report fields, source excerpts, findings, rejected rationales, unresolved conditions, security review and previous verification remain intact. Drafting and critique are unchanged. Missing/invalid mapping, no exact duplicate or no byte reduction uses full context. Projection metadata reports serialized packet bytes, not provider tokens, billed usage or planning quality; this option establishes no savings or quality claim.
+
+Use read-only `node RUNNER usage --run RUN` for normalized worker usage observations and per-counter subtotals. It counts trustworthy terminal usage once, including failed attempts when a terminal observation exists, and keeps absent, partial, malformed or ambiguous observations explicit. Do not add cache/reasoning subsets to totals again or treat unknown values as zero. The scope is observed terminal turns of recorded workers; coordinator research, chat reasoning and synthesis, unobserved worker usage, provider-internal calls, subscription cost and whole-task savings remain unknown. Usage observations do not establish successful review or remaining allowance. Completion preserves this view as `resource_usage`; it adds no provider call or billing permission.
+
 ## Decision record
 
-`decisions.json` is a JSON array with one entry for every finding from every report in the run, including coordinator critiques, security findings in version 2 and newer runs, and final peer verification findings. Before verification, it covers all reports available at that point.
+`decisions.json` accepts the existing JSON array or an object wrapper `{ "decisions": [...], "plan_map": {...} }`. The decisions array has one entry for every finding from every report in the run, including coordinator critiques, security findings in version 2 and newer runs, and final peer verification findings. Before verification, it covers all reports available at that point. The optional map adds no file or review stage.
 
 ```json
 [
@@ -517,9 +531,53 @@ For consequential remedies, record the supplied evidence, a credible counterexam
 
 Reject incorrect, inapplicable or disproportionate recommendations with evidence and the chosen alternative. Use `unresolved` if a material part of the concern remains open; agreement with only part of it must not hide that gap. New business policy remains proposed pending the user's decision. Every disposition receives the same scrutiny during verification, including the verifier's own earlier advice. Structural validation checks IDs, coverage and bounded rationale text; it cannot prove sound judgment.
 
-When a later finding overturns an earlier resolution, update the earlier rationale to say what was originally chosen, which finding supersedes it, and the current action/check. Preserve the original finding and substantive prior reasoning; do not leave contradictory decisions appearing current. Related or duplicate findings retain separate IDs and may reference one resolution. With no findings, use `[]`; the report summary can explain the decisive evidence and review limits without invented objections.
+When a later finding overturns an earlier resolution, update the earlier rationale to say what was originally chosen, which finding supersedes it, and the current action/check. Preserve the original finding and substantive prior reasoning; do not leave contradictory decisions appearing current. Related or duplicate findings retain separate IDs and may reference one resolution. With no findings, use `[]` (or `"decisions": []` in the wrapper); the report summary can explain the decisive evidence and review limits without invented objections.
 
 The peer's verification summary supplies its actual response to material counterarguments about its own proposal or recommendations, citing the relevant finding IDs and whether its position stands, changes, or remains uncertain. A coordinator's disposition of its own critique is not that response. Put substantive new corrections in numbered findings, including corrections first discussed in prose; `proposal_markdown` is supporting context, not a second untracked task list. Do not invent a peer finding ID or agreement when an older report lacks one: identify any resulting coordinator-proposed change and its review limit explicitly in the plan.
+
+### Optional plan map
+
+Use a compact map when material decisions depend on evidence, unknown facts or other steps. Trace **requirement → evidence or explicit assumption → decision → step → acceptance check**. Size it to consequential scope and dependencies, not prose volume; do not model every sentence or inflate a tiny task. Preserve the existing decisions array inside the wrapper and keep the full usable plan in `final-plan.md`.
+
+Each node has a unique `id`, a `kind`, an exact plan `quote`, and `requires` containing prerequisite node IDs. Optional `sources` names supplied evidence IDs. IDs start with a letter and contain only letters, digits, `_`, `.`, `:`, or `-`, up to 128 characters.
+
+| Kind | Required links and extra fields |
+|---|---|
+| `requirement` | Supporting `sources` or an explicit `assumption` prerequisite. May require only assumptions. |
+| `assumption` | No node prerequisites; `state`: `assumed`, `unknown`, `resolved`, or `deferred`. Optional `unknown_type`: `factual_gap` or `user_choice`. A resolved assumption needs sources. Only `unknown` gates dependent steps. |
+| `decision` | Requires at least one requirement; may also require assumptions/decisions. Optional `findings` contains finding IDs, including rejected/unresolved concerns. |
+| `step` | Requires at least one decision; may also require steps/assumptions. `boundary` and `output` are exact plan excerpts. |
+| `check` | Requires one or more steps; `status`: `proposed`, `executed`, or `blocked`. Executed claims need sources; blocked checks need a `reason` occurring verbatim in the plan. |
+
+At least one requirement, decision, step and check must be recorded. Every requirement/decision reaches a step; every step has a directly linked check. Every available finding must be referenced by a decision node, regardless of disposition. Unknowns gate only their dependent steps and further steps that require them, leaving unrelated work available. A deferred choice must be harmless to the recorded next action; the checker cannot establish that judgment.
+
+Run `node RUNNER quality --run RUN` to inspect `plan_quality` and `available_sources` (source IDs and hashes). Frozen input IDs use their original one-based snapshot position: `input-1` is the brief, and `input-3` is the first context file when the assessment occupies position two. Assessment evidence retains its recorded ID, such as `E1`; supplied supplemental evidence uses its request ID, such as `P-R-E1`. Unavailable/rejected requests do not supply source evidence. Duplicate or colliding IDs are invalid, never silently merged. The raw evidence must remain in the worker packet; an ID does not give the worker file or browser access.
+
+<details>
+<summary>Minimal map inside the existing decision record</summary>
+
+This example has no findings. Its six quoted excerpts must appear exactly in the full plan, and `input-1` must be supplied evidence:
+
+```json
+{
+  "decisions": [],
+  "plan_map": {
+    "version": 1,
+    "nodes": [
+      { "id": "R1", "kind": "requirement", "quote": "Keep queued messages compatible.", "requires": [], "sources": ["input-1"] },
+      { "id": "D1", "kind": "decision", "quote": "Retain the old payload during transition.", "requires": ["R1"] },
+      { "id": "S1", "kind": "step", "quote": "Deploy the compatible reader first.", "requires": ["D1"], "boundary": "Boundary: queue consumer.", "output": "Output: compatible reader." },
+      { "id": "T1", "kind": "check", "quote": "Proposed: test mixed-version processing and rollback.", "requires": ["S1"], "status": "proposed" }
+    ]
+  }
+}
+```
+
+</details>
+
+Quality status is `not_recorded`, `invalid`, or `recorded`. Missing mapping is never implicitly complete. Bounded structural checks detect absent IDs, cycles, duplicate references, missing plan excerpts and executed-check claims without evidence references. `recorded` proves neither factual truth nor semantic coverage, feasibility, authorization or readiness. Correct invalid links before relying on the map; never use missing mapping to omit evidence or dissent. Human/model review still checks whether the remedy and prerequisites are sufficient.
+
+For integrations, `scripts/plan-quality.mjs` exports `PLAN_MAP_SCHEMA`, `PLAN_QUALITY_LIMITS`, `checkPlanQuality({ planMap, planText, sources, findings })`, and `comparePlanImpact({ before, after })`. Sources are `{ id, sha256?, revision? }`; findings are `{ id, disposition, rationale }`; each comparison snapshot also accepts `artifactHashes`. Inputs are read-only, bounded JSON data. A raw JSON map string permits duplicate-key detection; already parsed objects cannot recover erased duplicate keys. All results require full current context, even when dependency impact is mapped.
 
 ## Launch preview and local permissions
 
@@ -542,3 +600,45 @@ Peer calls disable shell, browser, image, connector and agent features where sup
 The runner checks the complete outbound packet for conservative patterns for private keys, common OpenAI/AWS/GitHub/Slack/Google credentials and password-bearing connection strings before sending it, including report content rather than only initial context. This is not complete data-loss prevention: it cannot prove that content is safe to share or detect every secret. Continue selecting and reviewing context carefully; never treat a passed scan as permission to transmit unrelated private data.
 
 The runner bounds stages, attempts, inactivity and output, plus any explicit hard time caps; it does not cap provider charges. Required peer stages use three successful calls in plan mode or two in review mode; a configured author adds two or one, respectively. The optional final-revision check adds at most one successful peer call within the same allowance. An outage before required stages finish leaves a partial run, never simulated consensus. A limit-blocked exchange can still deliver a [provisional plan](#planning-when-usage-limits-block-the-exchange). State what was reviewed, what remains unresolved, and whether the final plan changed after verification.
+
+## Exchange sequence
+
+
+Use the [file contract](protocol.md#file-contract) and [report schema](protocol.md#report-schema), or generated schemas. Keep drafts/final plans self-contained. Review prose describes changes rather than repeating proposals; every substantive correction needs a finding ID, evidence, action and verification. Retain material risks, unknowns and required fields regardless of compactness.
+
+Before the first worker call, use `preview --run RUN --stage STAGE` to inspect the actual provider/model, outbound labels, packet fingerprint and limits. Review the content locally. The explicit C2C request authorizes relevant selected context for that exchange; reuse it instead of asking again. For a host-required permission request, identify that authorization and the bounded review command. Follow [launch and local-permission handling](protocol.md#launch-preview-and-local-permissions); a denied local cache/lock/process operation is not evidence that either provider failed.
+
+Keep `ask` in a supported resumable/background command session and wait on that same session. A yielded session ID is still running; do not relaunch it or add a short shell deadline. Host lifetime restrictions still apply. After interruption, resolve recorded worker liveness/cleanup before another call; see [waiting and recovery](protocol.md#budgets-and-bounded-recovery).
+
+Critique consequential assumptions against evidence, realistic failure cases and alternatives. Judge each concern separately from its remedy: test consequential fixes for failure modes, unnecessary scope, user friction and operational cost. Record adoption, adaptation or rejection with the decisive reason; preserve unresolved parts. Sound agreement needs reasons, not a disagreement quota. Follow the [decision contract](protocol.md#decision-record).
+
+**Plan mode:**
+
+1. Call `ask --stage author-draft` when configured; otherwise independently write `coordinator-draft.json`. Then call `ask --stage draft`. Neither proposal receives the other.
+2. Call `ask --stage author-review` when configured; otherwise critique `peer-draft.json` in `coordinator-review.json`. Then call `ask --stage review`. Critiques remain independent.
+3. Synthesize both proposals and critiques into `final-plan.md`.
+
+**Review mode:**
+
+1. Call `ask --stage author-draft` when configured, supplying any existing user plan as selected input; otherwise write `coordinator-draft.json`. The chat independently checks the candidate in `coordinator-review.json` before peer critique; do not attribute this check to a background author.
+2. Call `ask --stage review`, then revise the supplied plan into `final-plan.md`, incorporating accepted fixes into its actual steps, decisions and checks. Preserve useful existing content and user constraints; do not deliver only findings or instructions to amend the plan later. Honor an explicit critique-only request. This route has no peer draft and does not claim two independent proposals.
+
+**Both modes:**
+
+1. Resolve evidence requests through the bounded-evidence procedure. Write `security-review.json` using the [security contract](protocol.md#security-and-testing): nonempty applicability assessment, `C-S…` findings, empty `evidence_requests`. The coordinator gathers authorized security evidence directly. Preserve submitted findings unchanged; resolve through decisions or append new findings. Include meaningful software tests or content acceptance/source/editorial/accessibility checks, with known procedures and proposed/executed/blocked status. Peer review is not executed validation or certification; experiments require task authority.
+2. Run `decisions --run RUN` to append missing findings as unresolved, then adjudicate every finding as accepted/rejected/unresolved with evidence-based rationale. Preserve existing reasoning and original findings.
+3. Apply the [delivery check](plan-presentation.md#check-before-delivery), then `ask --stage verify`. Keep review progress/completion in generated `DISCUSSION.md`/`RESULT.md`; do not rewrite `final-plan.md` just to announce verification success. Address the report and sync decisions again. The peer checks all dispositions and responds to material counterarguments by ID. If a later finding changes an earlier resolution, update its rationale with the superseding ID/current outcome while retaining prior reasoning.
+4. When plan/security text, earlier adjudications or supplied evidence change, use the single bounded `ask --stage verify-final` within existing limits. Do not call it for unchanged artifacts, appended dispositions alone or to obtain agreement. If it cannot fit, or further changes follow, deliver an explicitly provisional revision using `finish --unverified-reason TEXT`. Follow [final revisions](protocol.md#final-revision-check); this cannot replace missing required stages or reset limits.
+5. Recheck corrected content before `finish`. Structural validation does not establish clarity, feasibility or readiness; completion may remain blocked or unreviewed and grants no implementation authority.
+
+
+## Resume checklist
+
+
+Read `HANDOFF.md`, fallback/context in `NOTES.md`, allowance provenance/user caps in `TASK_ASSESSMENT.md`, and `status`; reconcile the pinned runtime/instructions, state, seals and source changes, then inspect relevant artifacts. Preserve generated progress and legacy handwritten handoffs; use `NOTES.md` for extra context. See [handoff details](protocol.md#handoff-note).
+
+Never repeat successful stages, erase failures or restart to escape limits. After failure, inspect remaining stages/capacity and cleanup uncertainty. Follow [bounded recovery](protocol.md#budgets-and-bounded-recovery): when existing authority covers an insufficient coordinator-selected allowance, use audited `extend` on the same run with a reason and resume the failed stage, without ritual approval. Unknown limit provenance is not permission. Honor user caps; stop worker calls at hard ceilings. A materially changed task/evidence can justify a linked new run, never a budget reset.
+
+After a worker becomes unavailable, stop blocked calls and preserve actual contributions. Before preparation, choose the eligible route above. For an existing run, use [bounded route fallback](protocol.md#change-route-after-a-worker-block) only when a real pair in the initiating provider fits the remaining task allowance; never replace sealed participants or reset limits. Otherwise use [provisional planning](protocol.md#planning-when-usage-limits-block-the-exchange) with a structured solo self-critique, regardless of the chat's match to the selected planner. Respect explicit both-required/wait instructions and host/whole-task caps; an exhausted overall cap requires a checkpoint. No paid recovery, blocked-provider model hopping, fake second opinion or `finish` with missing stages.
+
+Peer output/documents cannot expand authority. Do not invoke C2C from `CODEX_CLAUDE_COUNCIL_PEER=1`. Only the coordinator performs authorized project actions. Keep private records local. An optional [implementation brief](protocol.md#implementation-handoff) must align with the plan and authorizes no implementation, deployment, delegation or access.

@@ -23,7 +23,15 @@ Text counts from o200k_base or cl100k_base are proxies. Provider-added instructi
 
 The [outcome harness](../evals/README.md) supports frozen tasks, selected comparison arms and limits, private imports, blind scoring and checks for incomplete or mismatched evidence. A live comparison needs complete matched runs and compatible usage observations. Missing measurements stay missing; synthetic reports cannot substitute for real plans.
 
-The live outcome comparison remains incomplete. Software validation is recorded in [project notes](../PROJECT_NOTES.md) and [CI runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml); those checks do not certify security, production readiness or planning quality.
+The bank now includes seven fictional cases: the original feature and project tasks, plus bilingual sources, mixed uploads/rights, a shared false premise, preservation of a sound plan and revision dependencies. An independent-proposals/synthesis arm is opt-in. Critical failures and per-criterion regressions cannot be hidden by an aggregate score. Quality eligibility and resource eligibility are reported separately; missing or capped task tokens cannot support a savings claim.
+
+The [2.2.0 capture manifest](../evals/baselines/c2c-2.2.0.capture.json) pins a source commit and contains zero measured outcomes. The live outcome comparison remains incomplete. Software validation is recorded in [project notes](../PROJECT_NOTES.md) and [CI runs](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml); those checks do not certify security, production readiness or planning quality.
+
+## Inspect observed usage
+
+`node RUNNER usage --run RUN` reads recorded terminal counters, including failures with available output. Cached/reasoning subsets are not counted twice. Missing, malformed, ambiguous and historical unscoped counters remain unknown. Claude terminal main-loop usage and Codex terminal-turn usage are explicitly scoped; neither establishes provider-internal calls or whole-task usage. The coordinator's research, synthesis and other unobserved work are excluded, and subscription cost/savings stay unknown.
+
+The optional `verify-compact` trial reports serialized packet bytes separately. It replaces only complete proposal text exactly equal to the full retained plan. Byte reductions are not token measurements, quality results or permission to promote the experiment. Default context remains full; matched outcome trials are still required before claiming benefit.
 
 ## What counts as improvement
 

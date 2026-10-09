@@ -241,17 +241,52 @@ test('quality and impact functions are read-only and order-independent for graph
   assert.equal(comparePlanImpact({ before, after }).status, 'mapped');
 });
 
-test('revision impact carries changed decisions through unchanged transitive prerequisite steps', () => {
+test('textual decision revisions preserve dependency identities but require full-context fallback', () => {
   const before = addStep(addStep(fixture(), 'S2', ['D1', 'S1']), 'S3', ['D1', 'S2']);
   const after = clone(before);
   node(after, 'D1').quote = 'Keep the compatible payload until retention expires.';
   after.planText = after.planText.replace(node(before, 'D1').quote, node(after, 'D1').quote);
   after.artifactHashes['final-plan.md'] = hash('d'); after.artifactHashes['decisions.json'] = hash('e');
   const result = comparePlanImpact({ before, after });
-  assert.equal(result.status, 'mapped');
+  assert.equal(result.status, 'full_context_fallback');
+  assert.deepEqual(result.reasons, ['unmapped_plan_change']);
   assert.deepEqual(result.changed_nodes, ['D1']);
   assert.deepEqual(result.affected_steps, ['S1', 'S2', 'S3']);
   assert.deepEqual(result.changed_artifacts, ['decisions.json', 'final-plan.md']);
+  assert.equal(result.full_context_required, true);
+});
+
+test('mixed mapped and unanchored textual edits cannot exclude an independent affected step', () => {
+  const before = addStep(fixture(), 'S2', ['D2']);
+  before.planText += '\nIndependent requirement.\nIndependent decision.\nAll work requires tenant authorization.';
+  before.planMap.nodes.push(
+    { id: 'R2', kind: 'requirement', quote: 'Independent requirement.', requires: [], sources: ['input-1'] },
+    { id: 'D2', kind: 'decision', quote: 'Independent decision.', requires: ['R2'] },
+  );
+  const after = clone(before);
+  node(after, 'D1').quote = 'Keep the compatible payload until retention expires.';
+  after.planText = after.planText.replace(node(before, 'D1').quote, node(after, 'D1').quote)
+    .replace('All work requires tenant authorization.', 'S2 may skip tenant authorization.');
+  assert.equal(checkPlanQuality(before).status, 'recorded');
+  assert.equal(checkPlanQuality(after).status, 'recorded');
+  const result = comparePlanImpact({ before, after });
+  assert.equal(result.status, 'full_context_fallback');
+  assert.deepEqual(result.changed_nodes, ['D1']);
+  assert.deepEqual(result.affected_steps, ['S1', 'S2']);
+  assert.deepEqual(result.reasons, ['unmapped_plan_change']);
+  assert.equal(result.full_context_required, true);
+});
+
+test('map-only changes can still narrow impact when the complete plan text is unchanged', () => {
+  const before = addStep(fixture(), 'S2');
+  const after = clone(before);
+  node(after, 'S2').requires.push('S1');
+  assert.equal(after.planText, before.planText);
+  const result = comparePlanImpact({ before, after });
+  assert.equal(result.status, 'mapped');
+  assert.deepEqual(result.changed_nodes, ['S2']);
+  assert.deepEqual(result.affected_steps, ['S2']);
+  assert.deepEqual(result.reasons, []);
   assert.equal(result.full_context_required, true);
 });
 

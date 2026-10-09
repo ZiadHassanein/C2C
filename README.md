@@ -9,7 +9,7 @@
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
-[**Version 2.2.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+[**Version 2.3.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
 [Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
 
@@ -31,7 +31,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 Run in **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.3.0.tar.gz install
 ```
 
 Installs the skill for your current user in both apps. Start a new chat afterward. [One app only](docs/SETUP.md#install-for-one-app-only) · [Easy to uninstall](#uninstall).
@@ -74,12 +74,12 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
+No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.3.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
 
 For the quick-install route, check setup from any folder:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.3.0.tar.gz doctor
 ```
 
 For the default setup with both CLIs, look for:
@@ -308,6 +308,8 @@ Execution model recommendation, alternative and savings evidence
 
 Project evidence, model choices and resumable progress remain in `PROJECT_CONTEXT.md`, `TASK_ASSESSMENT.md` and `HANDOFF.md`. Unknown paths become bounded discovery tasks. Content plans use editorial, factual, rights and accessibility checks where relevant; they do not require software test commands. Planning completion does not authorize implementation, content production or publication, or establish readiness. [Plan layout](references/plan-presentation.md).
 
+Material dependencies can be recorded in a small optional map inside the existing `decisions.json`: requirement → evidence or assumption → decision → step → check. It helps detect missing links and cycles without adding a deliverable. Unknown facts gate affected actions; recorded links do not prove the plan correct. [Traceability and checks](references/protocol.md#optional-plan-map).
+
 </details>
 
 <!-- Keep existing section links on the visible disclosure. -->
@@ -340,6 +342,8 @@ You can ask: “Recommend an execution model for each milestone within my includ
 | **Current model research** | Selects suitable planning/review workers within your limits, with recorded reasons. |
 | **Missing-evidence requests** | Lets reviewers ask for facts; scoped snapshots or explicit unavailable/rejected answers are recorded. |
 | **Final-revision checks** | Checks consequential corrections once within the existing allowance, or marks the revision unreviewed. |
+| **Dependency checks** | Finds structural gaps in an optional plan map and identifies potentially affected steps after revisions, while retaining the full current plan and evidence. |
+| **Scoped usage reporting** | Shows observed worker terminal usage and unknown counters; coordinator work, total-task savings and subscription cost remain unknown. |
 | **Available-provider routing** | Prefers eligible cross-provider review, then distinct models in the starting provider before calls. If no route qualifies, delivers a provisional plan with self-critique. |
 | **Usage-limit recovery** | Preserves actual reports and used allowance; follows bounded recovery or finishes provisionally. No paid credits or account/billing changes. |
 | **Waits for active work** | Meaningful model activity renews the inactivity guard. No fixed total deadline by default; explicit caps and provider limits still apply. [How waiting works](docs/SETUP.md#when-a-peer-call-takes-longer). |
@@ -350,6 +354,8 @@ Worker calls use your provider account and usage limits. Only selected context i
 
 Runtime tests and synthetic input benchmarks do not prove better plans, lower total cost or faster responses. See the [evaluation methods](docs/BENCHMARKS.md) for how these can be assessed separately.
 
+The coordinator can load applicable instruction sections with `guide` and inspect a run with `quality --run RUN` or `usage --run RUN`, without a model call. Full worker context remains the default. Experimental `--context-profile verify-compact` only replaces whole proposals exactly repeated in the current plan with explicit references when the packet gets smaller; it makes no token-saving or quality claim. [Technical behavior and limits](references/protocol.md#token-efficiency).
+
 C2C does not buy credits or switch to paid billing when a provider limit blocks planning. Any continuation stays within existing authorized limits; otherwise it delivers a provisional plan or saves a checkpoint. [Billing boundaries](docs/FAQ.md#will-c2c-buy-credits-or-require-paid-usage-after-a-limit).
 
 </details>
@@ -359,7 +365,7 @@ C2C does not buy credits or switch to paid billing when a provider limit blocks 
 When you use C2C, it checks for new releases at most daily and gives a short chat notice. Say **“Update C2C and keep this plan on its current version.”** Or run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.3.0.tar.gz update
 ```
 
 The updater installs the latest stable release. Plans prepared with 1.4+ keep their original runtime and instructions; start a new chat for new-version plans. Older or provisional plans should finish or stop first. [Checks, offline updates and rollback](docs/SETUP.md#update-the-skill).
@@ -384,7 +390,7 @@ No automatic installation or extra model call. Completed reviews, decisions and 
 Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.3.0.tar.gz uninstall
 ```
 
 Moves unchanged managed skill folders into recoverable backups. Your projects, apps and logins stay in place. Start a new chat afterward. Add `--dry-run` to preview, or `--target codex` / `--target claude` for one app. [Restore, offline or manual removal](docs/SETUP.md#uninstall).

@@ -189,6 +189,9 @@ test('legacy run inspection remains available but new runner refuses legacy muta
   const f = prepareFixture('legacy');
   const state = readRunState(f.out), snapshotFile = path.join(f.out, 'snapshot.json'), snapshot = json(snapshotFile);
   delete state.runtime; delete snapshot.runtime;
+  state.attempts.push({ number: 1, stage: 'draft', status: 'failed', elapsed_ms: 25,
+    usage: { input_tokens: 100, output_tokens: 10, private: 'PRIVATE_LEGACY_USAGE' } });
+  state.elapsed_ms = 25;
   write(snapshotFile, snapshot);
   state.seals['snapshot.json'] = digest(fs.readFileSync(snapshotFile));
   writeRunState(f.out, state);
@@ -196,6 +199,16 @@ test('legacy run inspection remains available but new runner refuses legacy muta
   assert.throws(() => inspectRunRuntime(f.out), /Legacy run has no pinned/);
   assert.equal(cli(f, ['status', '--run', f.out]).status, 0);
   assert.equal(cli(f, ['progress', '--run', f.out]).status, 0);
+  const before = Object.fromEntries(fs.readdirSync(f.out).map(name => [name, fs.readFileSync(path.join(f.out, name))]));
+  const usageResult = cli(f, ['usage', '--run', f.out, '--compact']);
+  assert.equal(usageResult.status, 0, usageResult.stderr);
+  const usage = JSON.parse(usageResult.stdout);
+  assert.equal(usage.attempts.failed, 1);
+  assert.equal(usage.counters.total_tokens.observed_sum, null);
+  assert.equal(usage.counters.total_tokens.unknown_attempts, 1);
+  assert.equal(usage.observations[0].usage.status, 'missing');
+  assert.doesNotMatch(usageResult.stdout, /PRIVATE_LEGACY_USAGE/);
+  assert.deepEqual(Object.fromEntries(fs.readdirSync(f.out).map(name => [name, fs.readFileSync(path.join(f.out, name))])), before);
   const result = cli(f, ['extend', '--run', f.out, '--max-attempts', '5', '--reason', 'Do not migrate']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /finish it with its original installation/);

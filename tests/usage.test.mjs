@@ -161,6 +161,21 @@ test('duplicate report keys and escaped string content do not contaminate termin
   assert.equal(extractUsage('claude', stdout).counters.total_tokens, 3);
 });
 
+test('duplicate selection keys on filtered-out events cannot conceal a competing terminal', () => {
+  for (const [provider, hidden, valid] of [
+    ['codex', '{"type":"turn.completed","usage":{"input_tokens":1000,"output_tokens":50},"type":"item.completed"}', codex({ input_tokens: 10, output_tokens: 5 })],
+    ['claude', '{"type":"result","usage":{"input_tokens":1000,"output_tokens":50},"type":"system"}', claude()],
+    ['codex', '{"type":"item.completed","usage":{"input_tokens":1000},"usage":{"input_tokens":10}}', codex()],
+  ]) {
+    for (const stdout of [hidden, `${hidden}\n${valid}`, `${valid}\n${hidden}`]) {
+      const value = extractUsage(provider, stdout);
+      assert.equal(value.status, 'ambiguous');
+      assert.ok(value.diagnostics.includes('duplicate_usage_key'));
+      allUnknown(value);
+    }
+  }
+});
+
 test('noninteger, negative, unsafe, string and structured counter values stay unknown', () => {
   for (const input_tokens of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '123', true, [], { content: 'private' }]) {
     const value = extractUsage('codex', codex({ input_tokens, output_tokens: 4 }));

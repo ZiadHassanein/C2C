@@ -2,6 +2,15 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.3.0 — Evidence links and measured resources
+
+- Adds optional requirement/source/assumption/decision/step/check links inside the existing decision record. `quality` detects broken references, dependency cycles and missing recorded checks; it does not certify factual truth or semantic coverage. Plan-text revisions retain a full-plan impact review.
+- Records available terminal usage on successful and failed attempts. `usage` keeps cache/reasoning subsets separate, rejects ambiguous counters and marks missing coordinator or historical coverage unknown.
+- Retrieves complete applicable reference sections with `guide`; the shorter entry skill retains routing, independent review, security, spending boundaries and the three-file handoff.
+- Expands the fictional outcome bank from two to seven cases, adds an opt-in independent-proposals/synthesis comparison, and separates quality eligibility from unknown resource measurements. The frozen 2.2.0 capture manifest contains no measured outcomes.
+- Adds experimental, explicitly selected `verify-compact` context. It replaces only entire proposal text identical to the full current plan with a reference; full context remains the default and fallback. No measured token-saving or quality improvement is claimed.
+- Preserves active runtime pins, stage counts, capable model selection and existing installation/update behavior.
+
 ## 2.2.0 — Software, content and mixed planning
 
 - Classifies work as software, content, mixed or general non-software in the frozen assessment. Content uses scoped editorial readiness and records publication evidence separately from software deployment; mixed projects retain engineering checks.

@@ -183,16 +183,20 @@ function measuredStatus(counters, diagnostics) {
  */
 export function extractUsage(provider, stdout) {
   if (!Object.hasOwn(RAW_FIELDS, provider)) return observation(null, { diagnostics: ['unsupported_provider'] });
-  const parsed = records(stdout), terminals = parsed.events.filter(({ event }) => provider === 'codex'
+  const parsed = records(stdout);
+  // A duplicate type may overwrite a terminal with a nonterminal type. Check
+  // every parsed event before filtering, so the hidden terminal cannot escape
+  // ambiguity detection through JSON.parse's last-key-wins behavior.
+  if (parsed.events.some(record => record.duplicate)) parsed.diagnostics.push('duplicate_usage_key');
+  const terminals = parsed.events.filter(({ event }) => provider === 'codex'
     ? ['turn.completed', 'turn.failed'].includes(event.type) : event.type === 'result');
   const raw = terminals.map(({ event }) => rawUsage(provider, event.usage));
   const result = observation(provider, { terminal_records: terminals.length, raw_usage: raw });
   if (terminals.length > 1) return { ...result, status: 'ambiguous', diagnostics: unique([...parsed.diagnostics, 'multiple_terminal_records']) };
-  if (!terminals.length) return { ...result, diagnostics: unique([...parsed.diagnostics, 'missing_terminal',
+  if (!terminals.length) return { ...result, status: parsed.diagnostics.includes('duplicate_usage_key') ? 'ambiguous' : 'missing', diagnostics: unique([...parsed.diagnostics, 'missing_terminal',
     ...(parsed.events.some(({ event }) => own(event, 'usage') || own(event.message, 'usage')) ? ['nonterminal_usage_ignored'] : [])]) };
   const normalized = normalize(provider, terminals[0].event.usage);
   const diagnostics = unique([...parsed.diagnostics, ...normalized.diagnostics]);
-  if (terminals[0].duplicate) diagnostics.push('duplicate_usage_key');
   if (provider === 'codex' && parsed.events.filter(({ event }) => event.type === 'turn.started').length > 1) diagnostics.push('multiple_turns');
   // A broken JSON event can conceal another terminal. Keep raw known counters
   // privately, but do not publish an arbitrarily chosen attempt total.

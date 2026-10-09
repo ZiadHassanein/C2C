@@ -12,6 +12,7 @@ export const RUNTIME_FILES = Object.freeze([
   'references/project-assessment.md', 'references/protocol.md', 'package.json',
   'scripts/adapters.mjs', 'scripts/assessment.mjs', 'scripts/budget.mjs',
   'scripts/council.mjs', 'scripts/discussion.mjs', 'scripts/evidence.mjs',
+  'scripts/guidance.mjs', 'scripts/plan-quality.mjs', 'scripts/projection.mjs', 'scripts/usage.mjs',
   'scripts/participants.mjs', 'scripts/process.mjs', 'scripts/progress.mjs',
   'scripts/runtime.mjs', 'scripts/state.mjs',
 ].sort());
@@ -176,7 +177,7 @@ export function routeRunCommand(argv, entry) {
   if (!runIndices.length) return false;
   requireThat(runIndices.length === 1, 'Duplicate option: --run');
   requireThat(argv[runIndices[0] + 1] && !argv[runIndices[0] + 1].startsWith('--'), 'Invalid option: --run requires a directory');
-  const runtime = inspectRunRuntime(argv[runIndices[0] + 1], { allowLegacy: ['status', 'progress'].includes(argv[0]) });
+  const runtime = inspectRunRuntime(argv[runIndices[0] + 1], { allowLegacy: ['status', 'progress', 'usage'].includes(argv[0]) });
   if (!runtime.pinned || fs.realpathSync(entry) === runtime.runner) return false;
   const result = spawnSync(process.execPath, [runtime.runner, ...argv], { cwd: process.cwd(), env: process.env, stdio: 'inherit', windowsHide: true, shell: false });
   if (result.error) throw result.error;

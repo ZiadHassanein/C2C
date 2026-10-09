@@ -7,7 +7,7 @@ C2C is an open-source skill for planning software, content, and mixed projects b
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.3.0.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -29,7 +29,7 @@ C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.3.0.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
@@ -100,7 +100,11 @@ If a peer call fails, C2C presents an organized draft and identifies the missing
 
 The plan includes a **Start here** block: first work item, relevant project location and action, prerequisites, scope boundary, and an acceptance check. Unknown paths or commands become explicit discovery tasks. If you requested approval before coding, it shows both your next decision and where implementation would begin afterward.
 
-The coordinator checks the plan's consistency before verification and again after corrections, including dependencies, finding dispositions, security and test status. This is an instruction-level check; the runner's `finish` command does not judge plan quality. An optional implementation brief reuses the same entry point. See the [execution entry point and delivery check](../references/plan-presentation.md#make-the-execution-entry-point-explicit).
+The coordinator checks the plan's consistency before verification and again after corrections, including dependencies, finding dispositions, security and test status. An optional map in the existing `decisions.json` lets `quality --run RUN` detect structural gaps such as missing links, cycles or stale plan excerpts. Missing mapping is `not_recorded`; valid recorded links do not establish semantic coverage or readiness, and `finish` does not judge plan quality. An optional implementation brief reuses the same entry point. See the [execution entry point and delivery check](../references/plan-presentation.md#make-the-execution-entry-point-explicit).
+
+## Does traceability require another report or a large graph?
+
+No. The optional `plan_map` lives beside finding decisions in the existing `decisions.json`; the old array format remains supported. It connects material requirements, supplied evidence or assumptions, decisions, steps and checks. A small task can use a few nodes. Scope and dependencies determine the detail, not paragraph count. Unknown facts gate only affected steps; unrelated work can proceed within its existing authority. All actual source excerpts and accepted, rejected and unresolved findings stay available. See the [schema and compact example](../references/protocol.md#optional-plan-map).
 
 ## Does every plan include security and tests?
 
@@ -123,6 +127,8 @@ C2C sends explicitly selected, frozen context and relevant review artifacts. The
 Worker calls use your provider account and usage limits. With your chat as author, focused review needs two successful calls and independent planning needs three. A background author makes these three and five. Standard work allows four attempts and a 10-minute inactivity guard; project work allows five and a 20-minute guard. Background-author plan mode defaults to six attempts. Failures count. New runs have no fixed call/total deadline by default, while explicit caps remain enforced. These controls are not spending caps, duration estimates or a fixed price per plan.
 
 Consequential changes after verification may use one additional successful revision check within that same allowance. An unchanged plan does not need it. If no allowance remains, C2C records an explicitly provisional revision instead of silently claiming it was reviewed. [Final-revision rules](../references/protocol.md#final-revision-check).
+
+`usage --run RUN` reports observed terminal usage for recorded worker attempts, including failed attempts when trustworthy usage was returned. It shows counter subtotals and unknown observations; it does not turn missing usage into zero. Coordinator chat research, reasoning and synthesis are outside this measurement, so it is not a total-task token count, account bill or remaining-allowance check. The completion record retains the same scoped view as `resource_usage`.
 
 ## Will C2C buy credits or require paid usage after a limit?
 
@@ -155,6 +161,10 @@ If the active chat itself becomes unavailable, C2C cannot guarantee automatic ta
 ## How does C2C manage token use?
 
 C2C reuses saved reports and task research, removes repeated context paths, offers compact runner output, and keeps the discussion in Markdown. These controls avoid specific forms of repetition. They do not guarantee lower total usage: additional workers and review stages also consume tokens. Actual usage depends on the task, selected models, provider behavior, retries and outputs. C2C makes no quantified token-saving, cost or speed claim. See [measurement methods and limits](BENCHMARKS.md).
+
+`guide --topic TOPIC` loads applicable local instruction sections; adding `--run RUN` uses a prepared run's pinned version. This avoids repeatedly loading entire references while preserving the entry skill's universal rules.
+
+The experimental preparation option `--context-profile verify-compact` has a narrow rule: with a valid recorded plan map, verification may replace an entire proposal that exactly equals the full current plan with an explicit reference to that plan, only when it reduces packet bytes. It does not summarize sources, discard dissent or trim partially matching prose. `full` is the default and fallback. Serialized byte changes do not establish token savings or equal planning quality. [Exact behavior](../references/protocol.md#token-efficiency).
 
 ## Will the plan recommend a model for implementation and show savings?
 

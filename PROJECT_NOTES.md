@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.1.1: focus chat on useful review information
+
+The kickoff no longer has to announce attempts, inactivity guards or routine scope reassurances. Start with the purpose, link the generated discussion after preparation, then report findings and consequential decisions. Limits and their authority remain recorded and enforced. Requested details, required approvals, material blockers, recovery/scope changes and honest review status remain visible. This supersedes the historical 0.10.1 kickoff-allowance instruction. The change affects coordinator instructions only; no runner, model, review-stage or active-pin behavior changes.
+
+Documentation checks validate 231 local links/anchors/assets, code fences, documented commands and eight accessible SVGs. Skill discovery metadata is unchanged; both instructional locations now agree on the chat policy. No live model call or measured performance claim is needed for this wording update. Publish the exact validated patch tag before using the managed updater; existing plans keep their original pins.
+
 ### Version 2.1.0: wait for active reviews and distinguish launch barriers
 
 Verification refinements add an inert-child identity preflight before reserving an attempt, ordinary diagnostics for a worker already dead at registration, bracket-prefixed diagnostic tolerance and explicit conditional Codex silence warnings. Ambiguous no-PID registrations have a documented terminal/provisional outcome, not an automatic state override. CI now lists platform skips and requires essential registration/recovery tests to execute; releases must tag the exact green SHA through fast-forward or separately validated merge. Native cache discovery uses first compatible stable order, trusts configured installation locations like PATH, and does not claim an ACL/signature audit.

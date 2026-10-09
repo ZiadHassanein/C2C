@@ -2,6 +2,11 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.1.1 — Clearer review updates
+
+- Chat updates focus on the review purpose, findings and decisions. Routine call counts, inactivity guards and repeated scope reminders stay in saved records.
+- Relevant operational details still appear when requested or needed for an approval, blocker or material change. Limits, scope enforcement, review stages and active-run pins are unchanged.
+
 ## 2.1.0 — Wait for active reviews and clarify launch checks
 
 - Known recovery limits: a previously recovered PID can later become uninspectable after reuse, pausing the run again; unresolved registrations without a PID require a provisional checkpoint. Preserve state and never signal an unrelated process. A possible CLI stdin-wait conflict during registration is unverified; include missing-input/no-stdin exits in ordinary-use canary diagnostics. [Recovery details](docs/SETUP.md#when-a-peer-call-takes-longer).

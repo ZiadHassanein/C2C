@@ -7,7 +7,7 @@ C2C is an open-source skill for collaborative planning between Codex and Claude 
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.1.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -29,7 +29,7 @@ C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.1.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
@@ -70,7 +70,7 @@ The coordinator inspects relevant project evidence, records production status se
 
 ## Can I see the agents disagree and revise the plan?
 
-Yes. Open the linked `DISCUSSION.md`: it records attributed proposals, findings, and coordinator responses as stages are saved. Chat stays minimal by default, surfacing important decisions and blockers instead of repeating each exchange. To also receive live chat summaries, ask, “Show me the main disagreements and plan changes as you go.” These are submitted arguments and decisions, not private reasoning or a live token stream. Every finding receives an accepted, rejected, or unresolved disposition; agreement is not required. See [discussion examples](../README.md#follow-the-discussion).
+Yes. Open the linked `DISCUSSION.md`: it records attributed proposals, findings, and coordinator responses as stages are saved. Chat focuses on findings, important decisions and blockers. Routine call limits, timeout settings and scope reminders stay in saved records unless requested or needed for an actionable issue. To also receive live chat summaries, ask, “Show me the main disagreements and plan changes as you go.” These are submitted arguments and decisions, not private reasoning or a live token stream. Every finding receives an accepted, rejected, or unresolved disposition; agreement is not required. See [discussion examples](../README.md#follow-the-discussion).
 
 Reviewers challenge consequential assumptions with evidence, counterexamples and alternatives. The coordinator responds to findings and revises or defends the plan; the reviewer answers material counterarguments by finding ID during verification. These are the actual roles, even when a background worker authored the draft. Sound points may survive review. There is no required objection count, forced agreement or invented disagreement. Same-provider updates distinguish the roles and known/requested models.
 

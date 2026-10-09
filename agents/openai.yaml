@@ -1,4 +1,4 @@
 interface:
   display_name: "C2C"
-  short_description: "Clear plans with independent model review"
-  default_prompt: "Use $C2C to assess this project, research current planning and coding models, and choose workers within my limits. Give me a clear plan with prioritized decisions, independent critique, security and acceptance checks."
+  short_description: "Software and content plans with independent review"
+  default_prompt: "Use $C2C to plan this software, content, or mixed project with suitable workers within my limits, independent critique, relevant security and acceptance checks, and a clear first step."

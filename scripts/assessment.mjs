@@ -6,7 +6,7 @@ const choice = values => ({ ...text, enum: values });
 export const ASSESSMENT_SCHEMA = object({
   assessed_at: text,
   summary: text,
-  project_type: choice(['software', 'non_software']),
+  project_type: choice(['software', 'content', 'mixed', 'non_software']),
   deployment: object({ status: choice(['production', 'non_production', 'unknown', 'not_applicable']), evidence: list }),
   readiness: object({ status: choice(['not_assessed', 'gaps_found', 'checks_passed_for_scope', 'not_applicable']), scope: text, gaps: list, evidence: list }),
   evidence: { type: 'array', maxItems: 150, items: object({ id: text, source: text, observation: text, kind: choice(['observed', 'user_reported', 'inferred']) }) },
@@ -61,11 +61,13 @@ export function validateAssessment(value) {
     requireThat(value.readiness.gaps.length === 0, 'passed readiness scope cannot also have unresolved gaps');
   }
   if (value.readiness.status === 'gaps_found') requireThat(value.readiness.gaps.length, 'gaps_found must describe the gaps');
-  if (value.project_type === 'non_software') {
+  if (value.project_type === 'content') {
+    requireThat(value.deployment.status === 'not_applicable' && value.direction.route === 'non_software', 'content work must use not_applicable deployment and the non_software route; record publication status in evidence');
+  } else if (value.project_type === 'non_software') {
     requireThat(value.deployment.status === 'not_applicable' && value.readiness.status === 'not_applicable' && value.direction.route === 'non_software', 'non-software work must use not_applicable deployment/readiness and the non_software route');
   } else {
-    requireThat(value.direction.route !== 'non_software', 'software work cannot use the non_software route');
-    requireThat(value.deployment.status !== 'not_applicable' && value.readiness.status !== 'not_applicable', 'software deployment/readiness must be assessed or explicitly unknown/not_assessed');
+    requireThat(value.direction.route !== 'non_software', 'software or mixed work cannot use the non_software route');
+    requireThat(value.deployment.status !== 'not_applicable' && value.readiness.status !== 'not_applicable', 'software or mixed deployment/readiness must be assessed or explicitly unknown/not_assessed');
   }
   if (value.direction.clarity !== 'ready') requireThat(value.unknowns.length, 'unclear direction must identify missing information in unknowns');
   return value;
@@ -78,7 +80,9 @@ export function assessmentMarkdown(assessment) {
     '# Project context and planning direction', '', `Assessed: ${escape(a.assessed_at)}.`, '', escape(a.summary), '',
     `Project type: **${a.project_type}**. Deployment: **${a.deployment.status}**. Readiness: **${a.readiness.status}**.`,
     `Readiness scope: ${escape(a.readiness.scope)}`, '',
-    'Deployment describes where the project is used. Readiness describes the stated evidence scope; neither a production label nor plan completion certifies the project.', '',
+    a.project_type === 'content'
+      ? 'Software deployment is not applicable to this content task; publication status belongs in the evidence. Readiness covers only the stated editorial checks, not publication, approval or factual certification.'
+      : 'Deployment describes where the project is used. Readiness describes the stated evidence scope; neither a production label nor plan completion certifies the project.', '',
     '## Direction', '', `Route: **${a.direction.route}**. Clarity: **${a.direction.clarity}**.`, '',
     `Goal: ${escape(a.direction.goal)}`, '', '### Scope', '', ...bullets(a.direction.scope), '',
     '### Success criteria', '', ...bullets(a.direction.success_criteria), '',

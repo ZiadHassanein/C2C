@@ -1,13 +1,13 @@
 # C2C FAQ: Codex and Claude Code planning and review
 
-C2C is an open-source skill for collaborative planning between Codex and Claude Code, or distinct models within one provider. Either app can start and coordinate the work. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers historical cross-provider setup and usage.
+C2C is an open-source skill for planning software, content, and mixed projects between Codex and Claude Code, or distinct models within one provider. Either app can start and coordinate the work. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers historical cross-provider setup and usage.
 
 ## Can I install without cloning the repository?
 
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -29,16 +29,16 @@ C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
 
 ## What if one tool is not installed or ready?
 
-C2C checks the existing setup before calls. If the other provider is missing or unusable, it automatically selects a planning author and distinct coding-focused critic from the current provider when that provider's CLI, exact models and allowance are eligible. It announces the selected roles and records actual responses. This works symmetrically from Codex or Claude Code.
+C2C checks the existing setup before calls. If the other provider is missing or unusable, it automatically selects a planning author and distinct critic suited to the task from the current provider when that provider's CLI, exact models and allowance are eligible. It announces the selected roles and records actual responses. This works symmetrically from Codex or Claude Code.
 
-If the current provider's CLI is also absent, no distinct eligible pair exists, or evidence required by your usage restrictions is missing, the chat produces a provisional plan with structured self-critique, security, proposed tests and a concrete execution entry point. Unknown live quota alone does not disqualify normal authorized subscription use. A self-critique is labeled as one chat's work and never presented as a second model's review. No installation, upgrade, login or configuration change is required. Missing tools, authentication failures and quota failures remain distinct. Explicit requirements for both providers, waiting, pinned choices or advice only take precedence. [Routing and recovery details](../references/protocol.md#planning-with-unavailable-tools).
+If the current provider's CLI is also absent, no distinct eligible pair exists, or evidence required by your usage restrictions is missing, the chat produces a provisional plan with structured self-critique, relevant security and acceptance checks, and a concrete execution entry point. Unknown live quota alone does not disqualify normal authorized subscription use. A self-critique is labeled as one chat's work and never presented as a second model's review. No installation, upgrade, login or configuration change is required. Missing tools, authentication failures and quota failures remain distinct. Explicit requirements for both providers, waiting, pinned choices or advice only take precedence. [Routing and recovery details](../references/protocol.md#planning-with-unavailable-tools).
 
 ## Must I keep Claude or Codex open while it works as the peer?
 
@@ -50,23 +50,31 @@ Yes, when the selected workers are available and eligible: C2C launches them and
 
 ## Can Codex discuss a plan with another Codex model, or Claude with another Claude model?
 
-Yes. This is selected automatically when the other provider is unavailable before calls and a same-provider pair is eligible. You can also ask `Use $C2C with Codex only` or `/C2C Use Claude only`. C2C researches current options and selects a planning author and a distinct coding-focused critic within your limits. If trustworthy metadata exactly identifies your chat as the selected planner, it can author directly; otherwise C2C launches the selected author in the background. Exact models, reserved selection and advice-only requests take precedence. See [copyable examples](../README.md#with-codex-only-or-claude-only) and [model identity limits](SETUP.md#choose-the-participants).
+Yes. This is selected automatically when the other provider is unavailable before calls and a same-provider pair is eligible. You can also ask `Use $C2C with Codex only` or `/C2C Use Claude only`. C2C researches current options and selects a planning author and a distinct critic within your limits: engineering for software, editorial and factual for content, and both for mixed work. If trustworthy metadata exactly identifies your chat as the selected planner, it can author directly; otherwise C2C launches the selected author in the background. Exact models, reserved selection and advice-only requests take precedence. See [copyable examples](../README.md#with-codex-only-or-claude-only) and [model identity limits](SETUP.md#choose-the-participants).
 
 Different model IDs do not prove independent reasoning or guarantee that a provider honored a request. The runner records declared/requested identities, uses reported identity when available, and keeps unknowns visible. It does not switch the current chat or simulate a debate.
 
 ## Does one provider gain the other provider's abilities?
 
-No. A Claude-only pair remains Claude models; a Codex-only pair remains Codex models. C2C gives them complementary questions: the planner connects outcomes, constraints and tradeoffs, while the critic traces implementation choices through evidence and failure cases. It cannot grant another model's capabilities or guarantee equivalent judgment. When only one eligible model remains, it uses a labeled self-critique instead of pretending a second model participated. [Planning perspectives](../references/protocol.md#single-provider-planning-perspectives).
+No. A Claude-only pair remains Claude models; a Codex-only pair remains Codex models. C2C gives them complementary questions: the planner connects outcomes, constraints and tradeoffs, while the critic traces proposed decisions through evidence and failure cases. It cannot grant another model's capabilities or guarantee equivalent judgment. When only one eligible model remains, it uses a labeled self-critique instead of pretending a second model participated. [Planning perspectives](../references/protocol.md#single-provider-planning-perspectives).
 
 The target is fewer material mistakes and clearer next steps for the resources used. Existing stages, review depth and call ceilings stay intact; reviews focus on changes and unresolved risks. More discussion is not a success metric. [How improvement is evaluated](BENCHMARKS.md#what-counts-as-improvement).
 
 ## Can I use it for small features and large projects?
 
-Yes. A bounded feature can use focused review with implementation steps, edge cases, and acceptance checks. A project roadmap covers MVP boundaries, architecture, dependent milestones, and a concrete first milestone. Planning depth follows scope, risk, and uncertainty. Later milestones do not automatically start additional councils.
+Yes. A bounded feature or content revision can use focused review with steps, risks, and acceptance checks. A project roadmap covers release boundaries, software architecture or content structure as relevant, dependent milestones, and a concrete first milestone. Planning depth follows scope, risk, and uncertainty. Later milestones do not automatically start additional councils.
+
+## Can C2C plan content and image work?
+
+Yes. It can plan website copy, educational material, image briefs and asset revisions, or a project combining those with software. The coordinator records the audience, purpose, format, existing material, sources, constraints and acceptance criteria. Content critics check editorial choices, factual support, rights and accessibility; mixed plans also cover engineering risks and dependencies.
+
+Image evidence has a specific limit: worker packets currently carry text, not image pixels. The coordinator inspects authorized assets when its tools allow it and supplies attributed descriptions, visible text, source and rights facts, and relevant constraints. Uninspected visual details and unverified rights remain unknown. A worker reviews that supplied evidence; C2C must not say the worker visually inspected an image. A filename or URL alone does not establish what an image contains or permission to use it.
+
+The output remains a revised plan, compact discussion and result for a completed run. Planning does not automatically write final copy, generate images or publish content. Those actions need their own authorization and suitable tools. See [examples from either app](../README.md#use-it) and [task-specific assessment](../references/project-assessment.md).
 
 ## What does it check before planning?
 
-The coordinator inspects relevant project evidence, records production status separately from readiness, and clarifies the goal, scope, success criteria, and next action. Material product choices are asked about before a paid exchange. Missing technical evidence can become a bounded discovery task. A deployment file alone is not proof that a project is live or ready. See [project assessment](../references/project-assessment.md).
+The coordinator inspects relevant project evidence, records deployment or publication status separately from readiness, and clarifies the goal, scope, success criteria, and next action. Material product or editorial choices are asked about before a paid exchange. Missing technical or content evidence can become a bounded discovery task. A deployment file or publication draft alone is not proof that a project is live or ready. See [project assessment](../references/project-assessment.md).
 
 ## Can I see the agents disagree and revise the plan?
 
@@ -84,7 +92,7 @@ A completed run delivers three direct links: **`final-plan.md`**, **`DISCUSSION.
 
 When reviewing your existing plan, C2C delivers a revised copy with accepted fixes incorporated, plus a short change summary. You do not need to merge the discussion into the old plan yourself. An explicit request for critique only keeps that narrower output.
 
-The plan leads with a link to its current review status, the goal, a recommendation, and priority decisions or blockers. Generated discussion/result records carry the changing review outcome so announcing completion does not require another review of an edited plan. It separates confirmed requirements from proposals and MVP scope from deferred work. Project roadmaps use milestone deliverables, dependencies, and exit gates; smaller features use concise steps. Security and test checks show whether they are proposed, executed, or blocked. Review changes and the next action stay visible; technical detail follows in the same plan's appendix. See the [presentation guide](../references/plan-presentation.md).
+The plan leads with a link to its current review status, the goal, a recommendation, and priority decisions or blockers. Generated discussion/result records carry the changing review outcome so announcing completion does not require another review of an edited plan. It separates confirmed requirements from proposals and initial scope from deferred work. Project roadmaps use milestone deliverables, dependencies, and exit gates; bounded tasks use concise steps. Security, source and acceptance checks show whether they are proposed, executed, or blocked. Review changes and the next action stay visible; supporting detail follows in the same plan's appendix. See the [presentation guide](../references/plan-presentation.md).
 
 If a peer call fails, C2C presents an organized draft and identifies the missing review. It does not label that work jointly approved or treat a planned test as an executed one.
 
@@ -96,13 +104,15 @@ The coordinator checks the plan's consistency before verification and again afte
 
 ## Does every plan include security and tests?
 
-Every new council requires a scoped security review and proposed acceptance checks. The plan preserves missing evidence, unresolved risks, and the distinction between proposed tests and tests actually executed. Completing the discussion does not certify security, production readiness, or a working implementation. Current controller validation is recorded in [project notes](../PROJECT_NOTES.md); [evaluation methods](BENCHMARKS.md) distinguish software checks from planning outcomes.
+Every new council requires a scoped security review and proposed acceptance checks suited to the work. Software plans use relevant engineering tests. Content plans use checks such as factual source verification, audience comprehension, editorial consistency, permissions and accessible text alternatives; they do not require an `npm test` command. Mixed plans keep both sets and their dependencies clear. Privacy, sensitive information and harmful or misleading claims belong in the review where relevant.
+
+The plan preserves missing evidence, unresolved risks, and the distinction between proposed checks and checks actually executed. Completing the discussion does not certify security, publication or production readiness, or a working implementation. Current controller validation is recorded in [project notes](../PROJECT_NOTES.md); [evaluation methods](BENCHMARKS.md) distinguish software checks from planning outcomes.
 
 ## Does it choose or change my model automatically?
 
-C2C checks tool availability, researches current planning/coding choices, identifies the current chat and selects actual worker roles. It then checks launch eligibility for those workers within your limits. Unknown quota does not skip this research; known inaccessible workers are skipped. Your chat and global settings stay unchanged; exact choices and advice-only instructions override automatic selection. Same-provider discussion uses a planner plus a distinct coding critic; cross-provider planning chooses a planning model from each provider. Research is reused for the same run and retries. [Selection policy](../references/model-selection.md).
+C2C checks tool availability, researches current model choices for the task, identifies the current chat and selects actual worker roles. It then checks launch eligibility for those workers within your limits. Unknown quota does not skip this research; known inaccessible workers are skipped. Your chat and global settings stay unchanged; exact choices and advice-only instructions override automatic selection. Same-provider discussion uses a planner plus a distinct task-suited critic; cross-provider planning chooses a suitable model from each provider. Research is reused for the same run and retries. [Selection policy](../references/model-selection.md).
 
-If the same model is strongest for planning and coding, C2C selects an adequate distinct critic and explains the tradeoff. A model appearing in a catalog does not prove account access or guarantee quality. It does not make paid selection probes or silently choose a model outside your authorized billing scope. For advice alone, ask: “Assess the task and recommend models; advice only.”
+If the same model is strongest for both roles, C2C selects an adequate distinct critic and explains the tradeoff. A model appearing in a catalog does not prove account access or guarantee quality. It does not make paid selection probes or silently choose a model outside your authorized billing scope. For advice alone, ask: “Assess the task and recommend models; advice only.”
 
 ## Does C2C send my whole repository to another provider?
 
@@ -138,7 +148,7 @@ C2C can increase its chosen inactivity guard or existing numeric caps on the sam
 
 C2C stops calls to the blocked route. Before calls, it can select an eligible planner and distinct critic from the starting provider when the other provider is unavailable. After a run is prepared, [bounded recovery](../references/protocol.md#no-paid-limit-recovery) preserves participants, actual reports and consumed allowance. A different model name does not establish fresh quota; models may share a limit. No account or billing switch is allowed.
 
-If no eligible continuation fits your remaining limits, the available chat completes a **provisional plan with structured self-critique**, using actual reports already received. It retains reversible assumptions and validation checks, security, proposed tests, unresolved risks and decisions that need you. Missing independent review stays explicit. If no chat allowance remains, it saves a checkpoint. Requests to “wait for both participants” or “require both reviews” take precedence. Timeouts and rejected logins remain distinct from quota failures; no missing worker response is invented.
+If no eligible continuation fits your remaining limits, the available chat completes a **provisional plan with structured self-critique**, using actual reports already received. It retains reversible assumptions, relevant security and acceptance checks, unresolved risks and decisions that need you. Missing independent review stays explicit. If no chat allowance remains, it saves a checkpoint. Requests to “wait for both participants” or “require both reviews” take precedence. Timeouts and rejected logins remain distinct from quota failures; no missing worker response is invented.
 
 If the active chat itself becomes unavailable, C2C cannot guarantee automatic takeover. You can ask an available chat to continue provisional planning from the saved plan, notes, and handoff; it preserves the original council's participant settings and unfinished stages. See [usage-limit fallback and resumption](SETUP.md#when-a-participant-hits-a-usage-limit).
 
@@ -148,7 +158,7 @@ C2C reuses saved reports and task research, removes repeated context paths, offe
 
 ## Will the plan recommend a model for implementation and show savings?
 
-Yes. The plan includes an advisory execution choice tied to the first work item, a justified alternative, source dates, availability gaps and conditions for reconsidering the choice. Roadmaps add different model recommendations only where the work warrants them. Official guidance establishes capabilities and rates; firsthand experiments and social reports add context with their limitations. The recommendation does not switch models, launch coding or enable paid usage.
+Yes. The plan includes an advisory execution choice tied to the first work item, a justified alternative, source dates, availability gaps and conditions for reconsidering the choice. Roadmaps add different model recommendations only where the work warrants them, including distinct software, writing or image tasks. Official guidance establishes capabilities and rates; firsthand experiments and social reports add context with their limitations. The recommendation does not switch models, launch execution or enable paid usage.
 
 It explains why the model suits the actual work before presenting a percentage: the relevant task facts, evidence for the choice, tradeoff against the alternative and acceptance check. It also explains where a supported saving comes from; lower prices do not demonstrate fewer retries or reasoning tokens.
 
@@ -156,8 +166,8 @@ An equal-token API price comparison can show a percentage when its baseline and 
 
 ## Can I resume later, and will C2C start coding?
 
-Saved Markdown plans, a generated handoff, and structured run state support resuming from the current stage. The coordinator checks status and relevant evidence instead of replaying successful calls. Recovery still needs intact state; arbitrary disk damage is not recoverable by design. C2C produces a plan and can prepare an implementation brief for a selected milestone. Implementation and deployment need their own authorization and verification.
+Saved Markdown plans, a generated handoff, and structured run state support resuming from the current stage. The coordinator checks status and relevant evidence instead of replaying successful calls. Recovery still needs intact state; arbitrary disk damage is not recoverable by design. C2C produces a plan and can prepare an execution brief for a selected milestone. Implementation, final content production, image generation, deployment and publication need their own authorization and verification.
 
 ## Where should I start?
 
-Use the [one-command quick start](../README.md#install), then ask for one focused feature. Read the [setup guide](SETUP.md) for upgrades or troubleshooting and the [technical protocol](../references/protocol.md) for commands, schemas, and saved evidence.
+Use the [one-command quick start](../README.md#install), then ask for one focused software or content task. Read the [setup guide](SETUP.md) for upgrades or troubleshooting and the [technical protocol](../references/protocol.md) for commands, schemas, and saved evidence.

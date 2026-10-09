@@ -4,7 +4,7 @@
 
 Use this page when you need help with installation, updating, or a failed setup check. For normal use, paste a request into your project chat and let the AI handle the runner.
 
-**Start in either app; setup is optional.** The initiating chat coordinates C2C. Before calls, it prefers an eligible cross-provider exchange, then a planner and distinct coding critic from the current provider if the other is unavailable. The latter needs that provider's ready CLI and two eligible exact models within your limits. If neither route qualifies, the chat produces a provisional plan with structured self-critique. It does not require installing, updating or signing in to another tool. The repair instructions below apply when you choose to enable that exchange.
+**Start in either app; setup is optional.** The initiating chat coordinates C2C for software, content or mixed projects. Before calls, it prefers an eligible cross-provider exchange, then a planner and distinct task-suited critic from the current provider if the other is unavailable. The latter needs that provider's ready CLI and two eligible exact models within your limits. If neither route qualifies, the chat produces a provisional plan with structured self-critique. It does not require installing, updating or signing in to another tool. The repair instructions below apply when you choose to enable that exchange.
 
 **Install:** [Quick start](../README.md#install) · [One app](#install-for-one-app-only) · [Linux/macOS](#linux-and-macos) · [Check setup](#check-your-setup)
 
@@ -17,14 +17,14 @@ Use this page when you need help with installation, updating, or a failed setup 
 With [Node.js 18+ and npm/npx](https://nodejs.org/en/download), run in PowerShell on Windows or Terminal on macOS/Linux:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install
 ```
 
 This downloads the named C2C release and runs its setup helper. It needs no Git, npm account or global package installation. Both apps receive the skill for your current user; start a new chat afterward. It does not install the provider CLIs, create accounts or sign in. [Optional CLI setup](../README.md#1-prepare-your-tools) is separate.
 
 Append `--dry-run` to `install`, `update` or `uninstall` to inspect the selected paths and planned changes without changing skill installations. The surrounding `npx` command can still download files into npm's cache. `--target codex`, `--target claude` or `--target both` selects the apps; `both` is the default.
 
-The launcher is pinned to **v2.1.4**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
+The launcher is pinned to **v2.2.0**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
 
 <details>
 <summary>Install from a Git clone or downloaded ZIP</summary>
@@ -38,7 +38,7 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-Without Git, [download the v2.1.4 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
+Without Git, [download the v2.2.0 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
 
 `node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `check-update`, `update`, `uninstall`, `doctor`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
 
@@ -49,11 +49,11 @@ Without Git, [download the v2.1.4 ZIP](https://github.com/ZiadHassanein/C2C/arch
 The default installer adds the skill to both apps. To choose one, run **one** of these instead:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz install --target codex
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install --target codex
 ```
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz install --target claude
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install --target claude
 ```
 
 This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI, whether selected automatically or requested. Missing unused CLIs do not block a valid route. See [routing and provisional planning](../references/protocol.md#planning-with-unavailable-tools).
@@ -100,7 +100,7 @@ Store run folders on a local filesystem supporting hard links and atomic renames
 From any folder with npm/npx available:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz doctor
 ```
 
 Or open a terminal in your cloned/extracted C2C folder and run:
@@ -139,7 +139,7 @@ An inaccessible or expired login leaves that worker unavailable. C2C follows its
 **In chat:** say “Update C2C and keep this plan on its current version.” The AI checks the active run before updating. For a direct terminal update:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz update
 ```
 
 This discovers the latest stable tag in the official C2C repository. Append `--target codex` or `--target claude` for one app, or `--dry-run` to preview. During a prepared run, include `--run "/absolute/path/to/run"` so its retained runtime is checked first. Changed installations are protected. An identical installation needs no replacement. Start a new chat to use the updated instructions for a new plan.
@@ -216,7 +216,7 @@ Downloading updates alone does not update installed copies. Matching content, in
 **Finish or stop active C2C runs first.** Removing the skill does not stop a worker that is already running. Then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz uninstall
 ```
 
 The command moves unchanged managed C2C folders out of skill discovery into recoverable backups. It protects customized, unrecognized or linked files instead of deleting them. A missing target is a no-op. It leaves parent settings, other skills, apps, logins, and projects/plans saved elsewhere untouched. Start a new chat in each affected app; an existing chat may still contain previously loaded instructions.
@@ -224,7 +224,7 @@ The command moves unchanged managed C2C folders out of skill discovery into reco
 Preview first, without changing skill installations:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz uninstall --dry-run
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz uninstall --dry-run
 ```
 
 Add `--target codex` or `--target claude` to remove the skill from only one app. Keep the printed rollback command to restore it; rollback protects any installation added or changed afterward. For an interrupted operation, use its printed recovery guidance. [Transaction recovery](#update-the-skill) also applies to managed removal.
@@ -238,7 +238,7 @@ From a downloaded/cloned C2C folder:
 node scripts/setup.mjs uninstall
 ```
 
-This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.1.4 installed copy also contains the helper. For example, with default paths:
+This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.2.0 installed copy also contains the helper. For example, with default paths:
 
 PowerShell on Windows:
 
@@ -278,13 +278,13 @@ Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans
 If PowerShell blocks `npx.ps1`, use `npx.cmd` in the same command. No execution-policy change is needed:
 
 ```powershell
-npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz install
+npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install
 ```
 
 If npm 12 rejects the remote package URL, permit it for this command only:
 
 ```sh
-npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz install
+npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install
 ```
 
 This follows npm's [remote URL setting](https://docs.npmjs.com/cli/v12/using-npm/config/#allow-remote); do not change global npm policy. Keep the exact release URL and replace the final action with `update`, `uninstall` or `doctor` as needed. On Windows, the `npx.cmd` form can also include this option. If npm/npx is unavailable or your environment disallows remote packages, use the local Git/ZIP method instead.
@@ -295,14 +295,16 @@ The chat you start is the coordinator; neither provider is permanently in charge
 
 | Starting chat | Preferred route | If the other provider is unavailable |
 |---|---|---|
-| Codex | Codex planning author + Claude planning reviewer | Codex planning author + distinct Codex coding critic |
-| Claude Code | Claude planning author + Codex planning reviewer | Claude planning author + distinct Claude coding critic |
+| Codex | Codex planning author + Claude reviewer | Codex planning author + distinct Codex critic |
+| Claude Code | Claude planning author + Codex reviewer | Claude planning author + distinct Claude critic |
+
+Roles follow the task: engineering review for software, editorial and factual review for content, and both perspectives for mixed work. Content review covers audience, structure, evidence, rights and accessibility as relevant; no software repository or coding test command is required for a content-only plan. [Examples in either app](../README.md#use-it).
 
 Same-provider review requires the current provider's compatible, authenticated CLI, two eligible exact model IDs, and authorized usage under your billing policy. You can also ask for “Codex only” or “Claude only.” These routes use actual responses from distinct models. If the required CLI or eligible pair is unavailable, or evidence required by your limits is missing, the current chat delivers a provisional plan with structured self-critique. Unknown live quota alone does not disqualify normal authorized subscription use. Self-critique identifies assumptions, counterexamples, alternatives and unresolved risks without attributing invented replies to another model.
 
 Requests to require both providers, wait, pin participants or models, reserve selection, or receive advice only override automatic routing. A partially completed run retains its participants, reports and consumed allowance; any continuation follows the [recovery protocol](../references/protocol.md#planning-with-unavailable-tools).
 
-After checking candidate tool availability, each new planning task researches current planning/coding choices, identifies the host and assigns roles before checking actual workers' launch eligibility. Unknown quota does not skip candidate research; known inaccessible workers are skipped. Findings go in `TASK_ASSESSMENT.md`; retries reuse them. There is no permanent model ranking. If one model leads both roles in a same-provider discussion, C2C explains its distinct adequate critic. See the [selection policy](../references/model-selection.md).
+After checking candidate tool availability, each new planning task researches current model choices for its domain, identifies the host and assigns roles before checking actual workers' launch eligibility. Unknown quota does not skip candidate research; known inaccessible workers are skipped. Findings go in `TASK_ASSESSMENT.md`; retries reuse them. There is no permanent model ranking. If one model leads both roles in a same-provider discussion, C2C explains its distinct adequate critic. See the [selection policy](../references/model-selection.md).
 
 Your current chat stays unchanged. When trustworthy metadata shows it exactly matches the selected planner, C2C can reuse it as author and check only the peer worker's eligibility. Otherwise `--author-model` selects a background planner, subject to its own access and billing checks; `--peer-model` selects the other participant. Unknown chat identity does not prove that background workers are eligible. Both CLIs are required when background workers use both providers.
 
@@ -324,7 +326,7 @@ Replace the path with the run folder. Run this between stages to refresh the dis
 
 ## Usage and privacy
 
-Before planning, the AI checks the relevant project context and makes the goal, scope, success criteria, and next step explicit. It writes the assessment files for you. It may ask a focused question when an essential requirement is missing; unknown deployment details alone do not prevent a useful plan. Read `PROJECT_CONTEXT.md` for the evidence and limits. For an assessment without a peer discussion, ask for “assessment only.”
+Before planning, the AI checks the relevant project context and makes the goal, scope, success criteria, and next step explicit. Content work includes its audience, purpose, source material, publication status and editorial constraints; mixed work also records dependencies on software. It writes the assessment files for you. It may ask a focused question when an essential requirement is missing; unknown deployment or publication details alone do not prevent a useful plan. Read `PROJECT_CONTEXT.md` for the evidence and limits. For an assessment without a peer discussion, ask for “assessment only.”
 
 The skill runs a staged exchange through your existing provider accounts. Normal provider usage applies.
 
@@ -348,9 +350,11 @@ Before launching a new run's first worker, C2C uses `node RUNNER preview --run R
 
 The peer is instructed to use supplied evidence. Calls disable applicable shell, image, browser, connector and agent features, use a neutral working directory and request read-only permissions. Some CLI tools may remain present but subject to those permissions. These settings are not a substitute for the host sandbox or managed policy. The current chat gathers evidence and performs any work you have authorized.
 
+Worker packets are text-only. For image planning, the coordinator inspects authorized assets when possible and supplies attributed descriptions, visible text, source/rights facts and constraints. It records unknown visual details or permissions when inspection or evidence is unavailable. Workers can critique that supplied evidence but do not directly see image pixels. [Content and image evidence](FAQ.md#can-c2c-plan-content-and-image-work).
+
 Worker selection uses current research and your constraints; it does not change the current chat or global settings. Ask for “advice only” to get recommendations without calls. Codex workers ignore ordinary user configuration for isolation, so C2C uses explicit selected IDs rather than assuming a CLI default matches another session. Some models can consume additional credits in non-interactive mode: C2C must establish that this is within your authorized scope before choosing them.
 
-Every new council plan includes a security review and relevant test checks. The [plan presentation guide](../references/plan-presentation.md) puts priority decisions, the proposed scope, and the next action before technical appendices. Unresolved findings and edits made after peer verification remain visible. Completing the discussion does not mean every issue is resolved or the implementation has been tested.
+Every new council plan includes a scoped security review and relevant acceptance checks. Software work uses engineering tests; content work uses editorial, factual source, rights and accessibility checks as relevant; mixed work uses both. These checks remain labeled as proposed, executed or blocked. The [plan presentation guide](../references/plan-presentation.md) puts priority decisions, the proposed scope, and the next action before supporting appendices. Unresolved findings and edits made after peer verification remain visible. Completion does not mean every issue is resolved or authorize implementation, final content production, image generation or publication.
 
 ## Troubleshooting
 
@@ -358,7 +362,7 @@ Every new council plan includes a security review and relevant test checks. The 
 |---|---|
 | `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `npx` is missing, PowerShell blocks it, or npm rejects the remote URL | Follow [npx and PowerShell help](#npx-and-powershell-help); local Node setup remains available without npm/npx. |
-| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.zip), extract it, and open a terminal in the folder containing `scripts`. |
+| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/setup.mjs` or `scripts/install.mjs` | You are in the wrong folder or using an older source copy. Open a terminal in the extracted or cloned current release, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise apply [available-provider routing](#choose-the-participants). If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
 | `doctor` reports signed out | Treat that worker as unavailable and apply [routing rules](#choose-the-participants). If you choose setup repair, check the environment/access row below before renewing the selected native login. |
@@ -422,7 +426,7 @@ The [technical recovery command](../references/protocol.md#budgets-and-bounded-r
 
 Stop calls to the blocked route. Before any calls, an unavailable other provider can lead to an eligible same-provider pair under [participant selection](#choose-the-participants). For a prepared or partial exchange, follow the [usage-limit recovery protocol](../references/protocol.md#no-paid-limit-recovery): preserve actual reports, participant identities and all consumed allowance. A new folder cannot reset a task's limits. Models from one provider may share the exhausted allowance; availability cannot be inferred from a different model name.
 
-If no eligible continuation fits the remaining authority and limits, the available chat completes a **provisional plan with structured self-critique**, or saves a checkpoint if it has no allowance. It retains actual contributions, security, proposed tests and unresolved risks. Reversible assumptions include validation checks; material decisions remain gates. Missing review stays explicit. “Wait for both participants” or “require both reviews” takes precedence. No credits, upgrades, account changes or alternative billing are part of recovery.
+If no eligible continuation fits the remaining authority and limits, the available chat completes a **provisional plan with structured self-critique**, or saves a checkpoint if it has no allowance. It retains actual contributions, relevant security and acceptance checks, and unresolved risks. Reversible assumptions include validation checks; material decisions remain gates. Missing review stays explicit. “Wait for both participants” or “require both reviews” takes precedence. No credits, upgrades, account changes or alternative billing are part of recovery.
 
 Usage limits, timeouts, and rejected authentication are separate causes. C2C records the observed failure without guessing, and a larger runner allowance cannot remove a provider usage block. [Timeout recovery](#when-a-peer-call-takes-longer) and [login repair](#do-i-need-another-terminal-open) retain their existing rules.
 

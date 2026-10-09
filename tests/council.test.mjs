@@ -45,6 +45,36 @@ function assessment() {
     unknowns: [],
   };
 }
+function workAssessment(projectType) {
+  const value = assessment();
+  value.project_type = projectType;
+  value.summary = 'Synthetic workshop announcement supplied for editorial review; no source or image inspection has run.';
+  value.deployment = projectType === 'content'
+    ? { status: 'not_applicable', evidence: [] }
+    : { status: 'non_production', evidence: ['E2'] };
+  value.readiness = {
+    status: 'gaps_found', scope: 'Announcement facts, image provenance and publication checks.',
+    gaps: ['The proposed source comparison and image permission check have not run.'], evidence: ['E1'],
+  };
+  value.evidence = [{
+    id: 'E1', source: 'Supplied workshop brief', kind: 'user_reported',
+    observation: 'The supplied brief says the workshop starts at 10:00; the draft says 11:00. A described image is unverified.',
+  }];
+  if (projectType === 'mixed') value.evidence.push({
+    id: 'E2', source: 'Synthetic implementation fixture', kind: 'observed',
+    observation: 'This temporary fixture has no deployed registration form.',
+  });
+  value.direction = {
+    route: projectType === 'content' ? 'non_software' : 'extend_existing', clarity: 'ready',
+    goal: projectType === 'content' ? 'Revise the workshop announcement.' : 'Revise the announcement and plan its registration form.',
+    scope: ['Correct the announcement from supplied facts.', ...(projectType === 'mixed' ? ['Implement a minimal registration form.'] : [])],
+    success_criteria: ['The operative plan uses 10:00 and explicitly labels proposed source and image checks.'],
+    constraints: ['Treat supplied claims as user reported and the described image as unverified.'],
+    next_step: 'Revise the text and specify evidence needed before publication.',
+  };
+  value.unknowns = ['Image contents and reuse permission have not been verified.'];
+  return value;
+}
 function report(ids = [], token = 'A useful report') {
   return {
     summary: token, verdict: ids.length ? 'needs_changes' : 'ready',
@@ -545,6 +575,113 @@ test('prepare requires a valid assessment before creating a run', async () => {
     await write(f.assessment,content);
     await assert.rejects(async()=>prepare(prepareOptions(f)));
     await assert.rejects(()=>fs.access(f.out));
+  }
+});
+
+test('content assessments support scoped editorial readiness without weakening evidence guards', () => {
+  assert.ok(ASSESSMENT_SCHEMA.properties.project_type.enum.includes('content'));
+  for (const readinessStatus of ['not_assessed', 'gaps_found', 'checks_passed_for_scope', 'not_applicable']) {
+    const value = workAssessment('content');
+    value.readiness.status = readinessStatus;
+    if (readinessStatus !== 'gaps_found') value.readiness.gaps = [];
+    if (readinessStatus === 'checks_passed_for_scope') {
+      value.evidence.push({ id: 'E2', source: 'Synthetic copy comparison', kind: 'observed', observation: 'The synthetic time-only comparison passed; no image or publication check was performed.' });
+      value.readiness.scope = 'Time in the supplied draft against the supplied brief only.';
+      value.readiness.evidence = ['E2'];
+    }
+    assert.equal(validateAssessment(value), value, readinessStatus);
+  }
+  const invalid = [
+    ['software route', value => { value.direction.route = 'extend_existing'; }],
+    ['discovery route', value => { value.direction.route = 'discovery'; }],
+    ['known software deployment', value => { value.deployment = { status: 'production', evidence: ['E1'] }; }],
+    ['unknown software deployment', value => { value.deployment.status = 'unknown'; }],
+    ['missing observed evidence', value => { value.readiness = { status: 'checks_passed_for_scope', scope: 'Supplied claims only.', gaps: [], evidence: ['E1'] }; }],
+    ['inferred readiness evidence', value => { value.evidence[0].kind = 'inferred'; value.readiness.status = 'checks_passed_for_scope'; value.readiness.gaps = []; }],
+    ['observed check with outstanding gaps', value => { value.evidence[0].kind = 'observed'; value.readiness.status = 'checks_passed_for_scope'; }],
+    ['unreferenced observed evidence', value => { value.evidence[0].kind = 'observed'; value.readiness.status = 'checks_passed_for_scope'; value.readiness.gaps = []; value.readiness.evidence = []; }],
+    ['unknown reference', value => { value.readiness.evidence = ['MISSING']; }],
+    ['duplicate reference', value => { value.readiness.evidence = ['E1', 'E1']; }],
+    ['empty gap list', value => { value.readiness.gaps = []; }],
+    ['missing readiness scope', value => { value.readiness.scope = ''; }],
+  ];
+  for (const [label, mutate] of invalid) {
+    const value = workAssessment('content');
+    mutate(value);
+    assert.throws(() => validateAssessment(value), undefined, label);
+  }
+});
+
+test('mixed assessments keep software deployment and routing guards while legacy types remain valid', () => {
+  assert.ok(ASSESSMENT_SCHEMA.properties.project_type.enum.includes('mixed'));
+  for (const projectType of ['software', 'mixed']) {
+    for (const route of ['new_build', 'extend_existing', 'harden_existing', 'discovery']) {
+      for (const deploymentStatus of ['production', 'non_production', 'unknown']) {
+        const value = projectType === 'software' ? assessment() : workAssessment(projectType);
+        value.direction.route = route;
+        value.deployment.status = deploymentStatus;
+        value.unknowns = ['The environment or publication evidence needs a bounded check.'];
+        assert.doesNotThrow(() => validateAssessment(value), `${projectType}/${route}/${deploymentStatus}`);
+      }
+    }
+    for (const mutate of [
+      value => { value.deployment.status = 'not_applicable'; },
+      value => { value.readiness.status = 'not_applicable'; },
+      value => { value.direction.route = 'non_software'; },
+      value => { value.deployment.evidence = []; },
+      value => { value.deployment.status = 'unknown'; value.unknowns = []; },
+      value => { value.evidence.forEach(item => { item.kind = 'inferred'; }); },
+      value => { value.readiness = { status: 'checks_passed_for_scope', scope: 'Publication checks.', gaps: [], evidence: ['E1'] }; value.evidence[0].kind = 'user_reported'; },
+    ]) {
+      const value = projectType === 'software' ? assessment() : workAssessment(projectType);
+      mutate(value);
+      assert.throws(() => validateAssessment(value), undefined, projectType);
+    }
+  }
+  const legacy = workAssessment('content');
+  legacy.project_type = 'non_software';
+  legacy.readiness = { status: 'not_applicable', scope: 'Legacy workshop planning context.', gaps: [], evidence: [] };
+  assert.doesNotThrow(() => validateAssessment(legacy));
+  assert.throws(() => validateAssessment({ ...legacy, readiness: { ...legacy.readiness, status: 'not_assessed' } }));
+});
+
+test('work profile follows the frozen assessment rather than suggestive brief keywords or new source types', async () => {
+  for (const projectType of ['software', 'content', 'mixed', 'non_software']) {
+    const f = await inputFixture(`work-profile-${projectType}`);
+    const original = projectType === 'software' ? assessment() : workAssessment(projectType === 'mixed' ? 'mixed' : 'content');
+    if (projectType === 'non_software') {
+      original.project_type = 'non_software';
+      original.readiness = { status: 'not_applicable', scope: 'Legacy workshop planning context.', gaps: [], evidence: [] };
+    }
+    await write(f.assessment, original);
+    await write(f.brief, 'The brief mentions software, content, mixed media, editorial criticism and a database. Use the supplied scope.');
+    await prepare(prepareOptions(f));
+    await hostDraft(f);
+    await write(f.assessment, projectType === 'software' ? workAssessment('content') : assessment());
+    let captured;
+    await ask({ run: f.out, stage: 'draft' }, async request => {
+      captured = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+      return invocation()(request);
+    });
+    assert.equal(captured.work_profile, projectType);
+    assert.deepEqual(captured.shared_context.project_assessment, original);
+    assert.deepEqual(status({ run: f.out }).changed_source_files, [f.assessment]);
+    assert.deepEqual((await read(path.join(f.out, 'snapshot.json'))).project_assessment, original);
+    assert.deepEqual(await read(path.join(f.out, 'project-assessment.json')), original);
+  }
+});
+
+test('invalid content and mixed assessment semantics block preparation before artifacts or worker calls', async () => {
+  for (const projectType of ['content', 'mixed']) {
+    const f = await inputFixture(`invalid-work-profile-${projectType}`);
+    const value = workAssessment(projectType);
+    value.direction.route = projectType === 'content' ? 'extend_existing' : 'non_software';
+    await write(f.assessment, value);
+    assert.throws(() => prepare(prepareOptions(f)), /assessment/i);
+    await assert.rejects(() => fs.access(f.out));
+    let calls = 0;
+    await assert.rejects(() => ask({ run: f.out, stage: 'draft' }, async request => { calls++; return invocation()(request); }));
+    assert.equal(calls, 0);
   }
 });
 
@@ -2581,6 +2718,163 @@ const workerReportStages = [
   ['review', 'peer-review.json', 'P-R'],
   ['verify', 'peer-verify.json', 'P-V'],
 ];
+
+for (const [projectType, coordinator, pairing] of [['content', 'codex', 'same'], ['mixed', 'claude', 'cross']]) {
+  test(`${projectType} offline council preserves scoped evidence, adopted corrections and security through ${pairing}-provider completion`, async () => {
+    // These authored fixtures verify routing, evidence transport and artifact integrity, not model judgment quality.
+    const f = await inputFixture(`complete-${projectType}`);
+    const original = workAssessment(projectType);
+    const models = authorModels(coordinator, pairing);
+    const suppliedContext = 'SUPPLIED_FACT: the workshop starts at 10:00. The current announcement says 11:00. IMAGE_DESCRIPTION: a crowd photo was mentioned, but no image pixels, source or reuse permission were supplied.';
+    await write(f.assessment, original);
+    await write(f.context, suppliedContext);
+    await write(f.brief, projectType === 'content'
+      ? 'Revise the workshop announcement from the supplied facts and give concrete editorial acceptance checks.'
+      : 'Revise the workshop announcement and plan a minimal registration form, with factual and implementation checks.');
+    await prepare({ ...prepareOptions(f), coordinator, pairing, ...models });
+    const finding = (id, claim, action, verification) => ({ id, severity: 'major', claim, evidence: suppliedContext, action, verification });
+    const makeReport = (summary, findings, proposal) => ({
+      ...report(), summary, verdict: findings.length ? 'needs_changes' : 'ready', findings,
+      proposal_markdown: proposal, limitations: ['Synthetic planning fixture; proposed source, image and implementation checks have not run.'],
+    });
+    const responses = new Map([
+      ['author-draft', makeReport('C-D1 records the unsupported time in the supplied draft.', [
+        finding('C-D1', 'The announcement conflicts with the supplied start time.', 'Use 10:00 in the revised announcement.', 'Compare the revised time with the supplied brief; status: proposed.'),
+      ], 'Retain the workshop purpose, correct the time and require source comparison before publication.')],
+      ['draft', makeReport('P-D1 proposes an audience-facing acceptance check.', [
+        finding('P-D1', 'The draft does not specify what the reader should do next.', 'Add one clear registration instruction.', 'A reader can identify the workshop time and registration action; status: proposed.'),
+      ], projectType === 'mixed' ? 'Use one registration instruction and a minimal form with server-side email validation.' : 'Use one registration instruction and concise, factual copy.')],
+      ['author-review', makeReport('C-R1 adopts the time correction in the operative announcement.', [
+        finding('C-R1', 'A correction note alone leaves the 11:00 error in the publishable text.', 'Replace 11:00 with 10:00 in the final copy itself.', 'Inspect operative copy for 10:00 and absence of the old time; status: proposed.'),
+      ], 'The revised announcement begins: Join the workshop at 10:00. Register using the supplied contact route.')],
+      ['review', makeReport(projectType === 'mixed' ? 'P-R1 covers form abuse as well as the unverified image.' : 'P-R1 preserves the unverified image boundary.', [
+        finding('P-R1', projectType === 'mixed' ? 'The image is unverified and registration input is untrusted.' : 'The described image has not been inspected or cleared for reuse.',
+          projectType === 'mixed' ? 'Publish text only until permission is confirmed; validate form input and limit repeated submissions.' : 'Publish text only until the image and reuse permission are checked.',
+          projectType === 'mixed' ? 'Reject malformed email and excessive submissions; compare image to its approved source; all checks proposed.' : 'Compare the image to its approved source and verify permission; status: proposed.'),
+      ], 'Keep unverified visual details out of the announcement and make publication evidence explicit.')],
+      ['verify', makeReport('C-D1 and C-R1 are integrated in the operative copy; P-D1 and P-R1 have explicit proposed checks.', [],
+        'The revised plan preserves supplied facts, unverified image status and the publication evidence gates.')],
+    ]);
+    const security = makeReport('C-S1 limits personal data and unverified image use.', [
+      finding('C-S1', 'Publishing an unverified crowd image can expose people without established permission.', 'Use text only and omit personal contact details until permission and publication scope are confirmed.', 'Check the publication candidate contains neither the crowd image nor private contact details; status: proposed.'),
+    ], 'Use text only, minimize personal data, and verify publication permission before any later image inclusion.');
+    const plan = [
+      '# Revised workshop plan',
+      '## Publishable copy',
+      'Join the workshop at 10:00. Register using the supplied contact route.',
+      '## Operative steps',
+      'Use the corrected time in the copy itself (C-D1, C-R1), retain one registration instruction (P-D1), and publish text only (P-R1, C-S1).',
+      ...(projectType === 'mixed' ? ['Implement a minimal registration form: validate email on the server, reject malformed input, and limit repeated submissions.'] : []),
+      '## Acceptance checks and evidence',
+      '- Source comparison: proposed, not run. Compare the published time with the supplied brief; supplied facts remain user reported.',
+      '- Reader check: proposed, not run. A reader can identify the time and registration action.',
+      '- Image check: proposed, not run. No pixels were inspected and reuse permission is unknown; exclude the image until those checks pass.',
+      '- Privacy check: proposed, not run. Verify the candidate omits the crowd image and private contact details.',
+      ...(projectType === 'mixed' ? ['- Form checks: proposed, not run. Reject malformed email and repeated abusive submissions while accepting a valid registration.'] : []),
+      '## Execution entry point',
+      'Revise the announcement from the supplied brief, then collect evidence for the proposed publication checks.',
+      '',
+    ].join('\n');
+    const decisions = [...responses.values(), security].flatMap(value => value.findings.map(item => ({
+      finding_id: item.id, disposition: 'accepted',
+      rationale: `Integrated in the operative copy or steps; ${item.verification}`,
+    })));
+    const packets = new Map(), requests = [];
+    const worker = async request => {
+      const packet = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+      packets.set(packet.stage, packet);
+      const author = packet.stage.startsWith('author-');
+      const expectedModel = models[author ? 'author-model' : 'peer-model'];
+      requests.push({ stage: packet.stage, provider: request.provider });
+      assert.equal(packet.work_profile, projectType);
+      assert.deepEqual(packet.shared_context.project_assessment, original);
+      assert.equal(packet.shared_context.inputs.find(input => input.kind === 'context').content, suppliedContext);
+      // This checks the instruction contract only; the deterministic fixture cannot establish that a model follows it.
+      const instructions = request.prompt.split('COUNCIL_PACKET_JSON\n')[0];
+      assert.match(instructions, /factual claims against supplied sources and their dates/);
+      assert.match(instructions, /not proof that you opened links or inspected image pixels/);
+      if (projectType === 'content') {
+        assert.doesNotMatch(instructions, /Check architecture constraints, interfaces, dependencies and buildability/);
+        if (!author && packet.stage !== 'draft') assert.match(packet.stage_instruction, /editorial and factual critic/);
+      } else {
+        assert.match(instructions, /Check architecture constraints, interfaces, dependencies and buildability/);
+        assert.match(instructions, /neither an editorial check nor a passing build substitutes for the other/);
+      }
+      assert.equal(request.provider, author || pairing === 'same' ? coordinator : 'codex');
+      assert.equal(request.args[request.args.indexOf('--model') + 1], expectedModel);
+      assert.notEqual(await fs.realpath(request.cwd), await fs.realpath(f.project));
+      if (request.provider === 'claude') {
+        assert.equal(request.args[request.args.indexOf('--tools') + 1], '');
+        assert.ok(request.args.includes('--strict-mcp-config'));
+      } else {
+        assert.ok(request.args.includes('read-only'));
+        assert.ok(request.args.includes('never'));
+      }
+      return invocationWithModels(responses.get(packet.stage), [expectedModel])(request);
+    };
+    // A later valid source classification must neither relabel nor broaden this prepared run.
+    await write(f.assessment, assessment());
+    for (const [stage, file] of workerReportStages.filter(([stage]) => stage !== 'verify')) {
+      const returned = await ask({ run: f.out, stage }, worker);
+      assert.deepEqual(returned.report, responses.get(stage));
+      assert.deepEqual(await read(path.join(f.out, file)), responses.get(stage));
+    }
+    for (const stage of ['author-draft', 'draft']) {
+      assert.equal(packets.get(stage).coordinator_proposal, undefined);
+      assert.equal(packets.get(stage).peer_proposal, undefined);
+    }
+    for (const stage of ['author-review', 'review']) {
+      assert.deepEqual(packets.get(stage).coordinator_proposal, responses.get('author-draft'));
+      assert.deepEqual(packets.get(stage).peer_proposal, responses.get('draft'));
+      assert.equal(packets.get(stage).coordinator_review, undefined);
+      assert.equal(packets.get(stage).peer_review, undefined);
+    }
+    await write(path.join(f.out, 'final-plan.md'), plan);
+    await write(path.join(f.out, 'decisions.json'), decisions);
+    const beforeBlockedVerify = await read(path.join(f.out, 'run.json'));
+    await assert.rejects(() => ask({ run: f.out, stage: 'verify' }, worker), /security-review/);
+    assert.equal(requests.length, 4);
+    assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, beforeBlockedVerify.attempts.length);
+    await write(path.join(f.out, 'security-review.json'), security);
+    await ask({ run: f.out, stage: 'verify' }, worker);
+    const verified = packets.get('verify');
+    assert.equal(verified.final_plan, plan);
+    assert.deepEqual(verified.coordinator_review, responses.get('author-review'));
+    assert.deepEqual(verified.peer_review, responses.get('review'));
+    assert.deepEqual(verified.security_review, security);
+    assert.deepEqual(verified.decisions, decisions);
+    assert.deepEqual(await read(path.join(f.out, 'security-review-submitted.json')), security);
+    const completed = finish({ run: f.out });
+    assert.equal(completed.successful_worker_calls, 5);
+    assert.equal(completed.successful_peer_calls, 3);
+    assert.equal(completed.attempts_used, 5);
+    assert.equal(completed.delivered_plan_reviewed, true);
+    assert.equal(completed.plan_changed_since_verification, false);
+    assert.equal(completed.security_review.required, true);
+    assert.deepEqual(completed.security_review.limitations, security.limitations);
+    assert.deepEqual(completed.source_changes, [f.assessment]);
+    assert.deepEqual(completed.project_assessment, { required: true, ...original });
+    assert.deepEqual(requests, workerReportStages.map(([stage]) => ({ stage, provider: stage.startsWith('author-') || pairing === 'same' ? coordinator : 'codex' })));
+    assert.equal(await fs.readFile(completed.plan, 'utf8'), plan);
+    assert.deepEqual(await read(path.join(f.out, 'decisions.json')), decisions);
+    const discussionText = (await fs.readFile(completed.discussion, 'utf8')).replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    const result = await fs.readFile(completed.result, 'utf8');
+    assert.ok(result.includes(plan), 'Result must retain the revised copy and unexecuted acceptance checks');
+    assert.ok(result.includes(original.readiness.gaps[0]));
+    assert.ok(result.includes(original.unknowns[0]));
+    for (const [stage, file] of workerReportStages) {
+      assert.deepEqual(await read(path.join(f.out, file)), responses.get(stage));
+      assert.ok(discussionText.includes(responses.get(stage).summary));
+    }
+    for (const decision of decisions) {
+      assert.ok(discussionText.includes(decision.finding_id));
+      assert.ok(result.includes(decision.finding_id));
+    }
+    assert.ok(discussionText.includes('C-S1 limits personal data and unverified image use.'));
+    assert.match(discussionText, /proposed/);
+    assert.deepEqual(await read(path.join(f.out, 'security-review.json')), security);
+  });
+}
 
 test('all worker stages preserve gapped and out-of-order IDs and authored references through completion', async () => {
   for (const coordinator of ['codex', 'claude']) {

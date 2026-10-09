@@ -1,6 +1,6 @@
 # Plan presentation
 
-Use this when presenting a draft, revised plan, or completed council. The reader should see what is proposed, what needs their decision, and what happens next before encountering implementation detail. Apply the structure proportionally; a small feature does not need empty sections or a project-sized roadmap. Keep one self-contained plan, not another required artifact.
+Use this when presenting a draft, revised plan, or completed council. The reader should see what is proposed, what needs their decision, and what happens next before encountering execution detail. Apply the structure proportionally; a small feature or article plan does not need empty sections or a project-sized roadmap. Keep one self-contained plan, not another required artifact. Content work still delivers a plan rather than a finished article or media asset unless separately requested; planning grants no building or publication authority.
 
 ## Put the decision brief first
 
@@ -18,7 +18,7 @@ For a [usage-limit fallback](protocol.md#planning-when-usage-limits-block-the-ex
 
 ## Show scope and sequence
 
-Distinguish **confirmed requirements**, **proposed choices**, and **unknowns** where confusion would change implementation. Then state the MVP/first delivery and deferred work; do not bury scope exclusions among database or API details.
+Distinguish **confirmed requirements**, **proposed choices**, and **unknowns** where confusion would change execution. Then state the MVP/first delivery and deferred work; do not bury scope exclusions among database, API or editorial details.
 
 For a roadmap, use a compact milestone table:
 
@@ -30,11 +30,13 @@ Detail the first useful milestone; keep later ones proportionate to their uncert
 
 Record technical choices that control the first work item or architecture: the choice, reason/tradeoff, and whether it is confirmed, proposed, or awaiting evidence. Reuse suitable project tools and patterns; leave routine coding details to implementation. A short paragraph or compact decision table is enough.
 
+For content, show the intended audience/purpose, format, language/tone, outline or editing approach, source/claim gaps and applicable media plan. Distinguish existing assets and inspected evidence from proposed images, descriptions, rights assumptions and alt-text work. Keep editorial readiness separate from publication state. For mixed work, connect these requirements to the software milestones without duplicating the plan.
+
 ## Keep safety and verification actionable
 
 Put critical invariants next to the affected scope or milestone. Examples, only when relevant, include authorization boundaries, ownership of mutable data, consistency requirements, safe migration, and rollback. A shorter plan must not hide these in a collapsed appendix.
 
-Summarize applicable security measures and meaningful acceptance/negative checks. Label checks **proposed**, **executed** with evidence, or **blocked** with a reason. Separate “the reviewers examined this test plan” from “the implementation passed these tests.” Link the detailed security evidence without replacing the practical checks with a file link alone.
+Summarize applicable security measures and meaningful acceptance/negative checks. For content, use relevant source, editorial, rights/consent and accessibility checks, without adding unrelated engineering or approval gates. Label checks **proposed**, **executed** with evidence, or **blocked** with a reason. Distinguish review of a proposed check from its execution. State source/image inspection limits: text-only workers cannot establish visual verification or publication clearance. Link detailed security evidence without replacing practical checks with a file link alone.
 
 ## Show what review changed
 
@@ -49,15 +51,15 @@ Briefly connect significant challenges to the coordinator's decision: concern ac
 Include a concise **Start here** block in the main plan before any appendices. Identify:
 
 - **First work item:** the selected milestone or bounded task and its intended outcome.
-- **Entry point and action:** the inspected repository/component/files and first concrete action. Distinguish existing paths from proposed new ones. When location or tooling is unknown, start with bounded discovery and name the evidence needed; never invent an executable command or pretend a proposed path exists.
+- **Entry point and action:** the inspected repository/component/files or current draft/source/media and first concrete action. Distinguish existing paths from proposed new ones. When location or tooling is unknown, start with bounded discovery and name the evidence needed; never invent an executable command or pretend a proposed path exists.
 - **Prerequisites and boundary:** decisions, access, dependencies or authorization that gate this work; what it covers and where it stops. Name an owner only when known. Production blockers gate affected live work, not unrelated authorized local discovery.
-- **Check and handoff:** the relevant command/check, expected result, and condition for moving to the next step. Use verified project commands when available, otherwise state how to establish them. Keep planned checks labeled proposed.
+- **Check and handoff:** the relevant command or editorial/source/accessibility procedure, expected result, and condition for moving to the next step. Use verified project commands where appropriate; content checks need not be executable commands. Keep planned checks labeled proposed.
 
 Beside this block, include the concise [execution model recommendation](model-selection.md#recommend-models-for-execution), tied to this work item. Distinguish it from the models that reviewed the plan. Lead with why it fits this task better than the alternative, the tradeoff and the check that could change the choice. Then explain any supported saving and show its metric/baseline/assumptions, or mark it unknown; keep the research detail in the existing assessment. Prepare this advice before verification so delivery does not trigger another review solely to append it.
 
 For a small feature, a few lines can cover this; reuse milestone/check IDs instead of repeating their detail. For a project, detail its first executable milestone. If a decision blocks choosing that milestone, state the decision and any bounded discovery that can resolve it, with later implementation explicitly conditional.
 
-Keep the **next user action** separate from the **first implementation action**. For “show me the plan before coding,” ask for the plan decision and still show where authorized work would begin. Honor implementation authority already given without adding a new approval ritual. This block also applies to provisional plans; it does not establish missing peer review or authorize coding.
+Keep the **next user action** separate from the **first execution action**. For “show me the plan before coding/writing,” ask for the plan decision and still show where authorized work would begin. Honor execution authority already given without adding a new approval ritual. This block also applies to provisional plans; it does not establish missing peer review or authorize coding or publication.
 
 ## Check before delivery
 
@@ -65,11 +67,11 @@ For an existing-plan review, deliver its revised version in `final-plan.md`, not
 
 Check the assembled plan before peer verification, then check corrections again before `finish` and delivery. For a draft or usage-limit fallback, apply the same check within available limits and state missing review. Resolve contradictions in the plan itself:
 
-- The recommendation, scope, technical decisions, milestone order and Start here block agree with the latest finding dispositions and actual project evidence.
+- The recommendation, scope, technical/editorial decisions, milestone order and Start here block agree with the latest finding dispositions and actual project evidence.
 - Accepted fixes appear in the operative plan; the user can follow it without reconciling an older plan against separate review notes. Preserve an explicit critique-only scope.
 - The first work item has a concrete location/action, prerequisites and observable acceptance result, or an explicit discovery/blocking condition. Dependencies do not require an unfinished later milestone or form a cycle.
 - Execution advice fits that work item and the user's limits; sources, eligibility gaps and savings labels are accurate. Price differences are not presented as token or subscription savings, and the recommendation grants no new implementation authority.
-- Applicable security, tests and unresolved decisions remain actionable; proposed checks are not reported as executed. Review status identifies material edits after verification and remaining limitations.
+- Applicable security, acceptance checks and unresolved decisions remain actionable; proposed checks are not reported as executed. Content claims, source/media gaps and publication state are accurate. Review status identifies material edits after verification and remaining limitations.
 
 Keep this a coordinator check within the existing workflow, not a new report, score, or extra peer round. Do not repeat it as chat narration. `finish` checks saved stages and evidence; it does not assess semantic quality. Complete corrections before sealing the result; a later revision must not inherit an earlier review/completion claim.
 

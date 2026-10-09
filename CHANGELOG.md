@@ -2,6 +2,13 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.2.0 — Software, content and mixed planning
+
+- Classifies work as software, content, mixed or general non-software in the frozen assessment. Content uses scoped editorial readiness and records publication evidence separately from software deployment; mixed projects retain engineering checks.
+- Adapts worker guidance to engineering, editorial/factual or combined review. Content checks cover audience, sources, structure, clarity, relevant rights/privacy and accessibility. Text-only workers cannot claim to have opened sources or visually inspected supplied asset descriptions.
+- Adapts model advice, acceptance checks and the first execution step to the requested work. Planning still delivers the revised plan, compact discussion and result; it does not automatically write finished content, code or publish.
+- Existing routes, required review stages, spending boundaries and pinned runs remain intact. Synthetic workflow tests exercise content and mixed routing; they do not establish real editorial quality or token savings.
+
 ## 2.1.4 — Consistent three-file handoff
 
 - A completed run delivers direct links to `final-plan.md`, `DISCUSSION.md` and `RESULT.md`, with the revised plan first. The instructions now match the README's three-file promise.

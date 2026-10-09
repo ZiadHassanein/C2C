@@ -5,22 +5,22 @@
 
 # C2C — planning with Codex and Claude Code
 
-**Plan, challenge decisions, and choose where to start.** Use Codex, Claude Code, or both.
+**Plan software, content, or both. Challenge decisions and choose where to start.** Use Codex, Claude Code, or both.
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
-[**Version 2.1.4**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
+[**Version 2.2.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
 [Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
 
 <details>
 <summary>What C2C does and who coordinates</summary>
 
-**A planning skill that turns your brief into a plan with evidence-based critique.** C2C checks the project, asks important questions, compares proposals, and records decisions, security considerations, tests, and a clear starting point for implementation.
+**A planning skill that turns your brief into a plan with evidence-based critique.** C2C checks the project, asks important questions, compares proposals, and records decisions, relevant risks, acceptance checks, and a clear starting point for execution.
 
 Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you start coordinates the work.** Either provider can lead, and your chat model stays unchanged.
 
-**Use what is already available.** C2C prefers an eligible Codex–Claude exchange. If the other provider is unavailable before calls, it selects a planning model and a different coding-focused critic from the current provider, within your limits. If that route is unavailable too, it produces a provisional plan with a structured self-critique. Setup is optional; missing reviews are never invented.
+**Use what is already available.** C2C prefers an eligible Codex–Claude exchange. If the other provider is unavailable before calls, it selects a planning model and a distinct critic suited to the task from the current provider, within your limits. If that route is unavailable too, it produces a provisional plan with a structured self-critique. Setup is optional; missing reviews are never invented.
 
 </details>
 
@@ -31,7 +31,7 @@ Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you st
 Run in **PowerShell on Windows** or **Terminal on macOS/Linux**:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz install
 ```
 
 Installs the skill for your current user in both apps. Start a new chat afterward. [One app only](docs/SETUP.md#install-for-one-app-only) · [Easy to uninstall](#uninstall).
@@ -60,7 +60,7 @@ Installs the skill for your current user in both apps. Start a new chat afterwar
 
 Yes. A Codex-only exchange needs a ready Codex CLI and two eligible, distinct models; a Claude-only exchange needs the equivalent Claude setup. C2C selects this route automatically when the other provider is unavailable before calls, or when you request it. It uses real model responses: the coordinator evaluates critiques and revises the plan; the reviewer checks those decisions during verification.
 
-For a cross-provider exchange, only the peer's CLI is needed when your chat is the selected author; a background author requires both CLIs. If no eligible two-participant route exists, the chat delivers a provisional plan with a clearly labeled self-critique, security, proposed tests and an execution entry point. [Choose the participants](docs/SETUP.md#choose-the-participants).
+For a cross-provider exchange, only the peer's CLI is needed when your chat is the selected author; a background author requires both CLIs. If no eligible two-participant route exists, the chat delivers a provisional plan with a clearly labeled self-critique, relevant security and acceptance checks, and an execution entry point. [Choose the participants](docs/SETUP.md#choose-the-participants).
 
 
 **2. Install and check**
@@ -74,12 +74,12 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
+No `npm install` is needed. Without Git, [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. Local setup works without npm/npx or a network connection once the source is downloaded. The original `node scripts/install.mjs` and `node scripts/council.mjs doctor` commands remain supported.
 
 For the quick-install route, check setup from any folder:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz doctor
 ```
 
 For the default setup with both CLIs, look for:
@@ -115,15 +115,42 @@ Check the project first, include security and acceptance tests,
 and show me the plan before coding.
 ```
 
+| Your task | What the review emphasizes |
+|---|---|
+| **Software** — a feature, fix, or app | Engineering choices, failure paths, security and tests. |
+| **Content** — website copy, educational material, or images | Audience, structure, factual sources, rights, accessibility and editorial acceptance checks. |
+| **Mixed** — an app and its content | Both perspectives, with dependencies and separate technical and content checks. |
+
+<details>
+<summary>Examples: content and mixed projects</summary>
+
+```text
+Use $C2C to plan improvements to this website's copy,
+educational articles, and supporting images. Check the audience,
+sources, image rights, and accessibility before proposing changes.
+```
+
+```text
+/C2C Plan a learning app and its first lesson, onboarding copy,
+and illustrations. Coordinate the software and content milestones,
+with acceptance checks for both and a clear first step.
+```
+
+Either example works in either app: use `Use $C2C` in Codex or `/C2C` in Claude Code. C2C delivers the plan; writing final content, generating images, implementing, or publishing needs its own authorization. Workers receive text evidence: the coordinator inspects authorized images when possible and supplies descriptions, source and rights facts, or explicit unknowns. [Content and image review](docs/FAQ.md#can-c2c-plan-content-and-image-work).
+
+</details>
+
 <details>
 <summary>How C2C chooses participants and respects your preferences</summary>
 
-Replace the feature with your task. C2C assesses the project, clarifies consequential unknowns, selects suitable workers within your limits, and runs the exchange. You do not fill in assessment files yourself.
+Replace the example with your task. C2C assesses the project, clarifies consequential unknowns, selects suitable workers within your limits, and runs the exchange. You do not fill in assessment files yourself.
 
 | Start here | Both providers eligible | Other provider unavailable before calls |
 |---|---|---|
-| Codex: `$C2C` | Codex planner + Claude planning reviewer | Codex planner + distinct Codex coding critic |
-| Claude Code: `/C2C` | Claude planner + Codex planning reviewer | Claude planner + distinct Claude coding critic |
+| Codex: `$C2C` | Codex planner + Claude reviewer | Codex planner + distinct Codex critic |
+| Claude Code: `/C2C` | Claude planner + Codex reviewer | Claude planner + distinct Claude critic |
+
+The critic uses an engineering perspective for software, an editorial and factual perspective for content, and both for mixed work.
 
 Each route needs the required CLI workers, eligible exact models and known authorized allowance. If those checks fail, the chat uses a provisional plan with a structured self-critique. Requests to require both providers, wait, pin participants/models or give advice only take precedence. [Routing and recovery](references/protocol.md#planning-with-unavailable-tools).
 
@@ -167,17 +194,17 @@ Replace the path with your plan. In Claude Code, start with `/C2C`.
 
 ```text
 Use $C2C with Codex only to plan this feature.
-Choose a planning model and a different coding-focused reviewer within my limits.
+Choose a planning model and a different engineering reviewer within my limits.
 ```
 
 ```text
-/C2C Use Claude only to review this project plan.
-Choose a planning author and a different coding-focused critic within my limits.
+/C2C Use Claude only to review this educational content plan.
+Choose a planning author and a different editorial and factual critic within my limits.
 ```
 
 C2C can also select this route automatically when the other provider is unavailable before calls. It researches current official model guidance on each new task using workers, honors exact model choices, and does not change your chat model or global settings. Different model IDs and separate calls do not prove independent reasoning. [Model selection](references/model-selection.md).
 
-The planner connects goals, constraints and tradeoffs to a minimal design. The critic tests buildability, failure paths and proposed fixes against evidence. In independent plan mode, each first develops its own proposal. The coordinator resolves findings and the reviewer verifies those decisions. This uses the existing stages and call allowance; it does not imitate another provider or add debate for its own sake. [Single-provider perspectives](references/protocol.md#single-provider-planning-perspectives).
+The planner connects goals, constraints and tradeoffs to a workable approach. The critic checks proposed decisions and fixes against the task's evidence and failure cases. In independent plan mode, each first develops its own proposal. The coordinator resolves findings and the reviewer verifies those decisions. This uses the existing stages and call allowance; it does not imitate another provider or add debate for its own sake. [Single-provider perspectives](references/protocol.md#single-provider-planning-perspectives).
 
 For recommendations without worker calls, ask: **“Assess the task and recommend models; advice only.”**
 
@@ -214,7 +241,7 @@ The goal is better decisions for the work spent. Review can cost more than ordin
 
 **Before planning**
 
-C2C checks what exists, whether the project is in production, what readiness evidence is available, and whether the goal and first useful action are clear. Missing evidence stays unknown. Small features get a focused assessment; project roadmaps get MVP boundaries and dependent milestones. [Assessment details](references/project-assessment.md).
+C2C checks what exists, whether it is deployed or published, what readiness evidence is available, and whether the goal and first useful action are clear. Content work also needs its audience, purpose, source material and acceptance criteria. Missing evidence stays unknown. Bounded tasks get a focused assessment; project roadmaps get release boundaries and dependent milestones. [Assessment details](references/project-assessment.md).
 
 </details>
 
@@ -265,21 +292,21 @@ Actual participants can agree or disagree. Reviewers test assumptions with evide
 Before completion, the chat links the available plan and discussion and explains that `RESULT.md` is not generated yet. If no eligible worker route can be prepared, you receive one standalone provisional plan with clearly labeled self-critique instead. C2C does not create a completion report for an unfinished exchange.
 
 <details>
-<summary>Inside the plan: scope, decisions, security, tests and Start here</summary>
+<summary>Inside the plan: scope, decisions, risks, checks and Start here</summary>
 
-A typical plan is organized like this; small features keep the same essentials concise:
+A typical plan is organized like this; bounded tasks keep the same essentials concise:
 
 ```text
 Review status and recommendation
 Scope: MVP and deferred work
 Key decisions and tradeoffs
 Steps or milestones, dependencies and acceptance checks
-Security, testing and unresolved risks
+Relevant security, source/rights checks, tests and unresolved risks
 Start here: first task, location, prerequisites and success check
 Execution model recommendation, alternative and savings evidence
 ```
 
-Project evidence, model choices and resumable progress remain in `PROJECT_CONTEXT.md`, `TASK_ASSESSMENT.md` and `HANDOFF.md`. Unknown paths become bounded discovery tasks. Planning completion does not authorize coding or establish production readiness. [Plan layout](references/plan-presentation.md).
+Project evidence, model choices and resumable progress remain in `PROJECT_CONTEXT.md`, `TASK_ASSESSMENT.md` and `HANDOFF.md`. Unknown paths become bounded discovery tasks. Content plans use editorial, factual, rights and accessibility checks where relevant; they do not require software test commands. Planning completion does not authorize implementation, content production or publication, or establish readiness. [Plan layout](references/plan-presentation.md).
 
 </details>
 
@@ -291,7 +318,7 @@ Project evidence, model choices and resumable progress remain in `PROJECT_CONTEX
 
 **Which model should execute the plan?**
 
-C2C recommends a model for the first implementation task, with a lower-cost alternative when justified, a reason to reconsider it, and dated sources. It reuses current official research and checks relevant firsthand community reports. Small edits and risky migrations can need different choices; there is no permanent best model. Recommendations do not switch your model or start coding.
+C2C recommends a model for the first execution task, with a lower-cost alternative when justified, a reason to reconsider it, and dated sources. It reuses current official research and checks relevant firsthand community reports. Software, editorial and image work can need different choices; there is no permanent best model. Recommendations do not switch your model or start execution.
 
 The explanation comes first: **why this model fits your task, why choose it over the alternative, what the tradeoff is, and what check could change the decision**. Any saving also gets a reason, such as lower published token prices or measured lower usage; price alone does not prove fewer tokens or better results.
 
@@ -303,7 +330,7 @@ You can ask: “Recommend an execution model for each milestone within my includ
 
 ## Features
 
-**Security, tests, model research, saved progress and bounded recovery.** Worker calls use your provider allowance. Keep secrets out of selected context; attempt/time limits are not spending caps. C2C does not buy credits or change billing to bypass a limit.
+**Relevant checks, model research, saved progress and bounded recovery.** Worker calls use your provider allowance. Keep secrets out of selected context; attempt/time limits are not spending caps. C2C does not buy credits or change billing to bypass a limit.
 
 <details>
 <summary>All features, privacy, usage limits and evidence boundaries</summary>
@@ -332,7 +359,7 @@ C2C does not buy credits or switch to paid billing when a provider limit blocks 
 When you use C2C, it checks for new releases at most daily and gives a short chat notice. Say **“Update C2C and keep this plan on its current version.”** Or run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz update
 ```
 
 The updater installs the latest stable release. Plans prepared with 1.4+ keep their original runtime and instructions; start a new chat for new-version plans. Older or provisional plans should finish or stop first. [Checks, offline updates and rollback](docs/SETUP.md#update-the-skill).
@@ -357,7 +384,7 @@ No automatic installation or extra model call. Completed reviews, decisions and 
 Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.1.4.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.2.0.tar.gz uninstall
 ```
 
 Moves unchanged managed skill folders into recoverable backups. Your projects, apps and logins stay in place. Start a new chat afterward. Add `--dry-run` to preview, or `--target codex` / `--target claude` for one app. [Restore, offline or manual removal](docs/SETUP.md#uninstall).

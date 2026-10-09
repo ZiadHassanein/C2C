@@ -256,7 +256,7 @@ All JSON is UTF-8. Reports use the report schema below; the assessment uses its 
 | `peer-draft.json` | Runner from peer | Created by successful draft in plan mode. |
 | `coordinator-review.json` | Author worker in plan mode when configured; otherwise host | Before peer review. In plan mode, critique the peer draft; in review mode, host independently checks the candidate. |
 | `peer-review.json` | Runner from peer | Created by successful review of the coordinator draft. |
-| `final-plan.md` | Coordinator | Before peer verification; revise afterward when warranted. |
+| `final-plan.md` | Coordinator | Usable synthesized/revised plan with accepted fixes incorporated, before peer verification; revise afterward when warranted. Findings or amendment instructions alone do not replace it, unless critique-only was explicitly requested. |
 | `security-review.json` | Coordinator | Required before verification in version 2 and newer runs; standard report schema with `C-S…` finding IDs. |
 | `security-review-submitted.json` | Runner | Sealed copy saved at the first verification launch; its finding objects must remain unchanged in the current security review. |
 | `decisions.json` | Coordinator | Before verification, then updated with verification findings before finish. |

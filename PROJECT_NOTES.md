@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.1.2: make the revised plan the primary deliverable
+
+A supplied-plan review must integrate accepted fixes into the plan's operative steps, decisions and checks. A findings list or amendment specification alone leaves the user to finish synthesis. Preserve sound content, identifiers and boundaries; write a revised copy when originals cannot change. Keep explicit critique-only requests narrower. Deliver the plan first with a short change summary and discussion link. Unresolved facts remain blocked, and consolidation after verification is an unreviewed revision. This is an instructional handoff fix; it adds no worker stage or implementation authority.
+
+Documentation validation passed 231 local links/anchors/assets and eight accessible SVGs, with unchanged discovery metadata and runtime files. Manual instruction review covered normal revision, preserved originals, provisional delivery and explicit critique-only scope; this is not a live model-behavior test. Private user-plan repairs stay outside the public repository.
+
 ### Version 2.1.1: focus chat on useful review information
 
 The kickoff no longer has to announce attempts, inactivity guards or routine scope reassurances. Start with the purpose, link the generated discussion after preparation, then report findings and consequential decisions. Limits and their authority remain recorded and enforced. Requested details, required approvals, material blockers, recovery/scope changes and honest review status remain visible. This supersedes the historical 0.10.1 kickoff-allowance instruction. The change affects coordinator instructions only; no runner, model, review-stage or active-pin behavior changes.

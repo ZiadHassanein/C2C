@@ -38,6 +38,10 @@ Summarize applicable security measures and meaningful acceptance/negative checks
 
 ## Show what review changed
 
+For a supplied-plan review, deliver the revised plan with accepted fixes incorporated where they apply. Retain sound steps, exact identifiers and constraints; remove superseded or contradictory directions. Include a short change summary and link the discussion as evidence. The reader must not have to merge a critique or amendment list into the old plan. Respect an explicit request for critique only.
+
+When originals must remain unchanged, write a clearly identified revised copy or plan package with one entry point. Keep unresolved decisions and blocked work explicit; do not invent missing facts to make it appear complete. A provisional outcome still gets the best supported revised plan. Consolidating or correcting a plan does not authorize implementing its proposed changes or inherit earlier verification: send the actual revised content for the permitted check, or label the revision unreviewed.
+
 Briefly connect significant challenges to the coordinator's decision: concern accepted with remedy adopted or adapted, rejected with evidence, or unresolved with its consequence. State the decisive tradeoff when adapting a fix; reference superseding finding IDs when a later correction replaces an earlier resolution. Distinguish the peer's actual reply from the coordinator's own judgment. Preserve a meaningful disagreement even if it prevents implementation. Empty findings do not require an invented argument; “no material objection reported” does not prove correctness or agreement with later edits.
 
 ## Make the execution entry point explicit
@@ -60,6 +64,7 @@ Keep the **next user action** separate from the **first implementation action**.
 Check the assembled plan before peer verification, then check corrections again before `finish` and delivery. For a draft or usage-limit fallback, apply the same check within available limits and state missing review. Resolve contradictions in the plan itself:
 
 - The recommendation, scope, technical decisions, milestone order and Start here block agree with the latest finding dispositions and actual project evidence.
+- Accepted fixes appear in the operative plan; the user can follow it without reconciling an older plan against separate review notes. Preserve an explicit critique-only scope.
 - The first work item has a concrete location/action, prerequisites and observable acceptance result, or an explicit discovery/blocking condition. Dependencies do not require an unfinished later milestone or form a cycle.
 - Execution advice fits that work item and the user's limits; sources, eligibility gaps and savings labels are accurate. Price differences are not presented as token or subscription savings, and the recommendation grants no new implementation authority.
 - Applicable security, tests and unresolved decisions remain actionable; proposed checks are not reported as executed. Review status identifies material edits after verification and remaining limitations.
@@ -70,4 +75,4 @@ Keep this a coordinator check within the existing workflow, not a new report, sc
 
 Large plans may need schema details, interfaces, state transitions, migration steps, test matrices, and rationale. Keep these in named appendices in the same plan, with a short contents list or Markdown links for navigation. A `<details>` block is optional if the reader supports it; ordinary headings must remain useful elsewhere. All review-critical content must stay in the plan sent for verification: a peer cannot follow a local appendix file link.
 
-Use short paragraphs for explanations and tables for comparisons or dependencies. Avoid repeated boilerplate, long chains of nested bullets, and giant tables with paragraph-sized cells. Retain essential detail rather than imposing a word quota. Put this complete structure in `final-plan.md`. In chat, give only a short decision brief: accurate review status, recommendation, material blockers or unresolved risks, next action, and links to the plan and `DISCUSSION.md`. Do not replay the debate or paste the milestone table and technical appendix unless requested. A file link alone must not hide a failed review or a decision that blocks the user.
+Use short paragraphs for explanations and tables for comparisons or dependencies. Avoid repeated boilerplate, long chains of nested bullets, and giant tables with paragraph-sized cells. Retain essential detail rather than imposing a word quota. Put this complete structure in `final-plan.md`. In chat, lead with accurate review status and the revised plan link, then briefly state the main changes, material blockers and next action. Link `DISCUSSION.md` as supporting evidence. Do not replay the debate or paste the milestone table and technical appendix unless requested. A file link alone must not hide a failed review or a decision that blocks the user.

@@ -1,0 +1,4 @@
+# Accepted decision D1 revision, effective next rollout
+
+The project owner has approved 30-day availability for exports created after the new writer is enabled. Existing exports retain their stored deadlines, including old 7-day exports. The 24-hour purge buffer and every ownership rule remain unchanged. All newly created 30-day exports must therefore remain stored through day 30 and purge no earlier than day 31. A rollback may use the 7-day writer for later exports, but it must honor already-issued 30-day deadlines.
+The operator can replace the fixed lifecycle rule with per-object purge_after scheduling. Disable/replace the fixed 8-day lifecycle rule and verify the new deletion behavior before enabling the 30-day writer; otherwise a correct database expiry still loses the object on day 8. Retain the queue fields until mixed versions and all 72-hour delayed old jobs are drained. No deployment or restore test result is supplied.

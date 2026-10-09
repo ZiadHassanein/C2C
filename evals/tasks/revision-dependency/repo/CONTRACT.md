@@ -1,0 +1,4 @@
+# Raw service contracts
+
+An export is downloadable only by its owner until its stored expires_at, and never after that timestamp. The download handler checks ownership and expires_at on every request, including signed-link renewal. Object storage deletes files using stored purge_after; this job does not read expires_at or the plan text. The purge buffer is 24 hours after expires_at to allow reconciliation. Renewed signed links may not outlive expires_at. Restore can recover objects for 48 hours after a mistaken deletion, but no restore rehearsal has run.
+Old workers read expires_at and purge_after from the current queue payload. Queued jobs can run up to 72 hours after enqueue. Removing or renaming these fields while old workers or their jobs remain breaks processing. The deployment can run old and new app versions concurrently.

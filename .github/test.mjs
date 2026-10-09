@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 const files = JSON.parse(fs.readFileSync('package.json', 'utf8')).scripts.test.split(' ').slice(2);
 if (!files.length || files.some(file => !/^tests\/[a-z-]+\.test\.mjs$/.test(file))) throw new Error('Unexpected test command');
-// Native process/timeout tests spawn their own children. Bound file-level
-// parallelism so cold OS helpers are not competing with every suite at once.
-const child = spawn(process.execPath, ['--test', '--test-concurrency=2', '--test-reporter=tap', ...files], { shell: false, windowsHide: true });
+// Avoid concurrent cold PowerShell identity helpers across Windows suites.
+// Intentional lock/worker concurrency remains inside the individual tests.
+const concurrency = process.platform === 'win32' ? 1 : 2;
+const child = spawn(process.execPath, ['--test', `--test-concurrency=${concurrency}`, '--test-reporter=tap', ...files], { shell: false, windowsHide: true });
 let output = '';
 child.stdout.on('data', chunk => { output += chunk; process.stdout.write(chunk); });
 child.stderr.pipe(process.stderr);

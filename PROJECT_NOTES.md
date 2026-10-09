@@ -36,6 +36,10 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README: make testing and QA prominent
+
+The title and opening now foreground planning, testing and review. Developer QA is the first task and capability. A compact, expandable comparison explains that direct Codex/Claude use already supports testing and review; C2C packages planner–critic coordination, recorded evidence and a consistent revised-plan/discussion/result handoff. Official provider references support that distinction. Peers review supplied evidence while the coordinator executes authorized tests, and comparative accuracy/token savings remain unmeasured. This changes README positioning only; packaged skill/runtime content and version 2.5.0 remain unchanged. Validate documentation references, diff whitespace and the immutable-release guard; no model calls or runtime-test repeat is warranted.
+
 ### Version 2.5.0: developer QA and evidence assurance
 
 QA uses the existing council with sealed `--purpose qa`. The coordinating chat runs requested tests within existing authority after inspecting their scripts and environment; peer workers remain text-only. Conditional guidance covers baseline/dirty-scope capture, risk-based behavior checks, failures/skips/flakiness, bounded log receipts, retesting and the narrowest supported next action. Planning alone grants no execution, release or production authority. Content and mixed work retain source/editorial and accessibility checks without mandatory software tooling.

@@ -3,9 +3,11 @@
   <img src="docs/assets/cover.svg" alt="C2C — They plan for you. Codex and Claude Code point into a shared plan covering scope, security, tests and a clear first step. From small features to full projects; use either tool or both." width="1120">
 </picture>
 
-# C2C — planning with Codex and Claude Code
+# C2C — testing and planning with Codex and Claude Code
 
-**Plan software, content, or both. Challenge decisions and choose where to start.** Use Codex, Claude Code, or both.
+**Built for developer testing and QA.** Plan software or content, run authorized checks, and turn reviewed evidence into a practical next step—with Codex, Claude Code, or both.
+
+C2C adds a repeatable planner–critic workflow: challenge missing cases, record test evidence, and incorporate accepted fixes into the revised plan.
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
@@ -14,9 +16,17 @@
 [Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
 
 <details>
-<summary>What C2C does and who coordinates</summary>
+<summary>How is C2C different from using Codex or Claude Code directly?</summary>
 
-**A planning skill that turns your brief into a plan with evidence-based critique.** C2C checks the project, asks important questions, compares proposals, and records decisions, relevant risks, acceptance checks, and a clear starting point for execution.
+Both tools already support testing and review; see the official [Codex workflow](https://developers.openai.com/cookbook/examples/codex/build_iterative_repair_loops_with_codex) and [Claude Code practices](https://code.claude.com/docs/en/best-practices). C2C packages a reusable process around those capabilities.
+
+| Work | Direct use | What C2C adds |
+|---|---|---|
+| **Testing and QA** | Ask the assistant to choose checks, run tests and inspect results. | Connects risks to checks and keeps proposed, passed, failed and blocked results distinct. The coordinator runs authorized tests; peers challenge supplied evidence. |
+| **Review** | Request another assessment or coordinate additional reviewers. | Coordinates an eligible planner and distinct critic, records disagreements and checks the revised plan. |
+| **Handoff** | Specify the plan and supporting records you need. | Delivers the revised plan, concise discussion and result, with evidence links, unresolved issues and a clear first step. |
+
+The benefit is a consistent workflow and traceable decisions. Better accuracy and token savings require measured comparisons; they are not guaranteed by using C2C.
 
 Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you start coordinates the work.** Either provider can lead, and your chat model stays unchanged.
 
@@ -117,10 +127,10 @@ and show me the plan before coding.
 
 | Your task | What the review emphasizes |
 |---|---|
+| **Developer QA** — a change, regression, or release decision | Authorized tests, negative cases and observed evidence; missing or failed checks remain visible. |
 | **Software** — a feature, fix, or app | Engineering choices, failure paths, security and tests. |
 | **Content** — website copy, educational material, or images | Audience, structure, factual sources, rights, accessibility and editorial acceptance checks. |
 | **Mixed** — an app and its content | Both perspectives, with dependencies and separate technical and content checks. |
-| **Developer QA** — a change, regression, or release decision | Authorized tests, negative cases and observed evidence; missing or failed checks remain visible. |
 
 For testing: `Use $C2C to review this change, run the authorized local tests, and give me a revised fix plan with the evidence.` Use `/C2C` in Claude Code. [QA workflow and examples](docs/QA.md) · [Shared spending preference](docs/SETUP.md#save-your-spending-preference)
 
@@ -335,13 +345,14 @@ You can ask: “Recommend an execution model for each milestone within my includ
 
 ## Features
 
-**Relevant checks, model research, saved progress and bounded recovery.** Worker calls use your provider allowance. Keep secrets out of selected context; attempt/time limits are not spending caps. C2C does not buy credits or change billing to bypass a limit.
+**Testing and QA, structured review, model research and saved progress.** Worker calls use your provider allowance. Keep secrets out of selected context; attempt/time limits are not spending caps. C2C does not buy credits or change billing to bypass a limit.
 
 <details>
 <summary>All features, privacy, usage limits and evidence boundaries</summary>
 
 | Capability | What it changes for your plan |
 |---|---|
+| **Testing and QA** | Plans meaningful checks, reviews evidence from authorized tests, and keeps failed, skipped and blocked checks visible. [QA workflow](docs/QA.md). |
 | **Current model research** | Selects suitable planning/review workers within your limits, with recorded reasons. |
 | **Missing-evidence requests** | Lets reviewers ask for facts; scoped snapshots or explicit unavailable/rejected answers are recorded. |
 | **Final-revision checks** | Checks consequential corrections once within the existing allowance, or marks the revision unreviewed. |

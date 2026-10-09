@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.1.4: honor the documented three-file handoff
+
+The previous patch said to deliver two files while the README promised three. Completed runs must directly link `final-plan.md`, `DISCUSSION.md` and `RESULT.md`, with the usable revised plan first. The result is part of the delivered set, not an optional or hidden file. The post-finish handoff check confirms all three exist. This also applies to a completed workflow with an honestly provisional/unreviewed revision; completion does not imply agreement or readiness. Incomplete runs link only available files and explain why no completion record exists; a standalone fallback has one provisional plan with self-critique. Never manufacture reports to meet a count.
+
+The skill, presentation guide, protocol artifact table, README, setup guide and FAQ now agree. This is an instruction/documentation patch: runner, installer, tests, discovery metadata and model calls are unchanged. Validate local references and manually trace completed, incomplete and standalone-fallback delivery paths; model compliance is not established by wording checks. Publish the exact validated patch before managed installation, preserving old pins.
+
 ### Version 2.1.3: compact discussion and explicit revised-plan delivery
 
 The renderer now uses source-linked concern/proposal/decision excerpts instead of duplicating complete findings, evidence and checks. Every finding ID and disposition remains visible; shortened text is marked, omitted finding/evidence references are retained, and full reports/decisions stay unchanged. Questions and limitations remain labeled as reported, not inferred current consensus. Review status and unavailable-information warnings precede the discussion; operational progress is collapsible. This reduces presentation repetition without changing the reports used for synthesis or adding a worker call. It does not establish planning-token savings or equivalent model quality.

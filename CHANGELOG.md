@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.1.4 — Consistent three-file handoff
+
+- A completed run delivers direct links to `final-plan.md`, `DISCUSSION.md` and `RESULT.md`, with the revised plan first. The instructions now match the README's three-file promise.
+- Clarifies fewer-file cases: incomplete runs expose only available artifacts and explain the missing result; a standalone fallback delivers one provisional plan with self-critique. No completion report is fabricated for unfinished review.
+- Aligns the delivery check, artifact contract, setup guide and FAQ. Runtime behavior and existing run pins are unchanged.
+
 ## 2.1.3 — Compact discussion, complete revised plan
 
 - Keeps the revised plan and discussion separate. Verification explicitly checks that adopted fixes are integrated into the plan's operative steps, preserving critique-only requests.

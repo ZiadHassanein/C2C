@@ -199,8 +199,8 @@ test('idle guard stops a silent worker and retains bounded cleanup diagnostics',
 test('stderr, malformed JSON, primitive values and no-op events cannot extend the idle guard', async () => {
   let callbacks = 0;
   const started = Date.now();
-  const error = await rejection(node(`setInterval(()=>{process.stdout.write('broken json\\n42\\n[]\\n{"type":"heartbeat"}\\n{"type":"delta","text":""}\\n');process.stderr.write('{"type":"delta","text":"diagnostic only"}\\n');},60);`, {
-    idleTimeoutMs: 700, isActivity: event => { callbacks++; return contentActivity(event); },
+  const error = await rejection(node(`const emit=()=>{process.stdout.write('broken json\\n42\\n[]\\n{"type":"heartbeat"}\\n{"type":"delta","text":""}\\n');process.stderr.write('{"type":"delta","text":"diagnostic only"}\\n');};emit();setInterval(emit,60);`, {
+    idleTimeoutMs: 2000, timeoutMs: 4000, isActivity: event => { callbacks++; return contentActivity(event); },
   }));
   assert.equal(error.reason, 'idle_timeout');
   assert.equal(error.activity.observed_events, 0);

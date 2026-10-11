@@ -20,7 +20,7 @@ The initiating chat coordinates and owns decisions. Prefer eligible Codex–Clau
 
 RUNNER/SETUP are absolute scripts/council.mjs and scripts/setup.mjs in this skill. Once per start/resume run installed `node SETUP check-update --auto` and `node SETUP preferences` when available. Mention updates without delay; install/persist preferences only when authorized. Apply stricter current/shared/sealed spending restrictions, manually on old pins. Active/provisional work retains its pin/instructions until finished/stopped.
 
-Read complete `guide` topics once (`guide --run RUN` after preparation). Use Markdown, batch `--topics TOPIC,TOPIC`, follow pages; `--index`/unread `--section REFERENCE#ANCHOR` avoid overlaps. Indexes are not instructions. Reuse only intact same-pin/hash context; reload after compaction/truncation/source change. Never replace pins for helpers.
+Read complete `guide` topics once (`guide --run RUN` after preparation). Use Markdown, batch `--topics TOPIC,TOPIC`, follow pages. For overlaps, use `guide --topic TOPIC --index` and copy its returned `reference` into `guide --section REFERENCE#ANCHOR`. Selectors use aliases, for example `models#recommend-models-for-execution`, not Markdown file paths; an index requires a topic or section. Indexes are not instructions. Reuse only intact same-pin/hash context; reload after compaction/truncation/source change. Never replace pins for helpers.
 
 Choose `--topic focused` only for one bounded software feature, confirmed host author, planning/review/full context and established roles/effort/depth/research/eligibility/allowance. Otherwise:
 

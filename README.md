@@ -2,18 +2,18 @@
   <source media="(prefers-color-scheme: dark) and (max-width: 800px)" srcset="docs/assets/cover-mobile-dark.svg">
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cover-dark.svg">
   <source media="(max-width: 800px)" srcset="docs/assets/cover-mobile.svg">
-  <img src="docs/assets/cover.svg" alt="C2C with Codex and Claude Code: plan scope and architecture, critique risks and tests, then revise the next steps. Either provider can lead." width="1120">
+  <img src="docs/assets/cover.svg" alt="C2C with Codex and Claude Code: Assess → Plan → Critique → Revise → Verify. Start with the project and requirements, then develop, challenge, revise and review the plan. Either provider can lead." width="1120">
 </picture>
 
 # C2C — software engineering and testing
 
-Plan implementation, review changes and run authorized tests with **Codex, Claude Code, or both**—from small features to full projects. A planner and critic challenge assumptions and turn findings into a revised plan. Content and mixed projects are supported too.
+C2C assesses your project first, then develops, challenges, revises and checks the plan with **Codex, Claude Code, or both**. Use it for software engineering, authorized testing, content or mixed work—from small features to full projects.
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
 [**Version 2.5.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
-[Install](#install) · [First request](#use-it) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
+[Install](#install) · [First request](#use-it) · [Existing plan](#already-have-a-plan) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
 
 <details>
 <summary>How is C2C different from using Codex or Claude Code directly?</summary>
@@ -185,19 +185,6 @@ In Claude Code, replace `Use $C2C` with `/C2C`.
 
 </details>
 
-<details>
-<summary>Example: review an existing plan</summary>
-
-```text
-Use $C2C to review docs/plan.md against this project.
-Challenge assumptions and proposed fixes with evidence.
-Show the recommended changes, unresolved risks, and where to start.
-```
-
-Replace the path with your plan. In Claude Code, start with `/C2C`.
-
-</details>
-
 <!-- Keep existing section links on the visible disclosure. -->
 <a name="with-codex-only-or-claude-only"></a>
 
@@ -226,7 +213,35 @@ The goal is better decisions for the work spent. Review can cost more than ordin
 
 </details>
 
+## Already have a plan?
+
+Start from that plan. C2C assesses it against the project, keeps useful work and your constraints, critiques the decisions, applies accepted fixes, and reviews the revised version.
+
+```text
+Use $C2C to review docs/plan.md
+against this project.
+Keep what is sound and challenge
+weak decisions. Apply accepted
+fixes to the plan, then verify it.
+Show unresolved risks and
+where to start.
+```
+
+Replace `docs/plan.md` with your file. In Claude Code, replace `Use $C2C` with `/C2C`.
+
+A completed exchange delivers the revised **`final-plan.md`**, with the discussion in **`DISCUSSION.md`** and the review outcome in **`RESULT.md`**. [See the deliverables and incomplete-run behavior](#what-you-receive). For feedback without a rewritten plan, explicitly ask for **critique only**.
+
 ## How it works
+
+**Assess → Plan → Critique → Revise → Verify**
+
+| Stage | What happens |
+|---|---|
+| **Assess** | Inspect the project, existing work and constraints; clarify important unknowns. |
+| **Plan** | Develop an approach, or use your existing plan as the starting point. |
+| **Critique** | Challenge assumptions, decisions and proposed fixes against evidence. |
+| **Revise** | Incorporate accepted fixes and record unresolved issues. |
+| **Verify** | Review the revised plan and decisions. Proposed checks stay distinct from tests actually run. |
 
 **Start in either app. C2C uses the eligible route within your limits.**
 
@@ -240,10 +255,10 @@ The goal is better decisions for the work spent. Review can cost more than ordin
 
 <picture>
   <source media="(max-width: 640px)" srcset="docs/assets/workflow-mobile.svg">
-  <img src="docs/assets/workflow.svg" alt="Start in either Codex or Claude Code. Eligible planner and reviewer models create separate proposals, critique each other, and verify a synthesis with security, tests and unresolved decisions." width="960">
+  <img src="docs/assets/workflow.svg" alt="Start in either Codex or Claude Code. After project assessment, eligible planner and reviewer models create separate proposals, critique each other, and review the revised plan with security, checks and unresolved decisions." width="960">
 </picture>
 
-**Independent planning** compares separate proposals. **Focused review** starts from one candidate plan. Both include critique, synthesis, security review, and verification. The final revision check receives a compact change comparison alongside the full plan and evidence. Planner and reviewer can use different providers or distinct models within either app. A provisional self-critique does not claim this completed exchange.
+Both routes start with project assessment. **Independent planning** compares separate proposals; **focused review** starts from an existing or candidate plan. Both include critique, revision, security review and verification of the revised plan. The final revision check receives a compact change comparison alongside the full plan and evidence. Planner and reviewer can use different providers or distinct models within either app. A provisional self-critique does not claim this completed exchange.
 
 </details>
 

@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README: show assessment and verification
+
+The banner and workflow now state Assess → Plan → Critique → Revise → Verify, making project assessment before planning and review of the revised plan visible. The compact mobile banner retains all five labels; desktop adds short explanations. Detailed workflow labels use the same names. A visible "Already have a plan?" section replaces the collapsed example and explains using the supplied plan as the starting point, preserving useful work, applying accepted fixes and delivering the revised plan with separate discussion and result records. Critique-only requests and incomplete-review limits remain explicit; verification of a plan does not imply execution of its proposed tests.
+
+This clarification changes documentation and SVGs only. Desktop/mobile light and dark previews, responsive selection and overflow checks across 320/390/768/1200px, 265 documentation references, ten SVG checks and immutable v2.5.0 package identity passed. Independent copy/visual review and the design detector found no remaining issues after correcting mobile arrow spacing and prompt wrapping. No runtime/model calls or release changes were needed.
+
 ### README: engineering scope and compact logo banner
 
 Software engineering and testing are the primary scope, with content and mixed projects still supported. This supersedes the tester-first positioning below. The shorter opening introduces the planner–critic workflow; a compact banner shows Plan → Critique → Revise without assigning fixed roles to Codex or Claude Code. Original provider mark geometry and colors are preserved. Separate mobile/desktop and light/dark SVGs retain readable labels and accessible descriptions.

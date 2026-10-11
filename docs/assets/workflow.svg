@@ -32,11 +32,11 @@
     <rect x="32" y="365" width="267" height="179" rx="12" fill="#e8f1ec" stroke="#adc9bc" stroke-width="1.2"/>
 
     <g fill="#596c70" font-size="15" font-weight="600" letter-spacing="1.5">
-      <text x="54" y="170">01 / CONTEXT</text>
-      <text x="307" y="170">02 / PROPOSALS</text>
+      <text x="54" y="170">01 / ASSESS</text>
+      <text x="307" y="170">02 / PLAN</text>
       <text x="666" y="170">03 / CRITIQUE</text>
-      <text x="666" y="397">04 / SYNTHESIS</text>
-      <text x="360" y="397">05 / VERIFICATION</text>
+      <text x="666" y="397">04 / REVISE</text>
+      <text x="360" y="397">05 / VERIFY</text>
       <text x="54" y="397" fill="#3d6253">06 / DELIVERABLE</text>
     </g>
 

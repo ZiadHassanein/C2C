@@ -31,11 +31,11 @@
     <rect x="24" y="860" width="432" height="116" rx="12" fill="#e8f1ec" stroke="#adc9bc" stroke-width="1.2"/>
 
     <g fill="#596c70" font-size="15" font-weight="600" letter-spacing="1.5">
-      <text x="46" y="183">01 / CONTEXT</text>
-      <text x="46" y="319">02 / PROPOSALS</text>
+      <text x="46" y="183">01 / ASSESS</text>
+      <text x="46" y="319">02 / PLAN</text>
       <text x="46" y="479">03 / CRITIQUE</text>
-      <text x="46" y="615">04 / SYNTHESIS</text>
-      <text x="46" y="751">05 / VERIFICATION</text>
+      <text x="46" y="615">04 / REVISE</text>
+      <text x="46" y="751">05 / VERIFY</text>
       <text x="46" y="887" fill="#3d6253">06 / DELIVERABLE</text>
     </g>
 

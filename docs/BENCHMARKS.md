@@ -53,4 +53,4 @@ An observed token reduction needs compatible complete task measurements, explici
 
 C2C deduplicates repeated context paths, reuses returned reports and task research, offers compact runner output, and records discussion in Markdown. These are specific workflow behaviors. They do not guarantee lower total token use or faster planning.
 
-[Back to C2C](../README.md) · [FAQ](FAQ.md) · [Visual guide](C2C-LinkedIn-Guide.pdf)
+[Back to C2C](../README.md) · [FAQ](FAQ.md) · [Chat commands](../README.md#commands)

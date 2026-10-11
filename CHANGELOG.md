@@ -255,7 +255,7 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 - New runs record pairing in version 4 state. Existing version 1–3 runs retain their original contracts. Security review, independent stage boundaries, and two-/three-call workflows remain in place.
 - All **149 automated tests** passed locally, including both same-provider routes and reported-model mismatch cases. Three offline instruction scenarios checked routing and plan presentation. No live provider calls were made for this update.
 
-The [v0.7 PDF guide](docs/C2C-LinkedIn-Guide.pdf) illustrates cross-provider setup. See the [current setup](docs/SETUP.md#choose-the-participants) and [plan presentation guide](references/plan-presentation.md) for later features.
+The historical v0.7 PDF guide illustrated cross-provider setup and has since been retired. See the [current setup](docs/SETUP.md#choose-the-participants) and [plan presentation guide](references/plan-presentation.md) for later features.
 
 ## 0.7.0 — Less repeated planning context
 

@@ -1,6 +1,6 @@
 # C2C FAQ: Codex and Claude Code planning and review
 
-C2C is an open-source skill for planning software, content, and mixed projects between Codex and Claude Code, or distinct models within one provider. Either app can start and coordinate the work. Start with the [installation guide](../README.md#install). The [v0.7 visual PDF guide](C2C-LinkedIn-Guide.pdf) covers historical cross-provider setup and usage.
+C2C is an open-source skill for planning software, content, and mixed projects between Codex and Claude Code, or distinct models within one provider. Either app can start and coordinate the work. Start with the [installation guide](../README.md#install) and [chat commands](../README.md#commands).
 
 ## Can I install without cloning the repository?
 

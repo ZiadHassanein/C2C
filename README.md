@@ -511,7 +511,6 @@ Moves unchanged managed skill folders into recoverable backups. Your projects, a
 | [Setup and troubleshooting](docs/SETUP.md) | Install, update, roll back or uninstall; platform requirements and recovery. |
 | [FAQ](docs/FAQ.md) | Models, costs, security, discussion and planning behavior. |
 | [Evaluation methods](docs/BENCHMARKS.md) | How to measure inputs, planning quality and resource use. |
-| [Visual guide — historical v0.7 PDF](docs/C2C-LinkedIn-Guide.pdf) | Illustrated cross-provider setup; use this README for current features. |
 | [Release notes](CHANGELOG.md) | Changes by version. |
 | [Agent instructions](SKILL.md) · [Protocol](references/protocol.md) · [Project notes](PROJECT_NOTES.md) | Coordination rules, commands, schemas and development evidence. |
 

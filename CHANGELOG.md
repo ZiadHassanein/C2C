@@ -2,7 +2,7 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
-## 2.7.1 — Local plan editing and validation checkpoints
+## 2.7.2 — Focused coordination and local validation checkpoints
 
 - Add a local `plan` command: extract an existing proposal or edit the current plan using an exact source hash and unique literal replacements. Copy the completed text to an explicit Markdown destination and verify the saved bytes without generating another copy through the model.
 - Preserve completed plans, selected evidence and existing different export files; reject stale or ambiguous edits and active/uncertain workers. Report bounded project-local link checks without following remote paths or claiming semantic verification.

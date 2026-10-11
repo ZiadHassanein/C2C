@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.7.2 candidate: concise coordinator contracts
+
+The entry skill owns shared authorization, spending, model, evidence and preservation rules once. The focused software contract keeps its assessment/report schemas and review sequence, loading existing detailed recovery, evidence, revision and optional-record guidance only when those actions apply. This incorporates the unpublished 2.7.0/2.7.1 local helpers below. Executable modules, worker instructions, model/effort choices, full evidence packets, stage gates and final artifacts are unchanged from the validated checkpoint implementation.
+
+Instruction length and local command counts alone establish no measured token saving or equivalent quality. Validate semantic coverage, the full offline suite and exact executable-file equality before a private live comparison; require exact-commit cross-platform CI before release. Preserve active runtime pins and publish no private task or measurement records.
+
+Validation: the full isolated offline suite passed 651 tests with 11 platform skips and zero failures. The final documentation-only clarification keeps exact export instructions inline; guidance/runtime tests passed afterward. Independent contract review found no blocking omission. All 303 local documentation targets and fourteen SVG checks passed, and executable modules match the earlier checkpoint candidate exactly. Exact-commit CI and private outcome evaluation remain publication gates.
+
 ### Version 2.7.1 candidate: local validation checkpoints and plan delivery
 
 The bounded `checkpoint` command groups explicit coordinator reports or plan edits, finding dispositions and security assessment at a supported review boundary. It validates the whole artifact overlay through the ordinary packet/quality builders before publication and returns the full preview. No worker launches, guessed dispositions, generic file writes or shortened review packets are added. Exact base/source hashes protect stale inputs; a pending journal preserves interrupted multi-file publication and requires the identical packet to resume. Individual commands remain compatible, and unsupported routes keep them. This incorporates the unpublished 2.7.0 candidate's local plan helper described below.

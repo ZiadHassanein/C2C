@@ -9,6 +9,8 @@
 
 C2C assesses your project first, then develops, challenges, revises and checks the plan with **Codex, Claude Code, or both**. Use it for software engineering, authorized testing, content or mixed work—from small features to full projects.
 
+**Token efficiency through less repetition.** C2C removes repeated context file entries, reuses research and reports, and preserves completed review stages. Selected evidence stays intact. Extra review can use more tokens overall; total savings are unproven. [How it works](references/protocol.md#token-efficiency) · [Measurement](docs/BENCHMARKS.md).
+
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
 [**Version 2.5.0**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
@@ -18,20 +20,21 @@ C2C assesses your project first, then develops, challenges, revises and checks t
 <details>
 <summary>How is C2C different from using Codex or Claude Code directly?</summary>
 
-Both tools already support testing and review; see the official [Codex workflow](https://developers.openai.com/cookbook/examples/codex/build_iterative_repair_loops_with_codex) and [Claude Code practices](https://code.claude.com/docs/en/best-practices). C2C packages a reusable process around those capabilities.
+**A reusable review process, from project assessment to a revised plan.**
 
-| Work | Direct use | What C2C adds |
-|---|---|---|
-| **Software engineering** | Ask for architecture advice, implementation planning or a change review. | Checks project context, compares approaches and connects milestones to security and acceptance checks. |
-| **Testing and QA** | Ask the assistant to choose checks, run tests and inspect results. | Connects risks to checks and keeps proposed, passed, failed and blocked results distinct. The coordinator runs authorized tests; peers challenge supplied evidence. |
-| **Review** | Request another assessment or coordinate additional reviewers. | Coordinates an eligible planner and distinct critic, records disagreements and checks the revised plan. |
-| **Handoff** | Specify the plan and supporting records you need. | Delivers the revised plan, concise discussion and result, with evidence links, unresolved issues and a clear first step. |
+| Direct use: shape your workflow | With C2C: a ready-made review process |
+|---|---|
+| Guide project exploration through your prompts. | **Assess first** — project state, goal and constraints. |
+| Request another perspective or configure reviewers. | **Planner + critic** — eligible participants, recorded disagreements. |
+| Request revisions and another pass. | **Revised plan** — accepted fixes incorporated and checked. |
+| Choose checks and how results are reported. | **Visible evidence** — proposed, passed, failed and blocked stay distinct. |
+| Resume chats and gather the handoff. | **Saved progress** — recorded stages and decisions; three linked outputs for completed exchanges. |
 
-The benefit is a consistent workflow and traceable decisions. Better accuracy and token savings require measured comparisons; they are not guaranteed by using C2C.
+Both assistants already support planning, review and testing: [Codex workflow](https://developers.openai.com/cookbook/examples/codex/build_iterative_repair_loops_with_codex) · [Claude Code practices](https://code.claude.com/docs/en/best-practices). C2C adds coordination and traceable decisions; better accuracy requires a measured comparison.
 
 Start in **Codex with `$C2C`** or **Claude Code with `/C2C`**. **The chat you start coordinates the work.** Either provider can lead, and your chat model stays unchanged.
 
-**Use what is already available.** C2C prefers an eligible Codex–Claude exchange. If the other provider is unavailable before calls, it selects a planning model and a distinct critic suited to the task from the current provider, within your limits. If that route is unavailable too, it produces a provisional plan with a structured self-critique. Setup is optional; missing reviews are never invented.
+**Use what is available.** C2C prefers eligible Codex–Claude review, then distinct models within the starting provider. If no pair qualifies, it delivers a provisional plan with labeled self-critique. [Routing and review limits](#how-it-works).
 
 </details>
 
@@ -246,6 +249,8 @@ A completed exchange delivers the revised **`final-plan.md`**, with the discussi
 **Start in either app. C2C uses the eligible route within your limits.**
 
 <picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 640px)" srcset="docs/assets/situations-mobile-dark.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/situations-dark.svg">
   <source media="(max-width: 640px)" srcset="docs/assets/situations-mobile.svg">
   <img src="docs/assets/situations.svg" alt="Before calls: use eligible Codex and Claude workers; otherwise use distinct eligible models in the starting provider; if no pair qualifies, deliver a provisional plan with self-critique. Readiness, model eligibility and authorized allowance are checked first. Explicit participant and wait requests take precedence." width="960">
 </picture>

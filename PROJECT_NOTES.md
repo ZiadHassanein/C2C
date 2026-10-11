@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README: explain efficiency and simplify comparison/routing
+
+The opening now explains default repetition controls: repeated context-file entries are removed, task research and reports are reused, and successful review stages are preserved. This is a mechanism claim, not measured whole-task token savings; extra review can increase usage. The compact two-column comparison emphasizes assessment, a real critic, revisions to the plan, evidence status and saved progress. It acknowledges direct assistants' existing capabilities and qualifies the three-file handoff as completed-exchange behavior. Official provider references remain linked.
+
+The routing graphic now says "Use the tools you have" and distinguishes two providers, two eligible models within one provider, and current-chat provisional self-critique. Both apps can coordinate; explicit choices and waiting take priority. Mobile/desktop and light/dark variants match the header. Validation passed 24 surface/viewport/theme combinations, 270 local references, twelve SVG checks, independent semantic/visual review, the design detector and immutable v2.5.0 identity. Scope is documentation and illustrations only; unreleased work remains separate. No live worker calls or runtime behavior changes were needed.
+
 ### README: show assessment and verification
 
 The banner and workflow now state Assess → Plan → Critique → Revise → Verify, making project assessment before planning and review of the revised plan visible. The compact mobile banner retains all five labels; desktop adds short explanations. Detailed workflow labels use the same names. A visible "Already have a plan?" section replaces the collapsed example and explains using the supplied plan as the starting point, preserving useful work, applying accepted fixes and delivering the revised plan with separate discussion and result records. Critique-only requests and incomplete-review limits remain explicit; verification of a plan does not imply execution of its proposed tests.

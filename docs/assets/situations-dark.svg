@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="568" viewBox="0 0 960 568" role="img" aria-labelledby="title desc">
+<title id="title">Use the tools you have</title>
+<desc id="desc">Default routing before worker calls: check required tools, model access and allowed usage. Prefer Codex and Claude Code when both are eligible. If the other provider is unavailable, use two distinct eligible models in the starting provider. Without a reviewer, continue in the current chat with a provisional plan and self-critique; independent review is missing. The starting chat coordinates. Explicit provider, model, advice-only and wait choices take priority.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto-start-reverse"><path d="M1 1L6 4L1 7" fill="none" stroke="#ed9278" stroke-width="1.5"/></marker></defs>
+<rect x=".5" y=".5" width="959" height="567" rx="12" fill="#161b22" stroke="#30363d"/>
+<g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif">
+<text x="32" y="49" font-size="28" fill="#f0f3f6" font-weight="600" text-anchor="start">Use the tools you have</text>
+<text x="32" y="82" font-size="19" fill="#b1bac4" font-weight="400" text-anchor="start">Start in Codex or Claude Code. Your starting chat coordinates.</text>
+<text x="32" y="113" font-size="17" fill="#b1bac4" font-weight="400" text-anchor="start">Checks tools, model access and allowed usage before worker calls.</text>
+<path d="M32 132H928" stroke="#30363d"/>
+<text x="32" y="177" font-size="18" fill="#ed9278" font-weight="600" text-anchor="start">01</text><text x="72" y="177" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="start">Both providers available</text><text x="72" y="207" font-size="17" fill="#b1bac4" font-weight="400" text-anchor="start">Preferred when eligible</text>
+<rect x="386" y="155" width="204" height="50" rx="8" fill="#21262d" stroke="#89939f"/><rect x="724" y="155" width="204" height="50" rx="8" fill="#21262d" stroke="#89939f"/><text x="488" y="188" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="middle">Codex</text><text x="826" y="188" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="middle">Claude Code</text><path d="M612 180H702" stroke="#ed9278" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="657" y="235" font-size="18" fill="#b1bac4" font-weight="400" text-anchor="middle">Planning and review across providers</text>
+<path d="M32 262H928" stroke="#30363d"/>
+<text x="32" y="306" font-size="18" fill="#ed9278" font-weight="600" text-anchor="start">02</text><text x="72" y="306" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="start">One provider available</text><text x="72" y="336" font-size="17" fill="#b1bac4" font-weight="400" text-anchor="start">Codex or Claude Code</text>
+<rect x="386" y="284" width="204" height="50" rx="8" fill="#21262d" stroke="#89939f"/><rect x="724" y="284" width="204" height="50" rx="8" fill="#21262d" stroke="#89939f"/><text x="488" y="317" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="middle">Planner model</text><text x="826" y="317" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="middle">Critic model</text><path d="M612 309H702" stroke="#ed9278" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="657" y="364" font-size="18" fill="#b1bac4" font-weight="400" text-anchor="middle">One provider · Two distinct eligible models</text>
+<path d="M32 391H928" stroke="#30363d"/>
+<text x="32" y="435" font-size="18" fill="#ed9278" font-weight="600" text-anchor="start">03</text><text x="72" y="435" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="start">No reviewer available</text><text x="72" y="465" font-size="17" fill="#b1bac4" font-weight="400" text-anchor="start">Continue in this chat</text>
+<rect x="386" y="413" width="542" height="81" rx="8" fill="#21262d" stroke="#89939f"/>
+<text x="408" y="445" font-size="23" fill="#f0f3f6" font-weight="600" text-anchor="start">Provisional plan + self-critique</text>
+<text x="408" y="475" font-size="18" fill="#b1bac4" font-weight="400" text-anchor="start">No independent review</text>
+<text x="32" y="540" font-size="18" fill="#b1bac4" font-weight="400" text-anchor="start">Your choices take priority. “Wait for both” saves progress and waits.</text>
+</g>
+</svg>

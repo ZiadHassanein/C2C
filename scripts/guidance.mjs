@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const files = Object.freeze({ protocol: 'references/protocol.md', assessment: 'references/project-assessment.md', models: 'references/model-selection.md', presentation: 'references/plan-presentation.md', qa: 'references/developer-qa.md' });
+const files = Object.freeze({ protocol: 'references/protocol.md', assessment: 'references/project-assessment.md', models: 'references/model-selection.md', presentation: 'references/plan-presentation.md', qa: 'references/developer-qa.md', focused: 'references/focused-review.md' });
 const topics = Object.freeze({
+  focused: ['focused#focused-review-contract'],
   start: ['assessment#gather-evidence-without-expanding-scope', 'assessment#choose-an-actionable-direction'],
   assess: ['assessment#distinguish-deployment-from-readiness', 'assessment#json-contract', 'assessment#persist-and-revisit'],
   prepare: ['protocol#planning-depth-and-deliverables', 'protocol#choose-an-available-route', 'protocol#pairing-and-model-identity', 'models#worker-effort', 'protocol#no-paid-limit-recovery', 'protocol#preparation-command', 'protocol#launch-preview-and-local-permissions'],
@@ -47,7 +48,7 @@ function sections(markdown) {
   return found;
 }
 
-export function readGuidance(root, { topic, topics: requestedTopics, section, domain = 'software', offset, limit, index = false } = {}) {
+export function readGuidance(root, { topic, topics: requestedTopics, section, domain = 'software', offset, limit, maxBytes, index = false } = {}) {
   requireThat(['software', 'content', 'mixed', 'non_software'].includes(domain), 'Unknown guidance domain');
   requireThat(typeof index === 'boolean', 'Guidance index must be a boolean');
   requireThat(Number(Boolean(topic)) + Number(requestedTopics !== undefined) + Number(Boolean(section)) === 1, 'Choose exactly one guidance topic, topics list or section');
@@ -62,12 +63,13 @@ export function readGuidance(root, { topic, topics: requestedTopics, section, do
     ...topics[item],
     ...(['start', 'assess'].includes(item) && ['content', 'mixed'].includes(domain) ? ['assessment#content-and-mixed-work'] : []),
   ]) : [section];
-  const paginated = offset !== undefined || limit !== undefined;
+  const paginated = offset !== undefined || limit !== undefined || maxBytes !== undefined;
   const start = offset === undefined ? 0 : offset, pageSize = limit === undefined ? 64 : limit;
   if (paginated) {
     requireThat(Number.isSafeInteger(start) && start >= 0, 'Guidance offset must be a nonnegative integer');
     requireThat(Number.isSafeInteger(pageSize) && pageSize >= 1 && pageSize <= 64, 'Guidance limit must be an integer from 1 to 64');
   }
+  requireThat(maxBytes === undefined || (Number.isSafeInteger(maxBytes) && maxBytes >= 1024 && maxBytes <= 128000), 'Guidance maxBytes must be an integer from 1024 to 128000');
   const cache = new Map(), sources = [];
   for (const reference of [...new Set(selected)]) {
     requireThat(typeof reference === 'string' && reference.length <= 160, 'Invalid guidance section');
@@ -87,17 +89,30 @@ export function readGuidance(root, { topic, topics: requestedTopics, section, do
     sources.push({ file, anchor, sha256: source.sha256, ...item });
   }
   requireThat(!paginated || start < sources.length, 'Guidance offset is outside the selected sections');
-  const page = paginated ? sources.slice(start, start + pageSize) : sources;
-  const pagination = paginated ? { offset: start, limit: pageSize, total: sources.length, returned: page.length, next_offset: start + page.length < sources.length ? start + page.length : null } : null;
+  const candidates = paginated ? sources.slice(start, start + pageSize) : sources;
+  const page = [];
+  let bodyBytes = 0;
+  for (const source of candidates) {
+    const bytes = Buffer.byteLength(source.content);
+    if (maxBytes !== undefined && page.length && bodyBytes + bytes > maxBytes) break;
+    page.push(source);
+    bodyBytes += bytes;
+  }
+  const oversized = maxBytes !== undefined && bodyBytes > maxBytes;
+  const warning = oversized ? `One complete section exceeds the ${maxBytes}-byte section-body budget (${bodyBytes} bytes); the section is kept whole. The budget excludes output formatting.` : null;
+  const pagination = paginated ? { offset: start, limit: pageSize, total: sources.length, returned: page.length, next_offset: start + page.length < sources.length ? start + page.length : null,
+    ...(maxBytes !== undefined ? { max_bytes: maxBytes, body_bytes: bodyBytes, oversized_section: oversized } : {}) } : null;
   const metadata = { topic: topic || null, ...(requestedTopics !== undefined ? { topics: [...requestedTopics] } : {}), domain };
   if (index) return { ...metadata, index: true,
     sources: page.map(({ file, anchor, sha256, heading, content }) => ({ reference: `${Object.keys(files).find(key => files[key] === file)}#${anchor}`, file, anchor, sha256, heading, bytes: Buffer.byteLength(content) })),
     ...(pagination ? { pagination } : {}),
+    ...(warning ? { warning } : {}),
     note: 'Index only: no guidance bodies were returned. Read the required complete sections; an index is not evidence that their instructions were read.' };
-  const continuation = pagination ? `Guidance sections ${start + 1}–${start + page.length} of ${sources.length}. ${pagination.next_offset === null ? 'No further sections follow this page.' : `Continue with offset ${pagination.next_offset} and the same selection/domain; unread sections still apply.`}\n\n` : '';
+  const continuation = pagination ? `Guidance sections ${start + 1}–${start + page.length} of ${sources.length}. ${pagination.next_offset === null ? 'No further sections follow this page.' : `Continue with offset ${pagination.next_offset} and otherwise the same options; unread sections still apply.`}\n\n` : '';
   return { ...metadata, sources: page,
     ...(pagination ? { pagination } : {}),
-    markdown: `# C2C guidance: ${topic || requestedTopics?.join(', ') || section}\n\nUse with the entry skill's universal constraints. Read linked sections only when needed.\n\n${continuation}${page.map(source => `<!-- ${source.file}#${source.anchor} -->\n${source.content}`).join('\n\n')}\n` };
+    ...(warning ? { warning } : {}),
+    markdown: `# C2C guidance: ${topic || requestedTopics?.join(', ') || section}\n\nUse with the entry skill's universal constraints. Read linked sections only when needed.\n\n${continuation}${warning ? `Warning: ${warning}\n\n` : ''}${page.map(source => `<!-- ${source.file}#${source.anchor} -->\n${source.content}`).join('\n\n')}\n` };
 }
 
 export const GUIDANCE_TOPICS = Object.freeze(Object.keys(topics));

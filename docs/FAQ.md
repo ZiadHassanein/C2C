@@ -180,6 +180,8 @@ C2C reuses saved reports and task research, removes repeated context paths, offe
 
 `guide --topic TOPIC` loads applicable local instruction sections; adding `--run RUN` uses a prepared run's pinned version. This avoids repeatedly loading entire references while preserving the entry skill's universal rules.
 
+For a bounded software review authored by the initiating chat, the [focused contract](../references/focused-review.md) combines the ordinary requirements once, with explicit triggers for exceptional guidance. QA, content, larger designs and background authors retain their applicable workflow. `finish --receipt` returns completion evidence and file paths without repeating the assessment background; full records remain saved. Neither helper changes the reviewers, selected evidence or required stages.
+
 The experimental preparation option `--context-profile verify-compact` has a narrow rule: with a valid recorded plan map, verification may replace an entire proposal that exactly equals the full current plan with an explicit reference to that plan, only when it reduces packet bytes. It does not summarize sources, discard dissent or trim partially matching prose. `full` is the default and fallback. Serialized byte changes do not establish token savings or equal planning quality. [Exact behavior](../references/protocol.md#token-efficiency).
 
 ## Will the plan recommend a model for implementation and show savings?

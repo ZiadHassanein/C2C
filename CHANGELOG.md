@@ -4,6 +4,8 @@ C2C is a Codex and Claude Code skill for collaborative planning and mutual plan 
 
 ## 2.6.0 — Reduce repeated coordination context
 
+- Use one focused contract for bounded software planning with a confirmed host author. Its explicit gates retain assessment, security, critique, verification and the three artifacts; QA, content, roadmaps, background authors and exceptional cases load their full applicable guidance.
+- Add `finish --receipt`: the same completion gates save full records, while the returned view keeps outcomes, risks, unknowns, provenance and usage without repeating assessment background. Default finish output remains unchanged.
 - Combine related guidance topics without repeating shared sections. Indexes identify unread sections; pagination returns complete sections with explicit continuation.
 - Keep optional plan-map details separate and load preparation options without the unrelated command catalogue.
 - Reuse guidance already read in the current context, and extract/copy unchanged plan text with local tools instead of regenerating and rereading it. Preserve full saved artifacts and handle substantive revisions normally.

@@ -207,6 +207,35 @@ test('verified completion rejects an irrelevant provisional reason and escapes w
   assert.match(result,/&#60;img/);
 });
 
+test('finish receipt preserves completion gates, full saved records and reviewed bytes through the pinned CLI', async () => {
+  const f = await readyForVerify('finish-receipt', { mode: 'review' });
+  assert.throws(() => finish({ run: f.out, receipt: 'true' }), /receipt must be a boolean/);
+  assert.throws(() => finish({ run: f.out, receipt: true }), /verify is incomplete/);
+  await ask({ run: f.out, stage: 'verify' }, invocation(report()));
+  const before = await fs.readFile(path.join(f.out, 'final-plan.md'));
+  const cli = fileURLToPath(new URL('../scripts/council.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [cli, 'finish', '--run', f.out, '--receipt', '--compact'], { encoding: 'utf8', windowsHide: true, timeout: 10000 });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  const saved = await read(path.join(f.out, 'completion.json'));
+  assert.equal(receipt.receipt_version, 1);
+  assert.equal(receipt.outcome, saved.outcome);
+  assert.equal(receipt.delivered_plan_reviewed, true);
+  assert.deepEqual(receipt.final_hashes, saved.final_hashes);
+  assert.deepEqual(receipt.resource_usage, saved.resource_usage);
+  assert.match(saved.project_assessment.summary, /ASSESSMENT_CONTEXT_TOKEN/);
+  assert.equal(receipt.project_assessment.summary, undefined);
+  for (const key of ['plan', 'discussion', 'result']) assert.ok((await fs.stat(receipt[key])).isFile());
+  assert.deepEqual(await fs.readFile(path.join(f.out, 'final-plan.md')), before);
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, 2);
+  assert.throws(() => finish({ run: f.out, receipt: true }), /already complete/);
+  for (const args of [['finish', '--receipt', '--receipt'], ['quality', '--receipt']]) {
+    const rejected = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', windowsHide: true, timeout: 10000 });
+    assert.notEqual(rejected.status, 0);
+    assert.equal(rejected.stdout, '');
+  }
+});
+
 test('new activity runs pass only an inactivity guard and retain honest unlimited-time artifacts', async () => {
   for (const coordinator of ['codex', 'claude']) {
     const f = await inputFixture(`activity-default-${coordinator}`);

@@ -10,7 +10,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 test('CLI routes topic bundles, indexes and whole-section pages without changing legacy JSON', () => {
   const cli = args => spawnSync(process.execPath, [path.join(root, 'scripts/council.mjs'), 'guide', ...args], { encoding: 'utf8', windowsHide: true, timeout: 10000 });
-  const options = { topics: ['exchange', 'verify', 'present'], offset: 1, limit: 2 };
+  const options = { topics: ['exchange', 'verify', 'present'], offset: 1, limit: 2, maxBytes: 16000 };
   const page = cli(['--topics', options.topics.join(','), '--offset', '1', '--limit', '2']);
   assert.equal(page.status, 0, page.stderr);
   assert.equal(page.stdout, readGuidance(root, options).markdown);
@@ -153,15 +153,75 @@ test('every indexed reference directly retrieves its exact complete section thro
   const options = { topics: [...GUIDANCE_TOPICS], domain: 'mixed' };
   const complete = readGuidance(root, options);
   const index = readGuidance(root, { ...options, index: true });
-  assert.equal(new Set(index.sources.map(source => source.file)).size, 5);
+  assert.equal(new Set(index.sources.map(source => source.file)).size, 6);
   for (let i = 0; i < index.sources.length; i++) {
     const item = index.sources[i];
-    assert.match(item.reference, /^(protocol|assessment|models|presentation|qa)#[^#]+$/);
+    assert.match(item.reference, /^(protocol|assessment|models|presentation|qa|focused)#[^#]+$/);
     const retrieved = readGuidance(root, { section: item.reference, domain: options.domain });
     assert.deepEqual(retrieved.sources, [complete.sources[i]]);
     assert.equal(retrieved.sources[0].file, item.file);
     assert.equal(retrieved.sources[0].sha256, item.sha256);
     assert.equal(Buffer.byteLength(retrieved.sources[0].content), item.bytes);
+  }
+});
+
+test('byte-bounded pages reconstruct the exact section union without exceeding either bound', () => {
+  const options = { topics: [...GUIDANCE_TOPICS], domain: 'mixed' };
+  const complete = readGuidance(root, options);
+  for (const maxBytes of [1024, 4096, 16000, 128000]) {
+    const assembled = [];
+    let offset = 0;
+    do {
+      const page = readGuidance(root, { ...options, offset, limit: 4, maxBytes });
+      const bytes = page.sources.reduce((sum, source) => sum + Buffer.byteLength(source.content), 0);
+      assert.equal(page.pagination.max_bytes, maxBytes);
+      assert.equal(page.pagination.body_bytes, bytes);
+      assert.ok(page.sources.length >= 1 && page.sources.length <= 4);
+      assert.deepEqual(page.sources, complete.sources.slice(offset, offset + page.sources.length));
+      if (bytes > maxBytes) {
+        assert.equal(page.sources.length, 1);
+        assert.equal(page.pagination.oversized_section, true);
+        assert.match(page.warning, /section is kept whole/);
+        assert.ok(page.markdown.includes(page.warning));
+      } else {
+        assert.equal(page.pagination.oversized_section, false);
+        assert.equal(Object.hasOwn(page, 'warning'), false);
+      }
+      for (const source of page.sources) assert.ok(page.markdown.includes(source.content));
+      assembled.push(...page.sources);
+      assert.equal(page.pagination.next_offset, assembled.length === complete.sources.length ? null : assembled.length);
+      offset = page.pagination.next_offset;
+    } while (offset !== null);
+    assert.deepEqual(assembled, complete.sources);
+  }
+  for (const maxBytes of [null, 0, -1, 1023, 128001, 16000.5, '16000', Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => readGuidance(root, { ...options, maxBytes }), /maxBytes/);
+  }
+});
+
+test('a single oversized Unicode section remains byte-for-byte intact and explicitly warned', () => {
+  const parent = fs.realpathSync(os.tmpdir()), dir = fs.mkdtempSync(path.join(parent, 'c2c-guide-bytes-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'references'));
+    const content = `## Commands\n${'界'.repeat(1000)}\nComplete final sentence.`;
+    fs.writeFileSync(path.join(dir, 'references/protocol.md'), `${content}\n\n## Other\nExcluded.\n`);
+    const complete = readGuidance(dir, { section: 'protocol#commands' });
+    const bounded = readGuidance(dir, { section: 'protocol#commands', maxBytes: 1024 });
+    assert.deepEqual(bounded.sources, complete.sources);
+    assert.equal(bounded.sources[0].content, content);
+    assert.ok(bounded.markdown.includes(content));
+    assert.equal(bounded.pagination.body_bytes, Buffer.byteLength(content));
+    assert.equal(bounded.pagination.oversized_section, true);
+    assert.equal(bounded.pagination.next_offset, null);
+    assert.match(bounded.warning, /1024-byte.*kept whole/);
+    const index = readGuidance(dir, { section: 'protocol#commands', maxBytes: 1024, index: true });
+    assert.deepEqual(index.pagination, bounded.pagination);
+    assert.equal(index.warning, bounded.warning);
+    assert.equal(index.sources[0].bytes, Buffer.byteLength(content));
+    assert.equal(Object.hasOwn(index, 'markdown'), false);
+  } finally {
+    assert.equal(path.dirname(fs.realpathSync(dir)), parent);
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

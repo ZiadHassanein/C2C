@@ -11,7 +11,7 @@
 
 C2C assesses your project first, then develops, challenges, revises and checks the plan with **Codex, Claude Code, or both**. Use it for software engineering, authorized testing, content or mixed work—from small features to full projects.
 
-**Token efficiency through less repetition.** C2C loads relevant guidance without repeating shared sections, reuses research and reports, copies unchanged plan text, and preserves completed review stages. Selected evidence and reviewer capability stay intact. Extra review can use more tokens overall; total savings are unproven. [How it works](references/protocol.md#token-efficiency) · [Measurement](docs/BENCHMARKS.md).
+**Token efficiency through less coordination.** Small software reviews use a focused workflow; other tasks load only relevant guidance. C2C reuses research, reports and unchanged plan text, then returns a completion receipt instead of rereading the handoff. Selected evidence, reviewers and review stages stay intact. Extra review can use more tokens overall; savings are not guaranteed. [How it works](references/protocol.md#token-efficiency) · [Measurement](docs/BENCHMARKS.md).
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 

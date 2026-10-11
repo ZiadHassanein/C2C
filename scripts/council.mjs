@@ -27,6 +27,7 @@ import { readPreferences, resolveSpendingPolicy } from './preferences.mjs';
 import { checkAllowanceEvidence } from './allowance.mjs';
 import { ASSURANCE_SCHEMA, checkAssurance, parseBoundedJSON } from './assurance.mjs';
 import { renderResult } from './result.mjs';
+import { completionReceipt } from './completion-receipt.mjs';
 
 const VERSION = 7;
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -556,7 +557,8 @@ export function guide(options) {
   const loaded = options.run ? loadRun(options.run) : null;
   const domain = options.domain ?? (loaded ? readJSON(path.join(loaded.dir, 'snapshot.json')).project_assessment?.project_type : undefined) ?? 'software';
   return readGuidance(PACKAGE_ROOT, { topic: options.topic, topics: options.topics?.split(','), section: options.section, domain,
-    index: options.index, ...(options.offset !== undefined ? { offset: Number(options.offset) } : {}),
+    index: options.index, maxBytes: options.topics && !options.index ? 16000 : undefined,
+    ...(options.offset !== undefined ? { offset: Number(options.offset) } : {}),
     ...(options.limit !== undefined ? { limit: Number(options.limit) } : {}) });
 }
 function previousVerificationPacket(dir, state) {
@@ -1119,6 +1121,7 @@ export function extend(options) {
 
 export function finish(options) {
   notPeer();
+  required(options.receipt === undefined || typeof options.receipt === 'boolean', 'receipt must be a boolean');
   const { dir } = loadRun(options.run);
   const release = lock(dir);
   try {
@@ -1184,7 +1187,8 @@ export function finish(options) {
     write(path.join(dir, 'RESULT.md'), renderResult({ state, completion, discussionAvailable: Boolean(availableDiscussion(dir)) }));
     for (const file of ['final-plan.md', 'decisions.json', 'completion.json', 'RESULT.md', ...(security ? ['security-review.json'] : [])]) seal(dir, state, file);
     state.status = 'complete'; state.completion = completion; saveRun(dir, state);
-    return { run: dir, plan: path.join(dir, 'final-plan.md'), result: path.join(dir, 'RESULT.md'), discussion: availableDiscussion(dir), ...completion };
+    const result = { run: dir, plan: path.join(dir, 'final-plan.md'), result: path.join(dir, 'RESULT.md'), discussion: availableDiscussion(dir), ...completion };
+    return options.receipt ? completionReceipt(result) : result;
   } finally { release(); }
 }
 
@@ -1202,6 +1206,9 @@ function parseArgs(argv) {
   required(Object.hasOwn(allowed, command), `Unknown command: ${command}`);
   let compact = false;
   for (let i = 0; i < args.length; i++) {
+    if (command === 'finish' && args[i] === '--receipt') {
+      required(!options.receipt, 'Duplicate option: --receipt'); options.receipt = true; continue;
+    }
     if (command === 'guide' && args[i] === '--index') {
       required(!options.index, 'Duplicate option: --index'); options.index = true; continue;
     }
@@ -1216,7 +1223,7 @@ function parseArgs(argv) {
   }
   return { command, options, compact };
 }
-const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  guide (--topic TOPIC | --topics TOPIC,TOPIC | --section REFERENCE#ANCHOR) [--run DIR]\n        [--domain software|content|mixed|non_software] [--index] [--offset N --limit N]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--purpose planning|qa] [--spending subscription|included-only] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--allowance-evidence FILE]\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  guide (--topic TOPIC | --topics TOPIC,TOPIC | --section REFERENCE#ANCHOR) [--run DIR]\n        [--domain software|content|mixed|non_software] [--index] [--offset N --limit N]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--purpose planning|qa] [--spending subscription|included-only] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--allowance-evidence FILE]\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT] [--receipt]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
 function isMainModule() {
   try { return process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); }

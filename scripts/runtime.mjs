@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { atomicWriteFile, readRunState } from './state.mjs';
 
 export const RUNTIME_FILES = Object.freeze([
-  'SKILL.md', 'references/model-selection.md', 'references/plan-presentation.md',
+  'SKILL.md', 'references/model-selection.md', 'references/plan-presentation.md', 'references/focused-review.md', 'scripts/completion-receipt.mjs',
   'references/project-assessment.md', 'references/protocol.md', 'package.json',
   'scripts/adapters.mjs', 'scripts/assessment.mjs', 'scripts/budget.mjs',
   'scripts/council.mjs', 'scripts/discussion.mjs', 'scripts/evidence.mjs',

@@ -17,14 +17,14 @@ Use this page when you need help with installation, updating, or a failed setup 
 With [Node.js 18+ and npm/npx](https://nodejs.org/en/download), run in PowerShell on Windows or Terminal on macOS/Linux:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz install
 ```
 
 This downloads the named C2C release and runs its setup helper. It needs no Git, npm account or global package installation. Both apps receive the skill for your current user; start a new chat afterward. It does not install the provider CLIs, create accounts or sign in. [Optional CLI setup](../README.md#1-prepare-your-tools) is separate.
 
 Append `--dry-run` to `install`, `update` or `uninstall` to inspect the selected paths and planned changes without changing skill installations. The surrounding `npx` command can still download files into npm's cache. `--target codex`, `--target claude` or `--target both` selects the apps; `both` is the default.
 
-The launcher is pinned to **v2.5.0**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
+The launcher is pinned to **v2.5.1**. `install` uses that package; `update` explicitly discovers and installs the latest stable C2C release. Use `update --source` to install the launcher's exact version instead.
 
 <details>
 <summary>Install from a Git clone or downloaded ZIP</summary>
@@ -38,7 +38,7 @@ node scripts/setup.mjs install
 node scripts/setup.mjs doctor
 ```
 
-Without Git, [download the v2.5.0 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
+Without Git, [download the v2.5.1 ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.zip), extract it, and run the two `node` commands from the folder containing `scripts`. No `npm install` is needed. Once downloaded, the local helper needs only Node and works offline for installation, `update --source`, uninstall and help.
 
 `node scripts/setup.mjs` prints help without changing anything. The helper accepts `install`, `check-update`, `update`, `uninstall`, `doctor`, `preferences`, `version`, `help`, `rollback TRANSACTION_ID` and `recover TRANSACTION_ID`. Existing direct installer and council commands remain supported.
 
@@ -49,11 +49,11 @@ Without Git, [download the v2.5.0 ZIP](https://github.com/ZiadHassanein/C2C/arch
 The default installer adds the skill to both apps. To choose one, run **one** of these instead:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install --target codex
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz install --target codex
 ```
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install --target claude
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz install --target claude
 ```
 
 This chooses where the **skill** is installed. Cross-provider discussion needs the other provider's CLI and, when using a background author, the coordinator provider's CLI too. Same-provider discussion uses that provider's own CLI, whether selected automatically or requested. Missing unused CLIs do not block a valid route. See [routing and provisional planning](../references/protocol.md#planning-with-unavailable-tools).
@@ -100,7 +100,7 @@ Store run folders on a local filesystem supporting hard links and atomic renames
 From any folder with npm/npx available:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz doctor
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz doctor
 ```
 
 Or open a terminal in your cloned/extracted C2C folder and run:
@@ -120,7 +120,7 @@ Node must be 18 or newer. `doctor` checks CLI availability, required flags and f
 
 A missing CLI does not block a route with no worker from that provider. Before calls, an unavailable other provider can lead to a same-provider exchange; if that cannot qualify, C2C continues provisionally instead of requiring setup. A cross-provider exchange with a background author needs both CLIs ready; a same-provider exchange needs the current provider's CLI and eligible distinct models. Readiness does not validate credentials with the provider or establish model access, identity or included allowance. A successful response confirms that particular call worked.
 
-`doctor` also identifies the nonsecret authentication route and conflicting environment-variable names. Quota and overage stay `unknown` when unmeasured; that is not a provider failure. It prints no credential values. Normal authorized subscription use does not require repeated billing confirmation; an explicit zero-extra-charge rule still requires applicable no-overflow evidence.
+`doctor` also identifies the nonsecret authentication route and conflicting environment-variable names. Quota and overage stay `unknown` when unmeasured; that is not a provider failure. It prints no credential values. Included-only use can proceed with fresh included allowance and sufficient headroom for the bounded task, without repeatedly asking about billing or requiring disabled-overflow proof.
 
 **Both apps work, but C2C reports an incompatible worker?** The app and terminal may use different CLI installations. C2C checks distinct installed candidates in PATH order and skips those missing required capabilities. `candidate_checks` shows the paths, versions and reasons; `executable` identifies the selected CLI. Explicit `COUNCIL_CODEX_BIN` / `COUNCIL_CLAUDE_BIN` overrides select one binary without fallback. Execution or login failures stop selection; C2C does not try another account or weaken restrictions. No reinstall or extra terminal is required when a compatible, eligible installation is already available.
 
@@ -159,9 +159,9 @@ For a new runner's included-only `ask`, the coordinator supplies `--allowance-ev
 | `reference` | A concise reference to the actual confirmation or observation; no credentials. |
 | `observed_at`, `valid_until` | Actual observation and expiry timestamps, preferably UTC. Evidence must be current, not future-dated, and valid for at most 24 hours. |
 
-The evidence must match fresh worker preflight's subscription authentication route without credential overrides. It stops applying after account, route or relevant setting changes, even if its expiry has not passed. Signed-in status, token counters, a model name, a statement that the app works, and the preference itself do not establish included-only eligibility. The coordinator must not invent a confirmation, extend an old timestamp or make a model request to probe billing.
+The evidence must match fresh worker preflight's subscription authentication route without credential overrides. It may record fresh provider-reported or user-confirmed included allowance with proportionate headroom for the bounded task, or applicable overflow protection. Purchased credits are not included allowance. It stops applying when headroom becomes uncertain or workload, account, route or relevant settings change, even if its expiry has not passed. Signed-in status, raw token counters, a model name, a statement that the app works, and the preference itself do not establish remaining allowance. The coordinator must not invent a confirmation, extend an old timestamp or make a model request to probe billing.
 
-The record is a coordinator-supplied declaration, not independent billing attestation or control of provider settings. If applicable evidence is unavailable, use an eligible provisional continuation or preserve a checkpoint; no forced billing question or paid recovery is required. Existing user statements can be reused only if they actually establish the applicable current boundary. [Billing and fallback rules](../references/protocol.md#no-paid-limit-recovery).
+The record is a coordinator-supplied declaration, not independent billing attestation or control of provider settings. Enough current included headroom does not require proof that overflow is disabled; an explicit request for an enforceable no-overflow guarantee does. If applicable evidence is unavailable or allowance is depleted, use an eligible continuation or preserve a checkpoint without a billing question or paid recovery. Existing user statements can be reused only while applicable. [Billing and fallback rules](../references/protocol.md#no-paid-limit-recovery).
 
 Older pinned runtimes keep their original code. On resume, the coordinator reads the installed shared preference and respects it, but an update does not add a new machine-enforced launch gate retroactively to an old runner. Preserve its reports, attempt history and pin; do not rewrite the run or switch billing routes to bypass a restriction.
 
@@ -176,7 +176,7 @@ An inaccessible or expired login leaves that worker unavailable. C2C follows its
 **In chat:** say “Update C2C and keep this plan on its current version.” The AI checks the active run before updating. For a direct terminal update:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz update
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz update
 ```
 
 This discovers the latest stable tag in the official C2C repository. Append `--target codex` or `--target claude` for one app, or `--dry-run` to preview. During a prepared run, include `--run "/absolute/path/to/run"` so its retained runtime is checked first. Changed installations are protected. An identical installation needs no replacement. Start a new chat to use the updated instructions for a new plan.
@@ -253,7 +253,7 @@ Downloading updates alone does not update installed copies. Matching content, in
 **Finish or stop active C2C runs first.** Removing the skill does not stop a worker that is already running. Then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz uninstall
 ```
 
 The command moves unchanged managed C2C folders out of skill discovery into recoverable backups. It protects customized, unrecognized or linked files instead of deleting them. A missing target is a no-op. It leaves parent settings, other skills, apps, logins, and projects/plans saved elsewhere untouched. Start a new chat in each affected app; an existing chat may still contain previously loaded instructions.
@@ -261,7 +261,7 @@ The command moves unchanged managed C2C folders out of skill discovery into reco
 Preview first, without changing skill installations:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz uninstall --dry-run
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz uninstall --dry-run
 ```
 
 Add `--target codex` or `--target claude` to remove the skill from only one app. Keep the printed rollback command to restore it; rollback protects any installation added or changed afterward. For an interrupted operation, use its printed recovery guidance. [Transaction recovery](#update-the-skill) also applies to managed removal.
@@ -275,7 +275,7 @@ From a downloaded/cloned C2C folder:
 node scripts/setup.mjs uninstall
 ```
 
-This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.5.0 installed copy also contains the helper. For example, with default paths:
+This needs Node, without npm/npx or network access. Add the same `--target` and `--dry-run` options as above. A v2.5.1 installed copy also contains the helper. For example, with default paths:
 
 PowerShell on Windows:
 
@@ -315,13 +315,13 @@ Removing C2C leaves Codex, Claude Code, Node.js, your logins, and projects/plans
 If PowerShell blocks `npx.ps1`, use `npx.cmd` in the same command. No execution-policy change is needed:
 
 ```powershell
-npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
+npx.cmd --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz install
 ```
 
 If npm 12 rejects the remote package URL, permit it for this command only:
 
 ```sh
-npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
+npx --yes --allow-remote=all https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz install
 ```
 
 This follows npm's [remote URL setting](https://docs.npmjs.com/cli/v12/using-npm/config/#allow-remote); do not change global npm policy. Keep the exact release URL and replace the final action with `update`, `uninstall` or `doctor` as needed. On Windows, the `npx.cmd` form can also include this option. If npm/npx is unavailable or your environment disallows remote packages, use the local Git/ZIP method instead.
@@ -381,7 +381,7 @@ With the current chat as author, required stages use two successful calls for fo
 
 Your current chat selects the brief and relevant context to send to the peer's provider. The runner does not automatically copy your whole project or chat. Exclude secrets and unrelated private material. Its check for obvious secrets is limited and cannot detect everything.
 
-C2C never buys or enables extra paid usage to recover from a limit. It does not upgrade plans, raise spending limits or move the task to API/cloud billing. Normal authorized subscription use can proceed without live quota metadata; a limit response stops that route. An explicit included-only/zero-extra-charge rule needs applicable no-overflow evidence before calls. [Save the preference across chats](#save-your-spending-preference); new included-only launches require the evidence described there. Existing provider settings still govern charges. Worker processes disable Claude's credit-only fast mode, automatic updates and background terminal-title generation; this does not change your model/effort or impose a universal billing cap. [Billing policies](../references/protocol.md#no-paid-limit-recovery).
+C2C never buys, enables or asks for extra paid usage to recover from a limit. It does not upgrade plans, raise spending limits or move the task to API/cloud billing. Normal authorized subscription use can proceed without live quota metadata; a limit response stops that route. Included-only use can proceed with fresh included headroom sufficient for the bounded task. [Save the preference across chats](#save-your-spending-preference); new included-only launches require the evidence described there. Existing provider settings still govern charges. Worker processes disable Claude's credit-only fast mode, automatic updates and background terminal-title generation; this does not change your model/effort or impose a universal billing cap. [Billing policies](../references/protocol.md#no-paid-limit-recovery).
 
 Before launching a new run's first worker, C2C uses `node RUNNER preview --run RUN --stage STAGE` to inspect the provider/model, outbound labels, packet hash and limits without a model call or state change. Your explicit C2C request authorizes relevant selected context for that exchange. The host may separately require approval for a bounded command outside its sandbox. [Launch preview and local permissions](../references/protocol.md#launch-preview-and-local-permissions).
 
@@ -401,7 +401,7 @@ When you authorize testing or verification of a fix, the coordinating AI can run
 |---|---|
 | `node` is not recognized or not found | The current chat can still deliver a provisional plan. If you choose to enable the scripts, install [Node.js](https://nodejs.org/en/download), reopen your terminal, and check `node --version`. |
 | `npx` is missing, PowerShell blocks it, or npm rejects the remote URL | Follow [npx and PowerShell help](#npx-and-powershell-help); local Node setup remains available without npm/npx. |
-| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.zip), extract it, and open a terminal in the folder containing `scripts`. |
+| `git` is not recognized or not found | Use the [one-command install](#install-without-git), or [download the ZIP](https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.zip), extract it, and open a terminal in the folder containing `scripts`. |
 | Cannot find `scripts/setup.mjs` or `scripts/install.mjs` | You are in the wrong folder or using an older source copy. Open a terminal in the extracted or cloned current release, then rerun the command. |
 | `doctor` cannot find `claude` or `codex` | Ignore it if the route does not use that CLI; otherwise apply [available-provider routing](#choose-the-participants). If you choose setup, use the [Claude Code](https://code.claude.com/docs/en/quickstart) or [Codex](https://learn.chatgpt.com/docs/codex/cli) guide. |
 | `doctor` reports signed out | Treat that worker as unavailable and apply [routing rules](#choose-the-participants). If you choose setup repair, check the environment/access row below before renewing the selected native login. |

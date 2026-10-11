@@ -36,6 +36,12 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.5.1: proportionate included-allowance checks
+
+Fresh supported evidence of included allowance, with adequate headroom for a bounded task, can qualify the existing subscription route without a separate disabled-overflow attestation. The previous blanket prerequisite was too restrictive. The coordinator records the evidence, keeps the workload proportionate, refreshes stale observations, stops on a limit or insufficient headroom, and never requests a purchase, upgrade or extra-usage activation to continue. A stronger explicitly requested provider-enforced spending guarantee remains a separate constraint; ordinary included-only wording does not invent that requirement. Existing evidence schema, credential-route validation and sealed run policies are unchanged. This is a guidance correction, not a new billing-control capability or a measured performance claim.
+
+Validation: 608 local tests, 597 passed and 11 platform skips, zero failures, using isolated test preferences and temporary storage. Earlier runs exposed inherited user-preference contamination and insufficient temporary disk space; neither was treated as a passing result. Guidance tests, 272 documentation references, fourteen SVG checks and the release guard also passed. The unreleased QA implementation branch remains separate.
+
 ### README: legible phone banner
 
 The opening illustration now uses a vertical five-step flow on phone viewports up to 480 px. Provider names remain in a separate header. At 320 px with representative GitHub padding, workflow labels render at 20 px instead of about 12 px. The previous compact horizontal illustration is retained for 481–800 px tablets, and desktop assets are unchanged. Light/dark source selection and overflow checks passed at eight widths (sixteen combinations). This is an isolated Chromium rendering check, not physical-device certification. Scope is documentation and illustrations only; packaged v2.5.0 instructions and runtime remain unchanged.

@@ -7,7 +7,7 @@ C2C is an open-source skill for planning software, content, and mixed projects b
 Yes. With Node.js 18+ and npm/npx, run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz install
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz install
 ```
 
 It installs the skill for your current user in both apps. No Git, global package installation or npm account is needed. Start a new chat afterward. Add `--target codex` or `--target claude` for one app, or `--dry-run` to preview skill changes; npx may still download into its cache. For local/offline setup, use the [Git/ZIP instructions](SETUP.md#install-without-git). The helper does not install either provider CLI or sign you in.
@@ -29,7 +29,7 @@ C2C 1.4+ checks when you start or resume it, reusing a daily cache, and gives a 
 Yes. Finish or stop active C2C runs, then run:
 
 ```sh
-npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.0.tar.gz uninstall
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz uninstall
 ```
 
 Unchanged managed skill folders move into recoverable backups; customized, unknown or linked files are protected. Missing folders are a no-op. Add `--dry-run` to preview or `--target codex` / `--target claude` to choose one app. Keep the printed rollback command and start a new chat afterward. Your apps, logins, settings, other skills and projects/plans saved elsewhere remain in place. Source downloads, npm cache and backups remain separate. See [offline removal, restoration and manual removal](SETUP.md#uninstall).
@@ -144,13 +144,13 @@ Consequential changes after verification may use one additional successful revis
 
 No. C2C must not buy credits, enable extra usage or auto-reload, raise spending limits, upgrade your plan, or switch to API/cloud billing to keep an exchange running. Asking it to continue does not authorize those actions. It stops the blocked route and checks only permitted continuation within existing allowance. If none qualifies, it delivers a provisional plan with self-critique; if the chat has no allowance, it saves a checkpoint. It does not ask you to pay to unblock the plan.
 
-Provider billing remains separate. For ordinary authorized subscription use, unknown live usage metadata is not treated as an exhausted account or a reason for repeated billing questions. Existing credit/overage settings can permit charges without a quota error, so this is not a zero-charge guarantee. An explicit included-only/zero-extra-charge restriction needs applicable no-overflow evidence before calls; an API key never supplies spending permission by itself. Worker processes disable Claude's credit-only fast mode without changing your account settings, selected model or effort. See [billing policies](../references/protocol.md#no-paid-limit-recovery).
+Provider billing remains separate. For included-only use, fresh reported included allowance with enough headroom for the bounded task lets C2C proceed; unknown overflow settings alone do not block it. Purchased credits are not included allowance. C2C rechecks when usage evidence or scope changes and stops the depleted route without asking you to pay. This assessment is not a provider-enforced zero-charge guarantee; an explicit request for that guarantee requires the corresponding control. An API key never supplies spending permission by itself. Worker processes disable Claude's credit-only fast mode without changing your account settings, selected model or effort. See [billing policies](../references/protocol.md#no-paid-limit-recovery).
 
 ## Can C2C remember included-only usage across chats and both apps?
 
 Yes. Run `node scripts/setup.mjs preferences --spending included-only` from a current C2C copy, or ask your coordinating chat to save that preference. Both apps read `~/.c2c/preferences.json`, independently of their own configuration directories. An absolute `C2C_CONFIG_HOME` can select a shared alternate location. Updates and uninstall intentionally preserve it; the file contains no credentials. Without a saved preference, the default is ordinary `subscription` use, which is not a zero-charge guarantee.
 
-The preference records what you require, not proof that a provider will honor it. New included-only worker launches also need current applicable `--allowance-evidence FILE` matching fresh subscription-route preflight. The declaration is not independently attested billing control; a saved login, token counter or statement that the app works does not establish eligibility. If evidence is absent, C2C uses eligible provisional work or a checkpoint without forcing a billing question or paid recovery. A later strict preference tightens existing work, while relaxing it cannot weaken a strict run's sealed policy. Older pinned runners keep their original code and require the coordinator to respect the current preference. See [commands, evidence fields and intentional removal](SETUP.md#save-your-spending-preference).
+The preference records what you require. New included-only worker launches also need current applicable `--allowance-evidence FILE` matching fresh subscription-route preflight. This can record fresh provider-reported or user-confirmed included headroom for the task; it is a declaration, not independent billing control. A saved login, raw token counter or statement that the app works does not establish remaining allowance. If evidence is absent, C2C uses eligible provisional work or a checkpoint without forcing a billing question or paid recovery. A later strict preference tightens existing work, while relaxing it cannot weaken a strict run's sealed policy. Older pinned runners keep their original code and require the coordinator to respect the current preference. See [commands, evidence fields and intentional removal](SETUP.md#save-your-spending-preference).
 
 ## Can the reviewer check missing repository facts?
 

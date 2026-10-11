@@ -2,6 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.5.1 — Use available included allowance
+
+- Allows a bounded task to proceed on fresh, supported included-usage evidence with proportionate headroom. A separate disabled-overflow attestation is no longer a routine prerequisite when included allowance is available.
+- Stops or preserves a checkpoint when allowance is exhausted or insufficient. Never asks the user to buy credits, enable extra usage or upgrade to continue.
+- Preserves existing credential-route checks, allowance declarations, attempt limits and explicit stronger spending-control requirements. Remaining allowance is not a token estimate or a guarantee about provider billing.
+
 ## 2.5.0 — Developer QA and clearer evidence
 
 - Adds a scoped QA workflow: the coordinator can run requested project tests and verify authorized fixes; text-only peers challenge the supplied evidence. Test planning alone does not authorize execution.

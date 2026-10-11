@@ -45,7 +45,7 @@ Also read installed node SETUP preferences; apply the stricter current/shared/se
 
 ## Keep coordination concise
 
-Use Markdown guide output; legacy compact JSON repeats bodies. Prefer --compact for JSON CLI commands (all fields retained). Batch independent work; keep dependent mutations/workers sequential. Reuse full returned reports. Locally copy/edit unchanged plan text, preferably hash-checked plan; equality receipts avoid regeneration/echo/rereads, not semantic review. Retain complete records and errors/findings/limits/next actions.
+Use Markdown guide output; legacy compact JSON repeats bodies. Prefer --compact for JSON CLI commands (all fields retained). Use supported checkpoint boundaries to submit explicit records/edits and receive validation/preview once; do not repeat unchanged individual checks. Keep worker calls separate and sequential. Reuse full returned reports. Locally copy/edit unchanged plan text, preferably hash-checked plan; equality receipts avoid regeneration/echo/rereads, not semantic review. Retain complete records and errors/findings/limits/next actions.
 
 Resolve delivery links before verification. Use finish --run RUN --receipt --compact evidence directly; investigate warnings/missing/changed artifacts, not routine rereads/usage/discussion calls. Deliver **final-plan.md, DISCUSSION.md, RESULT.md** in order. Incomplete work links available files; solo fallback has one provisional plan. Never fabricate artifacts or hand-edit generated discussion/completion records.
 

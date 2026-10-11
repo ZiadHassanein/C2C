@@ -2,11 +2,12 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
-## 2.7.0 — Edit and deliver plans without repeated generation
+## 2.7.1 — Local plan editing and validation checkpoints
 
 - Add a local `plan` command: extract an existing proposal or edit the current plan using an exact source hash and unique literal replacements. Copy the completed text to an explicit Markdown destination and verify the saved bytes without generating another copy through the model.
 - Preserve completed plans, selected evidence and existing different export files; reject stale or ambiguous edits and active/uncertain workers. Report bounded project-local link checks without following remote paths or claiming semantic verification.
 - Add `preview --checks` for verification stages, combining the existing structural and assurance checks with disclosure metadata. Invalid checks remain visible and block that preview; no model is called.
+- Group authored stage records, exact plan edits and validation in a bounded local checkpoint. The coordinator still makes every assessment and disposition; independent critique and verification remain separate calls.
 - Shorten repeated coordinator instructions and prefer lossless compact JSON. Full worker evidence, requested models/effort, critique and verification, security coverage and the three-file handoff remain intact.
 - Keep full records and old commands compatible. Existing plans retain their pinned runtime. These mechanics alone establish no token-saving or plan-quality percentage.
 

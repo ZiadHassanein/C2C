@@ -63,13 +63,32 @@ Verdict: ready|needs_changes|insufficient_context; nonempty summary. Findings ha
 
 Positive-integer IDs: C-D1 draft, C-R1 host check, C-S1 security, P-R1 peer review, P-V1 verification, P-F1 final revision. Preserve original objects/IDs/gaps/order; cite rather than reuse IDs. Every substantive correction, even minor, needs a finding. Draft proposal_markdown is complete candidate; security's is nonempty applicability analysis. Other reviews may leave it empty and use concise ID-linked pressure tests/replies.
 
-Write coordinator-draft.json, then independent coordinator-review.json **before** peer critique. Connect outcomes/constraints, minimal viable design, assumptions, dependencies and acceptance gates; challenge scope/failure paths without authorship bias. Same-provider coding critic or cross-provider planning peer covers feasibility/security/verification. Names alone prove no reasoning independence or quality gain.
+Author coordinator-draft.json, then independent coordinator-review.json **before** peer critique. Submit them together with the local checkpoint below when available. Connect outcomes/constraints, minimal viable design, assumptions, dependencies and acceptance gates; challenge scope/failure paths without authorship bias. Same-provider coding critic or cross-provider planning peer covers feasibility/security/verification. Names alone prove no reasoning independence or quality gain.
 
-Before each call inspect preview recipients/model, source labels/content/fingerprint and limits; re-preview after edits. Respect disclosure/host approvals; denial is not provider failure. Review sequence: preview --run RUN --stage review --compact, then ask --run RUN --stage review --compact with required allowance evidence. Keep yielded calls in their original sessions; use notifications or bounded waits/backoff respecting progress/cancellation. Meaningful activity has no total deadline except explicit caps; silence is unknown. Never mutate/relaunch/start another worker while one may be active. Failures count; successful stages cannot repeat.
+Before each call inspect preview recipients/model, source labels/content/fingerprint and limits; re-preview after edits. A successful checkpoint already supplies that preview: do not call preview again for unchanged records. Without a checkpoint, use preview --run RUN --stage review --compact. Then ask --run RUN --stage review --compact with required allowance evidence. Respect disclosure/host approvals; denial is not provider failure. Keep yielded calls in their original sessions; use notifications or bounded waits/backoff respecting progress/cancellation. Meaningful activity has no total deadline except explicit caps; silence is unknown. Never mutate/relaunch/start another worker while one may be active. Failures count; successful stages cannot repeat.
 
 Use full returned peer-review.json directly to integrate adopted fixes into final-plan.md steps/checks, preserving sound content/constraints. An amendment list is not a usable revised plan; this route has no peer draft. Synthesis/verification use full source reports/decisions/evidence, not discussion excerpts or hashes.
 
 ### Local plan construction
+
+Prefer one local checkpoint at each review boundary. It writes your explicit records and returns the full outbound preview; it never calls a model or makes decisions:
+
+```text
+node RUNNER checkpoint --run RUN --stage review|verify --packet FILE --compact
+```
+
+Packet shape (omit inapplicable fields):
+
+```text
+{version:1, base:{"canonical-file.json": SHA256_OR_NULL},
+ reports:{draft: FULL_REPORT, review: FULL_REPORT, security: FULL_REPORT},
+ decisions:[{finding_id, disposition, rationale}],
+ plan:{source:"draft"|"final", source_sha256:HASH, edits:[{old,new}]}}
+```
+
+For review, provide only draft/review reports. For verify, provide the authored security report, explicit finding dispositions and draft-to-final edits. `base` must cover exactly the canonical files being written: coordinator-draft.json, coordinator-review.json, security-review.json, decisions.json or final-plan.md as applicable. Use null only for absent files, otherwise their actual saved hashes; obtain unknown hashes locally without echoing the file. The plan source hash covers the entire saved draft JSON or final Markdown. Decision updates merge by ID, preserving other rows and optional maps/assurance; they do not accept pending findings for you.
+
+Inspect the returned preview and full verification checks. This replaces separate report writes, plan construction, decision synchronization, quality and preview at that boundary. Do not repeat those commands for unchanged records. Read findings directly from returned reports and author every disposition. Missing dispositions or records still fail the ordinary gates; unsupported/larger-than-1-MiB packets use the ordinary commands below. Incomplete publication retains a pending journal; a lost success response uses the latest completion receipt. Identical-packet retry requires unchanged state/stage and artifact hashes. Never delete these runtime records or assume all files changed. Keep review and verify worker calls sequential and separate from local checkpoints.
 
 Use the native helper for unchanged text and explicit literal edits:
 
@@ -77,7 +96,7 @@ Use the native helper for unchanged text and explicit literal edits:
 node RUNNER plan --run RUN --source draft|final --source-sha256 HASH [--edits FILE] [--out FILE] --compact
 ```
 
-HASH is exact source file SHA-256 from write receipt/local hashing (draft JSON or final Markdown). Edits are [{"old":"unique existing text","new":"replacement"}]. Extract draft proposal_markdown initially; edit source=final later or export it with --out. Resolve stale hashes/ambiguous matches/conflicts explicitly. The helper makes no calls/adjudications, preserves reports/failures/security/seals and proves bytes only.
+HASH is exact source file SHA-256 from write receipt/local hashing (draft JSON or final Markdown). Edits are [{"old":"unique existing text","new":"replacement"}]. Apply the first edits directly with source=draft: extraction and edits happen in one call. Use source=final only for later changes or exact export. Resolve stale hashes/ambiguous matches/conflicts explicitly. The helper makes no calls/adjudications, preserves reports/failures/security/seals and proves bytes only.
 
 Review the complete candidate/edit consequences before verification; unchanged known text needs no regeneration/echo/reread for copying. Hash receipts prove equality. Simple inline link metadata proves only filesystem existence; inspect relevant unsupported/reference/external links, anchors and semantics separately. Resolve all delivery locations before verification. Prefer canonical references and batch independent local work; retain full content/errors/findings/limits/actions and sequential dependent mutations/workers.
 
@@ -100,7 +119,7 @@ Checks cover behavior/regression/edge/negative/security cases using verified com
 
 Evidence requests: {id, question, path}, stage IDs like P-R-E1, nonempty question, repository-relative path or empty if unknown. They authorize no access. Before resolution load the evidence appendix; supply relevant sanitized text/provenance or unavailable/rejected reason. Resolve all before verification/finish; unavailable evidence retains its gate. Coordinator gathers security evidence directly.
 
-After each report, including verification, decisions --run RUN --compact appends unresolved findings; pending text is not adjudication. Write [{finding_id, disposition, rationale}], one per finding including security; accepted|rejected|unresolved with substantive rationale, or [] if none. Runtime checks coverage/shape/limits; [Decision record](protocol.md#decision-record) is diagnostic. Optional {decisions, plan_map?, assurance?} requires its appendix before use.
+Account for every finding, including security and verification: [{finding_id, disposition, rationale}], with accepted|rejected|unresolved and substantive rationale, or [] if none. A verify checkpoint accepts explicit updates and checks complete coverage; no separate decisions call is needed for the same records. On the ordinary route, decisions --run RUN --compact appends unresolved entries; pending text is not adjudication. After verification, synchronize/adjudicate genuinely new findings; if none arrived, existing complete decisions remain valid. Runtime checks coverage/shape/limits; [Decision record](protocol.md#decision-record) is diagnostic. Optional {decisions, plan_map?, assurance?} requires its appendix before use.
 
 Judge concern separately from remedy. For consequential remedies record evidence, failure case or alternative/tradeoff, action and remaining check/decision; challenge new failures/scope/friction/cost. Say whether acceptance adopts/adapts or retains adequate control. Reject unsupported/inapplicable/disproportionate remedies with evidence/alternative. Preserve unresolved material gates under partial acceptance, separate polish/blockers, and leave new business policy proposed for user decision. Simple fixes need concise rationale.
 
@@ -115,7 +134,7 @@ Complete a self-contained plan before verification:
 - Give distinct execution-model advice: scope, primary model/supported effort/reason, adequate alternative or none, tradeoff, eligibility/confidence, dated sources and failed check/complexity trigger for reconsideration. Reuse task research plus required firsthand-community search; disclose unavailable/conflicting evidence. Missing research/numeric claims trigger advice appendix. Advice changes no settings/authority; token/subscription savings need matched measurements, not prices.
 - Keep invariants/security/checks/unknowns/gates visible; technical appendices remain inside the full verifier plan. Identify source version/changes, protect originals, link PROJECT_CONTEXT.md and DISCUSSION.md/RESULT.md with accurate status. Draft/incomplete work is not joint approval/completed review.
 
-Cross-check the whole selected plan against sources/dispositions: requirement/decision/check links, prerequisites/source holds, adopted fixes/downstream effects, cycles/later-milestone prerequisites, consistent Start here, and no proposed checks presented as executed. preview --run RUN --stage verify --checks --compact combines existing structural/assurance checks with outbound preview; inspect issues and stop on blocked:true. Repair invalid records. quality --run RUN --compact remains for diagnosis/after changes. Missing optional records are not_recorded; structural success proves no semantic coverage/readiness.
+Cross-check the whole selected plan against sources/dispositions: requirement/decision/check links, prerequisites/source holds, adopted fixes/downstream effects, cycles/later-milestone prerequisites, consistent Start here, and no proposed checks presented as executed. Inspect the verify checkpoint's full preview/checks and stop on blocked:true. Without a checkpoint, preview --run RUN --stage verify --checks --compact combines the same structural/assurance checks and disclosure. Repair invalid records. Do not also run quality or preview for unchanged files: they repeat those checks. Use standalone quality for diagnosis or after changes when no combined preview follows. Missing optional records are not_recorded; structural success proves no semantic coverage/readiness.
 
 Then ask --run RUN --stage verify --compact with allowance evidence; synchronize/adjudicate findings. Triage actual text before editing. No warranted correction means finish reviewed bytes, without cosmetic status/navigation edits. Plan/security edits, changed prior decisions, supplied evidence or substantive map/assurance changes require the revision appendix **before editing/completion**: at most one successful verify-final, same peer/shared limits. Exempt only new-verifier dispositions/links changing no prior links/operative records, or formatting/reordering unchanged decisions. New hashes do not rerun tests. No agreement rounds; preserve an honest unreviewed revision if review cannot fit/later edits remain, never hide a defect.
 

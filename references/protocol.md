@@ -29,6 +29,8 @@ node RUNNER preview --run RUN --stage STAGE
 node RUNNER preview --run RUN --stage verify --checks --compact
 node RUNNER plan --run RUN --source draft --source-sha256 HASH --edits EDITS --compact
 node RUNNER plan --run RUN --source final --source-sha256 HASH --out OUTPUT --compact
+node RUNNER checkpoint --run RUN --stage review --packet RECORDS --compact
+node RUNNER checkpoint --run RUN --stage verify --packet RECORDS --compact
 node RUNNER ask --run RUN --stage author-draft
 node RUNNER ask --run RUN --stage draft
 node RUNNER ask --run RUN --stage author-review
@@ -512,6 +514,16 @@ Each draft, review, security review, and verification report uses this complete 
 - Cite relevant supplied sources or observed experiment results in `evidence`. An assumption or hypothetical failure must be labeled as such. An absence of evidence is not proof of a defect.
 - `proposal_markdown` carries the independent plan for a draft. For review/verification it is optional supporting context; substantive corrections belong in numbered findings. Do not claim that proposed tests have already run.
 - Review and verification `proposal_markdown` may be empty. Do not duplicate findings, restate whole plans or hide additional action items there. Put concise pressure tests and actual ID-referenced replies in `summary` or findings so the discussion view shows them. Drafts still need complete nonempty proposals; security reviews still need their nonempty applicability assessment. There is no minimum report word count. Retain all material findings, assumptions, questions and limitations.
+
+## Local validation checkpoints
+
+`checkpoint --run RUN --stage review|verify --packet FILE --compact` combines explicit coordinator records and the existing outbound preview without launching a worker. It supports full-context software planning in host-author review mode; other routes keep their ordinary commands. Use one checkpoint per supported boundary, inspect the full returned preview/checks, then call `ask` separately with the existing allowance and authorization rules. It creates no findings, dispositions or agreement.
+
+The bounded JSON packet has exactly `version: 1`, `base`, and applicable `reports`, `decisions`, `plan` fields. `reports` maps `draft`, `review` or `security` to complete ordinary report objects. Review permits draft/review only; verify permits security, explicit decision updates and exact plan edits. `base` maps exactly the canonical files being written to their actual raw SHA-256, or null for create-only. Plan data is `{source: "draft"|"final", source_sha256: HASH, edits: [{old, new}]}`; the source hash covers the entire saved file. Apply first edits directly to the draft in the same checkpoint. Decision updates merge by finding ID, preserving other decisions and optional plan-map/assurance records. Every finding still needs a substantive disposition.
+
+The command checks stage eligibility, seals, liveness, report shape, source hashes and finding coverage. Verification returns the full ordinary structural/assurance checks; blocked checks remain explicit. Only fixed run artifacts may be written, never arbitrary paths, peer reports, state, evidence or exports. Packets over 1 MiB and unsupported stages use ordinary commands. Multi-file publication is journaled, not an atomic transaction: an interruption may leave some authored files written. The runtime owns `checkpoint.pending.json` and the latest bounded `checkpoint.last.json` receipt. Identical-packet recovery or lost-response replay requires unchanged state, stage and relevant hashes; follow its result without deleting these records or assuming completion. Neither checkpoint success nor structural validation certifies semantic quality.
+
+Use the [focused contract](focused-review.md#local-plan-construction) for its compact packet shape. The same full plan, reports, decisions and source evidence reach reviewers. Existing individual commands remain available for older pins and exceptional cases; do not repeat them after a successful checkpoint for unchanged records.
 
 ## Local plan edits and exports
 

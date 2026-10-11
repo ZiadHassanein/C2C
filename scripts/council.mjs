@@ -382,12 +382,26 @@ function writeHandoff(dir, state) {
     'Do not repeat successful stages or reset attempts. The audited extend command changes local runtime/attempt allowances only; it does not restore provider quota or authorize paid credits or overage. Proposed tests and completed peer review are not implementation-test results.', ''];
   write(path.join(dir, 'HANDOFF.md'), lines.join('\n') + '\n');
 }
-function seal(dir, state, file) {
-  const hash = sha(readText(path.join(dir, file)));
+const CHECKPOINT_PENDING = 'checkpoint.pending.json';
+const CHECKPOINT_LAST = 'checkpoint.last.json';
+const artifactText = (dir, name, overlay) => overlay && Object.hasOwn(overlay, name) ? overlay[name].replace(/^\uFEFF/, '') : readText(path.join(dir, name));
+const artifactExists = (dir, name, overlay) => Boolean(overlay && Object.hasOwn(overlay, name)) || fs.existsSync(path.join(dir, name));
+function assertNoPendingCheckpoint(dir) {
+  let pending = false;
+  try { fs.lstatSync(path.join(dir, CHECKPOINT_PENDING)); pending = true; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  required(!pending, 'An incomplete local checkpoint is pending; preserve all files and retry checkpoint with the exact original packet before another mutation or worker call');
+}
+function seal(dir, state, file, overlay) {
+  const hash = sha(artifactText(dir, file, overlay));
   if (state.seals[file]) required(state.seals[file] === hash, `Sealed artifact changed: ${file}`);
   state.seals[file] = hash;
 }
-const lock = acquireRunLock;
+function lock(dir, { checkpoint = false } = {}) {
+  const release = acquireRunLock(dir);
+  try { if (!checkpoint) assertNoPendingCheckpoint(dir); return release; }
+  catch (error) { release(); throw error; }
+}
 
 export function buildPeerArgs(provider, { schemaPath, model, effort, codexFeatures, claudePartialMessages = false, schema = WORKER_REPORT_SCHEMA }) {
   const requested = validateEffort(provider, effort);
@@ -470,21 +484,21 @@ export async function doctor(options = {}, { probe = probeProvider } = {}) {
   } finally { cleanupScratch(cwd); }
 }
 
-function hostReport(dir, state, name, prefix) {
+function hostReport(dir, state, name, prefix, overlay) {
   const authoredStage = name === 'coordinator-draft.json' ? 'author-draft' : name === 'coordinator-review.json' && state.mode === 'plan' ? 'author-review' : null;
   if (state.author_model && authoredStage) required(state.stages[authoredStage]?.status === 'succeeded' && state.seals[name], `Complete ${authoredStage} through the selected planner before submitting ${name}`);
-  const report = validateReport(readJSON(path.join(dir, name)), prefix);
-  seal(dir, state, name);
+  const report = validateReport(JSON.parse(artifactText(dir, name, overlay)), prefix);
+  seal(dir, state, name, overlay);
   return report;
 }
-function collectReports(dir, state) {
+function collectReports(dir, state, overlay) {
   const names = ['coordinator-draft.json', 'coordinator-review.json', ...Object.values(state.stages).filter(s => s.status === 'succeeded').map(s => s.file)];
   if (state.version >= 2) names.push('security-review.json');
-  return [...new Set(names)].filter(name => fs.existsSync(path.join(dir, name))).map(name => ({ name, report: validateReport(readJSON(path.join(dir, name))) }));
+  return [...new Set(names)].filter(name => artifactExists(dir, name, overlay)).map(name => ({ name, report: validateReport(JSON.parse(artifactText(dir, name, overlay))) }));
 }
-function securityReview(dir, state) {
+function securityReview(dir, state, overlay) {
   if (state.version < 2) return null;
-  const text = readText(path.join(dir, 'security-review.json'));
+  const text = artifactText(dir, 'security-review.json', overlay);
   const report = validateReport(JSON.parse(text), 'C-S');
   required(!report.evidence_requests?.length, 'Security evidence is gathered by the coordinator; security-review.json must use an empty evidence_requests array');
   required(report.proposal_markdown.trim(), 'Security review must explain scope, risks and verification in proposal_markdown');
@@ -521,13 +535,13 @@ function planSources(dir, state) {
     ...evidenceLedger(dir, state).filter(item => item.status === 'supplied').map(item => ({ id: item.request.id, sha256: item.evidence.sha256, revision: item.evidence.source_revision })),
   ];
 }
-function planQualityInput(dir, state, document) {
-  return { planMap: document.planMap, planText: fs.existsSync(path.join(dir, 'final-plan.md')) ? readText(path.join(dir, 'final-plan.md')) : '', sources: planSources(dir, state), findings: mappedFindings(document.decisions) };
+function planQualityInput(dir, state, document, overlay) {
+  return { planMap: document.planMap, planText: artifactExists(dir, 'final-plan.md', overlay) ? artifactText(dir, 'final-plan.md', overlay) : '', sources: planSources(dir, state), findings: mappedFindings(document.decisions) };
 }
-function assuranceResult(dir, state, document) {
-  const input = planQualityInput(dir, state, document);
+function assuranceResult(dir, state, document, overlay) {
+  const input = planQualityInput(dir, state, document, overlay);
   return checkAssurance({ assurance: document.assurance, finalPlan: input.planText, decisions: document.decisions,
-    knownSources: input.sources, findings: collectReports(dir, state).flatMap(item => item.report.findings) });
+    knownSources: input.sources, findings: collectReports(dir, state, overlay).flatMap(item => item.report.findings) });
 }
 function assuranceContractChanged(before, after, oldDecisions) {
   if (JSON.stringify(before) === JSON.stringify(after)) return false;
@@ -539,14 +553,13 @@ function assuranceContractChanged(before, after, oldDecisions) {
   });
   return JSON.stringify(stripNewFindingLinks(before)) !== JSON.stringify(stripNewFindingLinks(after));
 }
-export function quality(options) {
+export function quality(options, overlay) {
   notPeer();
   const { dir, state } = loadRun(options.run);
-  const file = path.join(dir, 'decisions.json');
-  const document = decisionDocument(fs.existsSync(file) ? readText(file) : []);
-  validateDecisions(document.decisions, collectReports(dir, state), true);
-  const input = planQualityInput(dir, state, document);
-  return { run: dir, plan_quality: checkPlanQuality(input), assurance: assuranceResult(dir, state, document), available_sources: input.sources.map(({ id, sha256 }) => ({ id, sha256 })) };
+  const document = decisionDocument(artifactExists(dir, 'decisions.json', overlay) ? artifactText(dir, 'decisions.json', overlay) : []);
+  validateDecisions(document.decisions, collectReports(dir, state, overlay), true);
+  const input = planQualityInput(dir, state, document, overlay);
+  return { run: dir, plan_quality: checkPlanQuality(input), assurance: assuranceResult(dir, state, document, overlay), available_sources: input.sources.map(({ id, sha256 }) => ({ id, sha256 })) };
 }
 export function usage(options) {
   notPeer();
@@ -679,12 +692,12 @@ export function discussion(options) {
   } finally { release(); }
 }
 
-function stagePrompt(dir, state, stage) {
+function stagePrompt(dir, state, stage, overlay) {
   const snapshot = readJSON(path.join(dir, 'snapshot.json'));
   const workProfile = snapshot.project_assessment?.project_type ?? 'software';
   const author = stage.startsWith('author-');
   const baseStage = author ? stage.slice(7) : stage;
-  const host = stage === 'author-draft' ? null : hostReport(dir, state, 'coordinator-draft.json', 'C-D');
+  const host = stage === 'author-draft' ? null : hostReport(dir, state, 'coordinator-draft.json', 'C-D', overlay);
   if (host) required(host.proposal_markdown.trim(), 'Coordinator draft must contain a plan in proposal_markdown');
   // Absolute source locations remain in the local snapshot for drift checks.
   // The peer receives useful labels and one assessment, without host path metadata.
@@ -706,32 +719,32 @@ function stagePrompt(dir, state, stage) {
   const supplementary = evidenceForStage(evidenceLedger(dir, state), stage);
   if (supplementary.length) packet.supplementary_evidence = supplementary;
   if (baseStage !== 'draft') {
-    if (!author) hostReport(dir, state, 'coordinator-review.json', 'C-R');
+    if (!author) hostReport(dir, state, 'coordinator-review.json', 'C-R', overlay);
     packet.coordinator_proposal = host;
     if (state.mode === 'plan') packet.peer_proposal = readJSON(path.join(dir, 'peer-draft.json'));
   }
   let reviewedHashes = null, securityText = null, decisionText = null;
   if (stage === 'verify' || stage === 'verify-final') {
-    packet.coordinator_review = readJSON(path.join(dir, 'coordinator-review.json'));
+    packet.coordinator_review = JSON.parse(artifactText(dir, 'coordinator-review.json', overlay));
     packet.peer_review = readJSON(path.join(dir, 'peer-review.json'));
-    packet.final_plan = readText(path.join(dir, 'final-plan.md'));
+    packet.final_plan = artifactText(dir, 'final-plan.md', overlay);
     required(packet.final_plan.trim(), 'Final plan cannot be empty');
-    decisionText = readText(path.join(dir, 'decisions.json'));
+    decisionText = artifactText(dir, 'decisions.json', overlay);
     const document = decisionDocument(decisionText);
     packet.decisions = document.decisions;
     reviewedHashes = { 'final-plan.md': sha(packet.final_plan), 'decisions.json': sha(decisionText) };
-    const security = securityReview(dir, state);
+    const security = securityReview(dir, state, overlay);
     if (security) {
       securityText = security.text;
       packet.security_review = security.report;
       reviewedHashes['security-review.json'] = sha(security.text);
     }
-    validateDecisions(packet.decisions, collectReports(dir, state), true);
-    const qualityInput = planQualityInput(dir, state, document);
+    validateDecisions(packet.decisions, collectReports(dir, state, overlay), true);
+    const qualityInput = planQualityInput(dir, state, document, overlay);
     required(state.purpose !== 'qa' || document.assurance !== undefined, 'QA verification requires the assurance contract in decisions.json; record proposed, observed and blocked checks accurately');
     if (document.assurance !== undefined) {
       packet.assurance = document.assurance;
-      packet.assurance_check = assuranceResult(dir, state, document);
+      packet.assurance_check = assuranceResult(dir, state, document, overlay);
       required(packet.assurance_check.status !== 'invalid', 'Invalid assurance contract; run quality and reconcile the plan, decisions and supplied evidence before verification');
     }
     if (document.wrapped) {
@@ -836,11 +849,12 @@ function validateStage(dir, state, stage) {
 }
 
 /** Describe the current outbound packet without persisting seals or calling a CLI. */
-export function preview(options) {
+export function preview(options, overlay) {
   notPeer();
   required(options.checks === undefined || typeof options.checks === 'boolean', '--checks must be a boolean');
   required(!options.checks || ['verify', 'verify-final'].includes(options.stage), '--checks is for verification previews only');
-  const checks = options.checks ? quality({ run: options.run }) : null;
+  if (!overlay) assertNoPendingCheckpoint(fs.realpathSync(path.resolve(options.run)));
+  const checks = options.checks ? quality({ run: options.run }, overlay) : null;
   if (checks && (checks.plan_quality.status === 'invalid' || checks.assurance.status === 'invalid')) {
     return { stage: options.stage, blocked: true, checks,
       note: 'Repair the reported structural or assurance issues and repeat this preview before asking the verifier. No worker was launched.' };
@@ -849,7 +863,7 @@ export function preview(options) {
   const state = structuredClone(loaded.state);
   const stage = options.stage;
   const worker = validateStage(loaded.dir, state, stage);
-  const { packet, prompt, projection } = stagePrompt(loaded.dir, state, stage);
+  const { packet, prompt, projection } = stagePrompt(loaded.dir, state, stage, overlay);
   if (stage === 'verify-final') required(revisionBoundary(loaded.dir, state).needs_review, 'No revised plan, security, prior decisions or new supplied evidence require another review');
   required(Buffer.byteLength(prompt) <= LIMIT, 'Peer prompt exceeds 1 MiB; reduce the source context');
   checkSecrets(prompt);
@@ -1210,6 +1224,227 @@ export function planArtifact(options) {
   } finally { release(); }
 }
 
+function checkpointFile(dir, name) {
+  const file = path.join(dir, name);
+  let stat;
+  try { stat = fs.lstatSync(file); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  required(stat.isFile() && !stat.isSymbolicLink() && stat.size <= LIMIT, 'Checkpoint artifacts must be bounded regular files');
+  const bytes = fs.readFileSync(file);
+  required(!bytes.includes(0), 'Binary checkpoint artifacts are unsupported');
+  return { text: new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), sha256: sha(bytes), bytes: bytes.length };
+}
+const checkpointJSON = value => JSON.stringify(value, null, 2) + '\n';
+const checkpointObject = value => value && typeof value === 'object' && !Array.isArray(value);
+const checkpointKeys = (value, allowed, label) => required(checkpointObject(value) && Object.keys(value).every(key => allowed.includes(key)), `Invalid ${label} fields`);
+function checkpointRecord(file, limit) {
+  let stat;
+  try { stat = fs.lstatSync(file); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  required(stat.isFile() && !stat.isSymbolicLink() && stat.size <= limit, 'Checkpoint recovery record must be a bounded regular file');
+  // Internal journals can contain several individually bounded artifacts. Keep
+  // their larger limit local; public packet parsing retains its 1 MiB cap.
+  const text = readText(file, limit);
+  required(Buffer.byteLength(text) <= limit, 'Checkpoint recovery record exceeds its byte limit');
+  const saved = JSON.parse(text);
+  required(checkpointObject(saved), 'Invalid checkpoint recovery record');
+  const values = [{ value: saved, depth: 0 }];
+  for (let index = 0; index < values.length; index++) {
+    const { value, depth } = values[index];
+    required(depth <= 8 && values.length <= 256, 'Checkpoint recovery record exceeds its structure limit');
+    if (value && typeof value === 'object') {
+      const children = Object.values(value);
+      required(values.length + children.length <= 256, 'Checkpoint recovery record exceeds its value limit');
+      values.push(...children.map(value => ({ value, depth: depth + 1 })));
+    }
+  }
+  const { sha256, ...body } = saved;
+  required(sha(JSON.stringify(body)) === sha256, 'Checkpoint recovery checksum changed; preserve it and all artifacts');
+  return { body, sha256: sha(text) };
+}
+
+/** Submit only authored host artifacts, then inspect the unchanged worker stage. */
+export function checkpoint(options) {
+  notPeer();
+  required(['review', 'verify'].includes(options.stage), 'checkpoint requires --stage review or verify');
+  const encoded = typeof options.packet === 'string' ? readText(options.packet) : JSON.stringify(options.packet);
+  const packet = parseBoundedJSON(encoded, { maxBytes: LIMIT });
+  checkpointKeys(packet, ['version', 'base', 'reports', 'decisions', 'plan'], 'checkpoint packet');
+  required(packet.version === 1 && checkpointObject(packet.base), 'Checkpoint packet requires version 1 and base hashes');
+  if (packet.reports !== undefined) checkpointKeys(packet.reports, options.stage === 'review' ? ['draft', 'review'] : ['security'], 'checkpoint reports');
+  required(options.stage === 'verify' || packet.decisions === undefined && packet.plan === undefined, 'Review checkpoints accept only draft and review reports');
+  if (packet.plan !== undefined) {
+    checkpointKeys(packet.plan, ['source', 'source_sha256', 'edits'], 'checkpoint plan');
+    required(['draft', 'final'].includes(packet.plan.source), 'Checkpoint plan source must be draft or final');
+  }
+  const names = { draft: 'coordinator-draft.json', review: 'coordinator-review.json', security: 'security-review.json' };
+  const prefixes = { draft: 'C-D', review: 'C-R', security: 'C-S' };
+  const targets = [...Object.keys(packet.reports ?? {}).map(key => names[key]),
+    ...(packet.decisions !== undefined ? ['decisions.json'] : []), ...(packet.plan !== undefined ? ['final-plan.md'] : [])];
+  required(Object.keys(packet.base).sort().join(',') === [...targets].sort().join(','), 'Base hashes must cover exactly the checkpoint artifacts being written');
+  for (const value of Object.values(packet.base)) required(value === null || typeof value === 'string' && /^[a-f0-9]{64}$/.test(value), 'Checkpoint base hashes must be lowercase SHA-256 or null for a new file');
+  const packetHash = sha(JSON.stringify(packet));
+  const { dir } = loadRun(options.run);
+  const release = lock(dir, { checkpoint: true });
+  try {
+    const { state } = loadRun(options.run);
+    const snapshot = readJSON(path.join(dir, 'snapshot.json'));
+    required(state.mode === 'review' && !state.author_model && (state.purpose ?? 'planning') === 'planning'
+      && (state.context_profile ?? 'full') === 'full' && snapshot.project_assessment?.project_type === 'software',
+    'Checkpoint supports only full-context, host-author software planning in review mode; preserve other routes');
+    assertWorkersStopped(state);
+    required(!state.attempts.some(attempt => attempt.status === 'running'), 'Resolve the recorded running attempt before a checkpoint');
+    validateStage(dir, structuredClone(state), options.stage);
+    const pendingFile = path.join(dir, CHECKPOINT_PENDING);
+    const lastFile = path.join(dir, CHECKPOINT_LAST);
+    const pendingRecord = checkpointRecord(pendingFile, 4 * LIMIT);
+    const lastRecord = checkpointRecord(lastFile, LIMIT);
+    let journal = pendingRecord?.body ?? null;
+    const resuming = Boolean(journal);
+    let pendingHash = pendingRecord?.sha256 ?? null;
+    const stateHash = sha(JSON.stringify(state));
+    const last = lastRecord?.body;
+    if (!journal && last?.packet_sha256 === packetHash) {
+      checkpointKeys(last, ['version', 'run_id', 'stage', 'packet_sha256', 'state_sha256', 'sources', 'artifacts'], 'completed checkpoint');
+      required(last.version === 1 && last.run_id === state.id && last.stage === options.stage && last.state_sha256 === stateHash,
+        'Completed checkpoint retry requires its unchanged run state and stage');
+      required(Array.isArray(last.artifacts) && last.artifacts.length === targets.length
+        && last.artifacts.map(file => file.name).sort().join(',') === [...targets].sort().join(',')
+        && Array.isArray(last.sources) && last.sources.length <= 1, 'Invalid completed checkpoint artifact set');
+      const artifacts = last.artifacts.map(file => {
+        checkpointKeys(file, ['name', 'bytes', 'sha256', 'changed'], 'completed checkpoint artifact');
+        const current = checkpointFile(dir, file.name);
+        required(current?.sha256 === file.sha256 && current.bytes === file.bytes && typeof file.changed === 'boolean',
+          `Completed checkpoint artifact changed: ${file.name}; preserve current bytes`);
+        return { ...file, path: path.join(dir, file.name) };
+      });
+      for (const source of last.sources) {
+        checkpointKeys(source, ['name', 'sha256'], 'completed checkpoint source');
+        required(['coordinator-draft.json', 'final-plan.md'].includes(source.name)
+          && checkpointFile(dir, source.name)?.sha256 === source.sha256, 'Completed checkpoint source changed; preserve current bytes');
+      }
+      const inspected = preview({ run: dir, stage: options.stage, ...(options.stage === 'verify' ? { checks: true } : {}) });
+      required(sha(JSON.stringify(loadRun(options.run).state)) === stateHash
+        && artifacts.every(file => checkpointFile(dir, file.name)?.sha256 === file.sha256)
+        && last.sources.every(source => checkpointFile(dir, source.name)?.sha256 === source.sha256),
+      'Completed checkpoint changed while checking the retry; preserve current bytes');
+      return { run: dir, stage: options.stage, applied: true, replayed: true, artifacts, preview: inspected,
+        note: 'The last identical checkpoint is already published. Current hashes and stage checks were repeated; no artifacts, workers or attempts were changed.' };
+    }
+    let overlay = Object.create(null);
+    if (journal) {
+      checkpointKeys(journal, ['version', 'run_id', 'stage', 'packet_sha256', 'state_sha256', 'sources', 'files'], 'pending checkpoint');
+      required(journal.version === 1 && journal.run_id === state.id && journal.stage === options.stage
+        && journal.packet_sha256 === packetHash && journal.state_sha256 === stateHash,
+      'Retry an incomplete checkpoint only with its exact original packet and unchanged run state');
+      required(Array.isArray(journal.files) && journal.files.length === targets.length
+        && journal.files.map(file => file.name).sort().join(',') === [...targets].sort().join(',')
+        && Array.isArray(journal.sources) && journal.sources.length <= 1, 'Invalid pending checkpoint artifact set');
+      for (const file of journal.files) {
+        checkpointKeys(file, ['name', 'before_sha256', 'sha256', 'text'], 'pending checkpoint artifact');
+        required(file.before_sha256 === packet.base[file.name] && typeof file.text === 'string'
+          && Buffer.byteLength(file.text) <= LIMIT && sha(file.text) === file.sha256, 'Pending checkpoint artifact changed');
+        overlay[file.name] = file.text;
+      }
+    } else {
+      for (const name of targets) required((checkpointFile(dir, name)?.sha256 ?? null) === packet.base[name], `Stale checkpoint base for ${name}; inspect current bytes before submitting`);
+      for (const [key, report] of Object.entries(packet.reports ?? {})) overlay[names[key]] = checkpointJSON(validateReport(report, prefixes[key]));
+      const sources = [];
+      if (packet.plan) {
+        const name = packet.plan.source === 'draft' ? 'coordinator-draft.json' : 'final-plan.md';
+        const source = checkpointFile(dir, name);
+        required(source, 'Checkpoint plan source is missing');
+        if (packet.plan.source === 'draft') validateReport(JSON.parse(source.text.replace(/^\uFEFF/, '')), 'C-D');
+        const rendered = renderPlanArtifact({ sourceText: source.text, sourceKind: packet.plan.source === 'draft' ? 'report' : 'markdown',
+          sourceSha256: packet.plan.source_sha256, edits: packet.plan.edits });
+        overlay['final-plan.md'] = rendered.text;
+        sources.push({ name, sha256: source.sha256 });
+      }
+      if (packet.decisions !== undefined) {
+        const previous = checkpointFile(dir, 'decisions.json');
+        const document = decisionDocument(previous?.text ?? []);
+        const reports = collectReports(dir, state, overlay);
+        validateDecisions(document.decisions, reports, false);
+        validateDecisions(packet.decisions, reports, false);
+        const updates = new Map(packet.decisions.map(item => [item.finding_id, item]));
+        const known = new Set(document.decisions.map(item => item.finding_id));
+        const decisions = [...document.decisions.map(item => updates.get(item.finding_id) ?? item), ...packet.decisions.filter(item => !known.has(item.finding_id))];
+        overlay['decisions.json'] = checkpointJSON(document.wrapped ? { decisions,
+          ...(document.planMap !== undefined ? { plan_map: document.planMap } : {}), ...(document.assurance !== undefined ? { assurance: document.assurance } : {}) } : decisions);
+      }
+      journal = { version: 1, run_id: state.id, stage: options.stage, packet_sha256: packetHash, state_sha256: stateHash, sources,
+        files: targets.map(name => ({ name, before_sha256: packet.base[name], sha256: sha(overlay[name]), text: overlay[name] })) };
+    }
+    for (const file of journal.files) {
+      required(Buffer.byteLength(file.text) <= LIMIT && !file.text.includes('\0'), 'Checkpoint artifact exceeds its text limit');
+      checkSecrets(file.text);
+      if (state.seals[file.name]) required(state.seals[file.name] === sha(file.text.replace(/^\uFEFF/, '')), `Sealed checkpoint artifact changed: ${file.name}`);
+    }
+    const checkCurrent = () => {
+      if (pendingHash) {
+        const stat = fs.lstatSync(pendingFile);
+        required(stat.isFile() && !stat.isSymbolicLink() && sha(readText(pendingFile, 4 * LIMIT)) === pendingHash, 'Pending checkpoint changed during publication; preserve all artifacts');
+      }
+      required(sha(JSON.stringify(loadRun(options.run).state)) === journal.state_sha256, 'Run state changed during checkpoint; preserve pending artifacts');
+      for (const file of journal.files) {
+        const hash = checkpointFile(dir, file.name)?.sha256 ?? null;
+        required(hash === file.before_sha256 || hash === file.sha256, `Checkpoint artifact changed outside this operation: ${file.name}`);
+      }
+      for (const source of journal.sources) {
+        checkpointKeys(source, ['name', 'sha256'], 'pending checkpoint source');
+        required(['coordinator-draft.json', 'final-plan.md'].includes(source.name), 'Invalid pending checkpoint source');
+        const hash = checkpointFile(dir, source.name)?.sha256;
+        const written = journal.files.find(file => file.name === source.name);
+        required(hash === source.sha256 || written && hash === written.sha256, 'Checkpoint plan source changed during publication');
+      }
+    };
+    checkCurrent();
+    // Preview the complete candidate in memory before any canonical write. The
+    // same packet builder and quality checks are used for ordinary worker calls.
+    const inspected = preview({ run: dir, stage: options.stage, ...(options.stage === 'verify' ? { checks: true } : {}) }, overlay);
+    if (inspected.blocked) return { run: dir, stage: options.stage, applied: false, artifacts: [], preview: inspected };
+    if (!targets.length) return { run: dir, stage: options.stage, applied: false, artifacts: [], preview: inspected };
+    checkCurrent();
+    if (!resuming) {
+      const pendingText = checkpointJSON({ ...journal, sha256: sha(JSON.stringify(journal)) });
+      required(Buffer.byteLength(pendingText) <= 4 * LIMIT, 'Checkpoint recovery journal exceeds its byte limit; submit smaller explicit updates');
+      publishNewPlan(pendingFile, pendingText);
+      pendingHash = sha(pendingText);
+    }
+    // This is a sequence of individually atomic file publications, not an OS
+    // transaction with external editors. An interrupted sequence blocks other
+    // C2C mutations and resumes only this exact packet without reapplying edits.
+    for (const file of journal.files) {
+      checkCurrent();
+      const current = checkpointFile(dir, file.name);
+      if (current?.sha256 === file.sha256) continue;
+      if (current) write(path.join(dir, file.name), file.text);
+      else publishNewPlan(path.join(dir, file.name), file.text);
+    }
+    checkCurrent();
+    const artifacts = journal.files.map(file => {
+      const saved = checkpointFile(dir, file.name);
+      required(saved?.sha256 === file.sha256, 'Checkpoint publication is incomplete; retry the original packet');
+      return { name: file.name, path: path.join(dir, file.name), bytes: saved.bytes, sha256: saved.sha256, changed: file.before_sha256 !== file.sha256 };
+    });
+    // Keep only the latest completed receipt, durably before clearing pending.
+    // A lost response can then be replayed without reapplying literal edits.
+    const receipt = { version: 1, run_id: state.id, stage: options.stage, packet_sha256: packetHash, state_sha256: stateHash,
+      sources: journal.sources.map(source => ({ name: source.name, sha256: checkpointFile(dir, source.name)?.sha256 })),
+      artifacts: artifacts.map(({ path: ignored, ...file }) => file) };
+    const receiptText = checkpointJSON({ ...receipt, sha256: sha(JSON.stringify(receipt)) });
+    checkCurrent();
+    required((checkpointRecord(lastFile, LIMIT)?.sha256 ?? null) === (lastRecord?.sha256 ?? null), 'Completed checkpoint receipt changed during publication; preserve pending artifacts');
+    if (lastRecord) write(lastFile, receiptText);
+    else publishNewPlan(lastFile, receiptText);
+    checkCurrent();
+    required(artifacts.every(file => checkpointFile(dir, file.name)?.sha256 === file.sha256), 'Checkpoint changed before completion; preserve pending artifacts');
+    fs.unlinkSync(pendingFile);
+    return { run: dir, stage: options.stage, applied: true, artifacts, preview: inspected,
+      note: 'Only explicit host artifacts were submitted. No worker call or attempt reservation occurred; inspect this complete preview before ask. File publications are recoverable, not an all-files atomic transaction.' };
+  } finally { release(); }
+}
+
 // Compare existing adjudications semantically: appending dispositions for new
 // verifier findings is expected, while reversing an earlier decision needs review.
 function revisionBoundary(dir, state) {
@@ -1352,7 +1587,7 @@ function parseArgs(argv) {
   const [rawCommand = 'help', ...args] = argv;
   const command = rawCommand === '--version' ? 'version' : rawCommand === '--help' ? 'help' : rawCommand;
   const options = {};
-  const allowed = { plan: ['run', 'source', 'source-sha256', 'edits', 'out'], guide: ['run', 'topic', 'topics', 'section', 'domain', 'offset', 'limit'], quality: ['run'], usage: ['run'], evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['spending', 'purpose', 'context-profile', 'project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'peer-effort', 'author-effort', 'budget-profile', 'timeout-policy', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage', 'allowance-evidence'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
+  const allowed = { checkpoint: ['run', 'stage', 'packet'], plan: ['run', 'source', 'source-sha256', 'edits', 'out'], guide: ['run', 'topic', 'topics', 'section', 'domain', 'offset', 'limit'], quality: ['run'], usage: ['run'], evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['spending', 'purpose', 'context-profile', 'project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'peer-effort', 'author-effort', 'budget-profile', 'timeout-policy', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage', 'allowance-evidence'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
   required(Object.hasOwn(allowed, command), `Unknown command: ${command}`);
   let compact = false;
   for (let i = 0; i < args.length; i++) {
@@ -1376,7 +1611,7 @@ function parseArgs(argv) {
   }
   return { command, options, compact };
 }
-const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  guide (--topic TOPIC | --topics TOPIC,TOPIC | --section REFERENCE#ANCHOR) [--run DIR]\n        [--domain software|content|mixed|non_software] [--index] [--offset N --limit N]\n  plan --run DIR --source draft|final --source-sha256 HASH [--edits FILE] [--out FILE]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--purpose planning|qa] [--spending subscription|included-only] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--checks]\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--allowance-evidence FILE]\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT] [--receipt]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  checkpoint --run DIR --stage review|verify --packet FILE\n  guide (--topic TOPIC | --topics TOPIC,TOPIC | --section REFERENCE#ANCHOR) [--run DIR]\n        [--domain software|content|mixed|non_software] [--index] [--offset N --limit N]\n  plan --run DIR --source draft|final --source-sha256 HASH [--edits FILE] [--out FILE]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--purpose planning|qa] [--spending subscription|included-only] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--checks]\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--allowance-evidence FILE]\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT] [--receipt]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
 function isMainModule() {
   try { return process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); }
@@ -1389,7 +1624,7 @@ if (isMainModule()) {
     if (argv[0] !== 'prepare' && argv.includes('--run') && routeRunCommand(argv, fileURLToPath(import.meta.url))) { /* Pinned runner owns stdout and status. */ }
     else {
       const { command, options, compact } = parseArgs(argv);
-      const handlers = { plan: planArtifact, guide, quality, usage, evidence, prepare, preview, ask, status, progress, extend, finish, doctor, discussion, decisions: syncDecisions, 'recover-lock': recoverLock };
+      const handlers = { checkpoint, plan: planArtifact, guide, quality, usage, evidence, prepare, preview, ask, status, progress, extend, finish, doctor, discussion, decisions: syncDecisions, 'recover-lock': recoverLock };
       if (command === 'prepare' && routePrepareCommand(argv, PACKAGE_ROOT, PACKAGE_RUNTIME, options.out)) { /* Prepare from the immutable bundle. */ }
       else if (command === 'help') process.stdout.write(HELP);
       else if (command === 'version') process.stdout.write(JSON.stringify({ name: 'C2C', version: PACKAGE_VERSION, run_format: VERSION }) + '\n');

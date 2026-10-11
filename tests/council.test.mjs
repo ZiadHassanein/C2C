@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, preview, ask, finish, status, progress, planArtifact, extend, discussion, evidence, syncDecisions, quality, usage, guide, validateReport, parsePeerResponse, doctor,
+  prepare, preview, ask, finish, status, progress, planArtifact, checkpoint, extend, discussion, evidence, syncDecisions, quality, usage, guide, validateReport, parsePeerResponse, doctor,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -140,6 +140,238 @@ async function readyForVerify(label, options = {}) {
 }
 
 const planArtifactHash = value => createHash('sha256').update(value).digest('hex');
+
+test('host checkpoint publishes explicit review reports and returns the exact ordinary independent-review preview', async () => {
+  const f = await fixture('checkpoint-review', { mode: 'review' });
+  const packet = { version: 1, base: { 'coordinator-draft.json': null, 'coordinator-review.json': null },
+    reports: { draft: report(['C-D1'], 'Explicit complete candidate'), review: report(['C-R1'], 'Independent host challenge') } };
+  const before = await read(path.join(f.out, 'run.json'));
+  const result = checkpoint({ run: f.out, stage: 'review', packet });
+  assert.equal(result.applied, true);
+  assert.deepEqual(result.preview, preview({ run: f.out, stage: 'review' }));
+  assert.deepEqual(result.preview.artifacts, ['coordinator-draft.json']);
+  for (const artifact of result.artifacts) {
+    const bytes = await fs.readFile(artifact.path);
+    assert.equal(artifact.sha256, planArtifactHash(bytes));
+    assert.equal(artifact.bytes, bytes.length);
+  }
+  assert.deepEqual(await read(path.join(f.out, 'coordinator-draft.json')), packet.reports.draft);
+  assert.deepEqual(await read(path.join(f.out, 'coordinator-review.json')), packet.reports.review);
+  assert.deepEqual(await read(path.join(f.out, 'run.json')), before);
+  await ask({ run: f.out, stage: 'review' }, async request => {
+    assert.equal(planArtifactHash(request.prompt), result.preview.prompt.sha256);
+    const sent = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    assert.equal(sent.coordinator_review, undefined);
+    assert.equal(sent.security_review, undefined);
+    return invocation()(request);
+  });
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, 1);
+});
+
+test('host checkpoint combines direct draft edits, explicit decisions and security with unchanged full verification', async () => {
+  const f = await fixture('checkpoint-verify', { mode: 'review' });
+  const proposal = '# Final plan\nImplement escaping and deterministic ordering.\n';
+  await write(path.join(f.out, 'coordinator-draft.json'), { ...report(['C-D1']), proposal_markdown: proposal });
+  await hostReview(f, ['C-R1']);
+  await ask({ run: f.out, stage: 'review' }, invocation(report(['P-R1'])));
+  const prior = ['C-D1', 'C-R1', 'P-R1'].map(finding_id => ({ finding_id, disposition: finding_id === 'C-R1' ? 'accepted' : 'unresolved', rationale: 'Explicit prior coordinator rationale for the synthetic finding.' }));
+  const document = mappedPlan(prior);
+  await write(path.join(f.out, 'decisions.json'), document);
+  const decisionBytes = await fs.readFile(path.join(f.out, 'decisions.json'));
+  const draftBytes = await fs.readFile(path.join(f.out, 'coordinator-draft.json'));
+  const before = await read(path.join(f.out, 'run.json'));
+  const packet = { version: 1, base: { 'security-review.json': null, 'decisions.json': planArtifactHash(decisionBytes), 'final-plan.md': null },
+    reports: { security: report([], 'Explicit applicability assessment; proposed checks remain proposed.') },
+    decisions: ['C-D1', 'P-R1'].map(finding_id => ({ finding_id, disposition: 'accepted', rationale: 'The operative plan and acceptance checks address this synthetic concern.' })),
+    plan: { source: 'draft', source_sha256: planArtifactHash(draftBytes), edits: [{ old: '# Final plan', new: '# Revised plan' }] } };
+  const result = checkpoint({ run: f.out, stage: 'verify', packet });
+  assert.equal(result.applied, true);
+  assert.deepEqual(result.preview, preview({ run: f.out, stage: 'verify', checks: true }));
+  assert.deepEqual(result.preview.checks, quality({ run: f.out }));
+  const saved = await read(path.join(f.out, 'decisions.json'));
+  assert.deepEqual(saved.plan_map, document.plan_map);
+  assert.deepEqual(saved.decisions.find(row => row.finding_id === 'C-R1'), prior[1]);
+  assert.deepEqual(saved.decisions.filter(row => row.finding_id !== 'C-R1'), packet.decisions);
+  assert.equal(await fs.readFile(path.join(f.out, 'final-plan.md'), 'utf8'), '# Revised plan\nImplement escaping and deterministic ordering.\n');
+  assert.deepEqual(await read(path.join(f.out, 'run.json')), before);
+  await ask({ run: f.out, stage: 'verify' }, async request => {
+    assert.equal(planArtifactHash(request.prompt), result.preview.prompt.sha256);
+    const sent = JSON.parse(request.prompt.split('COUNCIL_PACKET_JSON\n')[1]);
+    assert.deepEqual(sent.security_review, packet.reports.security);
+    assert.deepEqual(sent.decisions, saved.decisions);
+    assert.equal(sent.final_plan, '# Revised plan\nImplement escaping and deterministic ordering.\n');
+    return invocation()(request);
+  });
+  const completed = finish({ run: f.out, receipt: true });
+  assert.equal(completed.successful_peer_calls, 2);
+  assert.equal(completed.delivered_plan_reviewed, true);
+});
+
+test('host checkpoint rejects malformed, stale, unknown and incomplete authored updates before any file changes', async () => {
+  const f = await readyForVerify('checkpoint-reject', { mode: 'review' });
+  const decisionHash = planArtifactHash(await fs.readFile(path.join(f.out, 'decisions.json')));
+  const securityHash = planArtifactHash(await fs.readFile(path.join(f.out, 'security-review.json')));
+  const before = await runFileBytes(f.out);
+  for (const packet of [
+    { version: 1, base: {}, path: '../arbitrary.md' },
+    { version: 1, base: { 'decisions.json': '0'.repeat(64) }, decisions: [] },
+    { version: 1, base: {}, decisions: [] },
+    { version: 1, base: { 'decisions.json': decisionHash }, decisions: [{ finding_id: 'P-R99', disposition: 'accepted', rationale: 'A fabricated finding cannot be adjudicated.' }] },
+    { version: 1, base: { 'security-review.json': securityHash }, reports: { security: { ...report(), proposal_markdown: '' } } },
+    { version: 1, base: { 'security-review.json': securityHash }, reports: { security: report(['C-S1']) } },
+    { version: 1, base: { 'coordinator-draft.json': null }, reports: { draft: report() } },
+  ]) {
+    assert.throws(() => checkpoint({ run: f.out, stage: 'verify', packet }));
+    assert.deepEqual(await runFileBytes(f.out), before);
+  }
+});
+
+test('host checkpoint retains all invalid quality issues without publishing otherwise valid proposed edits', async () => {
+  const f = await readyForVerify('checkpoint-quality-block', { mode: 'review' });
+  const document = mappedPlan(await read(path.join(f.out, 'decisions.json')));
+  document.plan_map.nodes[2].requires = ['missing'];
+  await write(path.join(f.out, 'decisions.json'), document);
+  const final = await fs.readFile(path.join(f.out, 'final-plan.md'));
+  const before = await runFileBytes(f.out);
+  const result = checkpoint({ run: f.out, stage: 'verify', packet: { version: 1, base: { 'final-plan.md': planArtifactHash(final) },
+    plan: { source: 'final', source_sha256: planArtifactHash(final), edits: [{ old: '# Final plan', new: '# Proposed revision' }] } } });
+  assert.equal(result.applied, false);
+  assert.equal(result.preview.blocked, true);
+  assert.equal(result.preview.checks.plan_quality.status, 'invalid');
+  assert.deepEqual(result.preview.checks.plan_quality.issues, quality({ run: f.out }).plan_quality.issues);
+  assert.deepEqual(result.artifacts, []);
+  assert.deepEqual(await runFileBytes(f.out), before);
+});
+
+test('host checkpoint protects an interrupted publication and resumes only its original packet', async () => {
+  const f = await fixture('checkpoint-partial', { mode: 'review' });
+  // The authored report and public packet each fit 1 MiB, while escaping the
+  // report inside the internal recovery journal pushes that journal over 1 MiB.
+  const packet = { version: 1, base: { 'coordinator-draft.json': null, 'coordinator-review.json': null },
+    reports: { draft: report(), review: { ...report(), assumptions: Array.from({ length: 5 }, () => '\\'.repeat(70000)) } } };
+  const before = await read(path.join(f.out, 'run.json'));
+  const originalLink = fsSync.linkSync;
+  fsSync.linkSync = (from, to, ...args) => {
+    if (path.basename(String(to)) === 'coordinator-review.json') throw Object.assign(new Error('Synthetic interrupted second publication'), { code: 'EIO' });
+    return originalLink(from, to, ...args);
+  };
+  try { assert.throws(() => checkpoint({ run: f.out, stage: 'review', packet }), /Synthetic interrupted second publication/); }
+  finally { fsSync.linkSync = originalLink; }
+  assert.deepEqual(await read(path.join(f.out, 'coordinator-draft.json')), packet.reports.draft);
+  await assert.rejects(fs.access(path.join(f.out, 'coordinator-review.json')));
+  const pendingStat = await fs.stat(path.join(f.out, 'checkpoint.pending.json'));
+  assert.ok(pendingStat.isFile());
+  assert.ok(pendingStat.size > 1024 * 1024);
+  let called = false;
+  await assert.rejects(ask({ run: f.out, stage: 'review' }, async request => { called = true; return invocation()(request); }));
+  assert.equal(called, false);
+  assert.throws(() => preview({ run: f.out, stage: 'review' }));
+  const partial = await runFileBytes(f.out);
+  const changedPacket = structuredClone(packet);
+  changedPacket.reports.review.summary = 'A different packet cannot resume the interrupted operation.';
+  assert.throws(() => checkpoint({ run: f.out, stage: 'review', packet: changedPacket }));
+  assert.deepEqual(await runFileBytes(f.out), partial);
+  const completed = checkpoint({ run: f.out, stage: 'review', packet });
+  assert.equal(completed.applied, true);
+  assert.deepEqual(completed.preview, preview({ run: f.out, stage: 'review' }));
+  assert.deepEqual(await read(path.join(f.out, 'run.json')), before);
+  await assert.rejects(fs.access(path.join(f.out, 'checkpoint.pending.json')));
+});
+
+test('host checkpoint recovery never reapplies final-plan edits after the files were already published', async () => {
+  const f = await readyForVerify('checkpoint-final-retry', { mode: 'review' });
+  const file = path.join(f.out, 'final-plan.md');
+  const original = await fs.readFile(file);
+  const packet = { version: 1, base: { 'final-plan.md': planArtifactHash(original) }, plan: { source: 'final', source_sha256: planArtifactHash(original),
+    edits: [{ old: 'deterministic ordering.', new: 'deterministic ordering. Preserve this exact additional sentence.' }] } };
+  const originalUnlink = fsSync.unlinkSync;
+  fsSync.unlinkSync = (target, ...args) => {
+    if (path.basename(String(target)) === 'checkpoint.pending.json') throw Object.assign(new Error('Synthetic interrupted journal cleanup'), { code: 'EIO' });
+    return originalUnlink(target, ...args);
+  };
+  try { assert.throws(() => checkpoint({ run: f.out, stage: 'verify', packet })); }
+  finally { fsSync.unlinkSync = originalUnlink; }
+  const published = await fs.readFile(file);
+  assert.notDeepEqual(published, original);
+  const result = checkpoint({ run: f.out, stage: 'verify', packet });
+  assert.equal(result.applied, true);
+  assert.deepEqual(await fs.readFile(file), published);
+  assert.equal(published.toString('utf8').split('Preserve this exact additional sentence.').length, 2);
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, 1);
+  await assert.rejects(fs.access(path.join(f.out, 'checkpoint.pending.json')));
+});
+
+test('host checkpoint replays a lost success response only while exact completed bytes and stage remain current', async () => {
+  const f = await readyForVerify('checkpoint-lost-response', { mode: 'review' });
+  const file = path.join(f.out, 'final-plan.md');
+  const original = await fs.readFile(file);
+  const packet = { version: 1, base: { 'final-plan.md': planArtifactHash(original) }, plan: { source: 'final', source_sha256: planArtifactHash(original),
+    edits: [{ old: 'deterministic ordering.', new: 'deterministic ordering. Preserve one new sentence.' }] } };
+  const originalUnlink = fsSync.unlinkSync;
+  fsSync.unlinkSync = (target, ...args) => {
+    const result = originalUnlink(target, ...args);
+    if (path.basename(String(target)) === 'checkpoint.pending.json') throw Object.assign(new Error('Synthetic lost success response after journal removal'), { code: 'EIO' });
+    return result;
+  };
+  try { assert.throws(() => checkpoint({ run: f.out, stage: 'verify', packet })); }
+  finally { fsSync.unlinkSync = originalUnlink; }
+  await assert.rejects(fs.access(path.join(f.out, 'checkpoint.pending.json')));
+  assert.ok((await fs.stat(path.join(f.out, 'checkpoint.last.json'))).isFile());
+  const published = await fs.readFile(file);
+  const beforeReplay = await runFileBytes(f.out);
+  const replay = checkpoint({ run: f.out, stage: 'verify', packet });
+  assert.equal(replay.applied, true);
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.preview, preview({ run: f.out, stage: 'verify', checks: true }));
+  assert.equal(replay.artifacts[0].sha256, planArtifactHash(published));
+  assert.deepEqual(await runFileBytes(f.out), beforeReplay);
+  assert.equal(published.toString('utf8').split('Preserve one new sentence.').length, 2);
+  await write(file, published.toString('utf8') + '\nNewer independently authored text.\n');
+  const drifted = await runFileBytes(f.out);
+  assert.throws(() => checkpoint({ run: f.out, stage: 'verify', packet }));
+  assert.deepEqual(await runFileBytes(f.out), drifted);
+  await fs.writeFile(file, published);
+  await ask({ run: f.out, stage: 'verify' }, invocation());
+  const reviewed = await runFileBytes(f.out);
+  assert.throws(() => checkpoint({ run: f.out, stage: 'verify', packet }));
+  assert.deepEqual(await runFileBytes(f.out), reviewed);
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, 2);
+});
+
+test('host checkpoint refuses unsupported routes and active workers without creating artifacts', async () => {
+  for (const options of [{ mode: 'plan' }, { mode: 'review', purpose: 'qa' }, { mode: 'review', 'context-profile': 'verify-compact' }]) {
+    const f = await fixture('checkpoint-route', options);
+    const before = await runFileBytes(f.out);
+    assert.throws(() => checkpoint({ run: f.out, stage: 'review', packet: { version: 1, base: {} } }));
+    assert.deepEqual(await runFileBytes(f.out), before);
+  }
+  const f = await fixture('checkpoint-active', { mode: 'review' });
+  const state = await read(path.join(f.out, 'run.json'));
+  state.status = 'running';
+  state.attempts.push({ number: 1, stage: 'review', status: 'running', timeout_ms: 300000, worker_process: { launch_pending: true } });
+  await write(path.join(f.out, 'run.json'), state);
+  const before = await runFileBytes(f.out);
+  assert.throws(() => checkpoint({ run: f.out, stage: 'review', packet: { version: 1, base: {} } }));
+  assert.deepEqual(await runFileBytes(f.out), before);
+});
+
+test('host checkpoint CLI loads an explicit packet through the pinned runtime without worker binaries', async () => {
+  const f = await fixture('checkpoint-cli', { mode: 'review' });
+  const packetFile = path.join(f.root, 'checkpoint.json');
+  await write(packetFile, { version: 1, base: { 'coordinator-draft.json': null, 'coordinator-review.json': null }, reports: { draft: report(), review: report() } });
+  const before = await read(path.join(f.out, 'run.json'));
+  const cli = fileURLToPath(new URL('../scripts/council.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [cli, 'checkpoint', '--run', f.out, '--stage', 'review', '--packet', packetFile, '--compact'], {
+    encoding: 'utf8', windowsHide: true, timeout: 10000,
+    env: { ...process.env, COUNCIL_CODEX_BIN: path.join(f.root, 'missing-codex'), COUNCIL_CLAUDE_BIN: path.join(f.root, 'missing-claude') },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.deepEqual(receipt.preview, preview({ run: f.out, stage: 'review' }));
+  assert.equal(receipt.applied, true);
+  assert.equal(receipt.artifacts.length, 2);
+  assert.deepEqual(await read(path.join(f.out, 'run.json')), before);
+});
 
 test('plan artifact builds an exact edited proposal and export without changing the two-stage review', async () => {
   const f = await fixture('plan-artifact-review', { mode: 'review' });

@@ -1,6 +1,7 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import {
-  prepare, preview, ask, finish, status, progress, extend, discussion, evidence, syncDecisions, quality, usage, guide, validateReport, parsePeerResponse, doctor,
+  prepare, preview, ask, finish, status, progress, planArtifact, extend, discussion, evidence, syncDecisions, quality, usage, guide, validateReport, parsePeerResponse, doctor,
   buildPeerArgs, REPORT_SCHEMA, runProcess,
 } from '../scripts/council.mjs';
 import { validateAssessment, ASSESSMENT_SCHEMA } from '../scripts/assessment.mjs';
@@ -137,6 +138,324 @@ async function readyForVerify(label, options = {}) {
   await write(path.join(f.out,'decisions.json'),ids.map(finding_id=>({finding_id,disposition:'accepted',rationale:'Covered by final plan acceptance criteria.'})));
   return f;
 }
+
+const planArtifactHash = value => createHash('sha256').update(value).digest('hex');
+
+test('plan artifact builds an exact edited proposal and export without changing the two-stage review', async () => {
+  const f = await fixture('plan-artifact-review', { mode: 'review' });
+  const draftPath = path.join(f.out, 'coordinator-draft.json');
+  const proposal = '# Export plan 🧭\r\n\r\nPreserve source order.\r\nGate: proposed checks.\r\n';
+  await write(draftPath, { ...report(), proposal_markdown: proposal });
+  await hostReview(f, []);
+  await ask({ run: f.out, stage: 'review' }, invocation());
+  const draftBytes = await fs.readFile(draftPath);
+  const before = await read(path.join(f.out, 'run.json'));
+  const edits = path.join(f.root, 'edits.json');
+  await write(edits, [{ old: 'Preserve source order.', new: 'Use deterministic ordering and verify escaped fields.' }]);
+  const output = path.join(f.project, 'plan.md');
+  const receipt = planArtifact({ run: f.out, source: 'draft', 'source-sha256': planArtifactHash(draftBytes), edits, out: output });
+  const expected = Buffer.from('# Export plan 🧭\r\n\r\nUse deterministic ordering and verify escaped fields.\r\nGate: proposed checks.\r\n');
+  assert.equal(receipt.source_sha256, planArtifactHash(draftBytes));
+  assert.equal(receipt.edits_applied, 1);
+  assert.equal(receipt.changed, true);
+  assert.equal(receipt.export, output);
+  for (const item of receipt.files) {
+    assert.equal(item.sha256, planArtifactHash(expected));
+    assert.equal(item.bytes, expected.length);
+    assert.deepEqual(await fs.readFile(item.path), expected);
+  }
+  assert.deepEqual(await fs.readFile(draftPath), draftBytes);
+  assert.deepEqual(await read(path.join(f.out, 'run.json')), before);
+  await write(path.join(f.out, 'security-review.json'), report([], 'Synthetic scoped security review; checks remain proposed.'));
+  await write(path.join(f.out, 'decisions.json'), []);
+  await ask({ run: f.out, stage: 'verify' }, invocation());
+  const completed = finish({ run: f.out, receipt: true });
+  assert.equal(completed.delivered_plan_reviewed, true);
+  assert.equal(completed.successful_peer_calls, 2);
+  assert.equal(completed.attempts_used, 2);
+  assert.equal(completed.final_hashes['final-plan.md'], planArtifactHash(expected));
+  assert.deepEqual(await fs.readFile(output), await fs.readFile(completed.plan));
+});
+
+test('plan artifact rejects stale, ambiguous and partly applicable edits without writing any run bytes', async () => {
+  const f = await readyForVerify('plan-artifact-invalid-edits', { mode: 'review' });
+  const final = path.join(f.out, 'final-plan.md');
+  await write(final, '# Plan\nDuplicate anchor.\nDuplicate anchor.\nUnique line.\n');
+  const source = await fs.readFile(final);
+  const edits = path.join(f.root, 'edits.json');
+  const output = path.join(f.project, 'failed-export.md');
+  const before = await runFileBytes(f.out);
+  for (const attempt of [
+    { hash: '0'.repeat(64), edits: [] },
+    { hash: planArtifactHash(source), edits: [{ old: 'Duplicate anchor.', new: 'Changed.' }] },
+    { hash: planArtifactHash(source), edits: [{ old: 'Unique line.', new: 'Changed line.' }, { old: 'Missing anchor.', new: 'No guessed replacement.' }] },
+  ]) {
+    await write(edits, attempt.edits);
+    assert.throws(() => planArtifact({ run: f.out, source: 'final', 'source-sha256': attempt.hash, edits, out: output }));
+    assert.deepEqual(await runFileBytes(f.out), before);
+    await assert.rejects(fs.access(output));
+  }
+});
+
+test('plan artifact preserves a newer final plan written after its first source read', async () => {
+  const f = await readyForVerify('plan-artifact-source-race', { mode: 'review' });
+  const final = path.join(f.out, 'final-plan.md');
+  const source = await fs.readFile(final);
+  const newer = Buffer.from('# Newer user plan\nKeep the intervening edit exactly.\n');
+  const output = path.join(f.project, 'racing-copy.md');
+  const before = await runFileBytes(f.out);
+  const originalRead = fsSync.readFileSync;
+  let intervened = false;
+  fsSync.readFileSync = (file, ...args) => {
+    const bytes = originalRead(file, ...args);
+    if (!intervened && typeof file === 'string' && path.resolve(file) === final) {
+      fsSync.writeFileSync(final, newer);
+      intervened = true;
+    }
+    return bytes;
+  };
+  try {
+    assert.throws(() => planArtifact({ run: f.out, source: 'final', 'source-sha256': planArtifactHash(source), out: output }));
+  } finally { fsSync.readFileSync = originalRead; }
+  assert.equal(intervened, true);
+  assert.deepEqual(await fs.readFile(final), newer);
+  assert.deepEqual(await runFileBytes(f.out), { ...before, 'final-plan.md': newer.toString('base64') });
+  await assert.rejects(fs.access(output));
+});
+
+test('plan artifact preserves a user export created immediately before exclusive publication without leaking temporary files', async () => {
+  const f = await fixture('plan-artifact-export-race', { mode: 'review' });
+  await hostDraft(f);
+  const source = await fs.readFile(path.join(f.out, 'coordinator-draft.json'));
+  const proposal = Buffer.from(JSON.parse(source.toString('utf8')).proposal_markdown);
+  const output = path.join(f.project, 'racing-export.md');
+  const userBytes = Buffer.from('# Concurrent user file\nDo not overwrite this export destination.\n');
+  const before = await runFileBytes(f.out);
+  const projectFiles = await fs.readdir(f.project);
+  const originalLink = fsSync.linkSync;
+  let intervened = false;
+  fsSync.linkSync = (from, to, ...args) => {
+    if (!intervened && typeof to === 'string' && path.resolve(to) === output) {
+      fsSync.writeFileSync(output, userBytes, { flag: 'wx' });
+      intervened = true;
+    }
+    return originalLink(from, to, ...args);
+  };
+  try {
+    assert.throws(() => planArtifact({ run: f.out, source: 'draft', 'source-sha256': planArtifactHash(source), out: output }),
+      error => error.code === 'EEXIST');
+  } finally { fsSync.linkSync = originalLink; }
+  assert.equal(intervened, true);
+  assert.deepEqual(await fs.readFile(output), userBytes);
+  assert.deepEqual(await fs.readFile(path.join(f.out, 'final-plan.md')), proposal);
+  assert.deepEqual(await runFileBytes(f.out), { ...before, 'final-plan.md': proposal.toString('base64') });
+  assert.deepEqual((await fs.readdir(f.project)).sort(), [...projectFiles, path.basename(output)].sort());
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, 0);
+});
+
+test('plan artifact validates export overwrite, project, configuration and source-evidence boundaries before writing', async () => {
+  const f = await inputFixture('plan-artifact-export-boundaries');
+  const proposal = '# Preserved plan\nEvidence and exports have different roles.\n';
+  const selected = path.join(f.project, 'selected-evidence.md');
+  await write(selected, proposal);
+  prepare({ ...prepareOptions(f), mode: 'review', context: [f.context, selected] });
+  await write(path.join(f.out, 'coordinator-draft.json'), { ...report(), proposal_markdown: proposal });
+  const source = await fs.readFile(path.join(f.out, 'coordinator-draft.json'));
+  const existing = path.join(f.project, 'existing-plan.md');
+  const outside = path.join(f.root, 'outside-project.md');
+  const configuration = path.join(f.project, '.codex', 'plan.md');
+  await write(existing, '# Existing user file\nKeep these differing bytes.\n');
+  await write(outside, '# Outside the prepared project\n');
+  await fs.mkdir(path.dirname(configuration));
+  await write(configuration, '# Existing tool configuration\n');
+  const before = await runFileBytes(f.out);
+  const protectedFiles = Object.fromEntries(await Promise.all([selected, existing, outside, configuration].map(async file => [file, await fs.readFile(file)])));
+  for (const output of [existing, outside, configuration, selected]) {
+    assert.throws(() => planArtifact({ run: f.out, source: 'draft', 'source-sha256': planArtifactHash(source), out: output }));
+    assert.deepEqual(await runFileBytes(f.out), before);
+    for (const [file, bytes] of Object.entries(protectedFiles)) assert.deepEqual(await fs.readFile(file), bytes);
+    await assert.rejects(fs.access(path.join(f.out, 'final-plan.md')));
+  }
+});
+
+test('plan artifact rejects a linked export and preserves both the link and its target', async t => {
+  const f = await fixture('plan-artifact-linked-export', { mode: 'review' });
+  await hostDraft(f);
+  const source = await fs.readFile(path.join(f.out, 'coordinator-draft.json'));
+  const target = path.join(f.project, 'real-plan.md');
+  const linked = path.join(f.project, 'linked-plan.md');
+  const dangling = path.join(f.project, 'dangling-plan.md');
+  await write(target, '# Existing target\n');
+  try {
+    await fs.symlink(target, linked, 'file');
+    await fs.symlink(path.join(f.project, 'missing-target.md'), dangling, 'file');
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) { t.skip('File symlinks are unavailable in this environment.'); return; }
+    throw error;
+  }
+  const before = await runFileBytes(f.out);
+  const targetBytes = await fs.readFile(target);
+  for (const output of [linked, dangling]) {
+    const originalTarget = await fs.readlink(output);
+    assert.throws(() => planArtifact({ run: f.out, source: 'draft', 'source-sha256': planArtifactHash(source), out: output }));
+    assert.equal((await fs.lstat(output)).isSymbolicLink(), true);
+    assert.equal(await fs.readlink(output), originalTarget);
+    assert.deepEqual(await fs.readFile(target), targetBytes);
+    assert.deepEqual(await runFileBytes(f.out), before);
+  }
+});
+
+test('plan artifact never probes raw or encoded remote links and reports local missing targets', async () => {
+  const f = await fixture('plan-artifact-link-scope', { mode: 'review' });
+  const remote = ['\\\\server.invalid\\share\\file.md', '%5C%5Cserver.invalid%5Cshare%5Cfile.md', '%2F%2Fserver.invalid/share/file.md'];
+  const text = '# Plan\n' + remote.map((target, index) => `[Remote${index}](${target})`).join('\n') + '\n[Missing](missing.md)\n';
+  await write(path.join(f.out, 'coordinator-draft.json'), { ...report(), proposal_markdown: text });
+  const hash = planArtifactHash(await fs.readFile(path.join(f.out, 'coordinator-draft.json')));
+  const original = fsSync.lstatSync;
+  let remoteProbes = 0;
+  fsSync.lstatSync = (file, ...args) => {
+    if (/^[\\/]{2}/.test(String(file))) { remoteProbes++; throw new Error('Forbidden remote probe'); }
+    return original(file, ...args);
+  };
+  let receipt;
+  try { receipt = planArtifact({ run: f.out, source: 'draft', 'source-sha256': hash, out: path.join(f.project, 'plan.md') }); }
+  finally { fsSync.lstatSync = original; }
+  assert.equal(remoteProbes, 0);
+  const exported = receipt.link_checks.find(item => item.file === path.join(f.project, 'plan.md'));
+  assert.deepEqual(exported.links.filter(item => remote.includes(item.target)).map(item => item.status), remote.map(() => 'external_unchecked'));
+  assert.equal(exported.links.find(item => item.target === 'missing.md').status, 'missing');
+});
+
+test('plan artifact protects a missing selected source through a Windows casing alias', { skip: process.platform !== 'win32' }, async () => {
+  const f = await inputFixture('plan-artifact-source-alias');
+  const selected = path.join(f.project, 'Evidence.md');
+  await write(selected, 'Selected source to preserve.');
+  prepare({ ...prepareOptions(f), context: [selected], mode: 'review' });
+  await hostDraft(f);
+  const source = await fs.readFile(path.join(f.out, 'coordinator-draft.json'));
+  await fs.unlink(selected);
+  const before = await runFileBytes(f.out);
+  assert.throws(() => planArtifact({ run: f.out, source: 'draft', 'source-sha256': planArtifactHash(source), out: path.join(f.project, 'eVIDENCE.md') }), /selected source evidence/);
+  assert.deepEqual(await runFileBytes(f.out), before);
+  await assert.rejects(fs.access(selected));
+});
+
+test('plan artifact allows an exact completed-plan export while preserving sealed content and rejecting revisions', async () => {
+  const f = await readyForVerify('plan-artifact-complete', { mode: 'review' });
+  await ask({ run: f.out, stage: 'verify' }, invocation());
+  const completion = finish({ run: f.out, receipt: true });
+  const source = await fs.readFile(completion.plan);
+  const before = await runFileBytes(f.out);
+  const output = path.join(f.project, 'completed-plan.md');
+  const receipt = planArtifact({ run: f.out, source: 'final', 'source-sha256': planArtifactHash(source), out: output });
+  assert.equal(receipt.changed, false);
+  assert.equal(receipt.review_status, completion.outcome);
+  assert.deepEqual(await fs.readFile(output), source);
+  assert.deepEqual(await runFileBytes(f.out), before);
+  const edits = path.join(f.root, 'post-completion-edits.json');
+  await write(edits, [{ old: '# Final plan', new: '# Changed plan' }]);
+  const revisedOutput = path.join(f.project, 'revised-plan.md');
+  assert.throws(() => planArtifact({ run: f.out, source: 'final', 'source-sha256': planArtifactHash(source), edits, out: revisedOutput }));
+  assert.deepEqual(await runFileBytes(f.out), before);
+  assert.deepEqual(await fs.readFile(output), source);
+  await assert.rejects(fs.access(revisedOutput));
+});
+
+test('plan artifact refuses live, uncertain or unaccounted workers without reserving an attempt or changing files', async () => {
+  const owner = inspectProcess(process.pid);
+  assert.equal(owner.status, 'alive');
+  for (const worker of [{ pid: process.pid, identity: owner.identity }, { launch_pending: true }, undefined,
+    { pid: process.pid, identity: owner.identity, released: true }]) {
+    const f = await fixture('plan-artifact-active-worker', { mode: 'review' });
+    await hostDraft(f);
+    const source = await fs.readFile(path.join(f.out, 'coordinator-draft.json'));
+    const manifest = path.join(f.out, 'run.json');
+    const state = await read(manifest);
+    state.status = 'running';
+    state.attempts = [{ number: 1, stage: 'review', status: 'running', timeout_ms: 300000,
+      ...(worker === undefined ? {} : { worker_process: worker }) }];
+    await write(manifest, state);
+    const before = await runFileBytes(f.out);
+    const output = path.join(f.project, 'blocked-plan.md');
+    assert.throws(() => planArtifact({ run: f.out, source: 'draft', 'source-sha256': planArtifactHash(source), out: output }));
+    assert.deepEqual(await runFileBytes(f.out), before);
+    assert.equal((await read(manifest)).attempts.length, 1);
+    await assert.rejects(fs.access(output));
+  }
+});
+
+test('plan artifact CLI uses the pinned runtime and produces exact local output with unavailable worker binaries', async () => {
+  const f = await fixture('plan-artifact-pinned-cli', { mode: 'review' });
+  await hostDraft(f);
+  const source = await fs.readFile(path.join(f.out, 'coordinator-draft.json'));
+  const expected = Buffer.from(JSON.parse(source.toString('utf8')).proposal_markdown);
+  const before = await read(path.join(f.out, 'run.json'));
+  const output = path.join(f.project, 'cli-plan.md');
+  const cli = fileURLToPath(new URL('../scripts/council.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [cli, 'plan', '--run', f.out, '--source', 'draft', '--source-sha256', planArtifactHash(source), '--out', output, '--compact'], {
+    encoding: 'utf8', windowsHide: true, timeout: 10000,
+    env: { ...process.env, COUNCIL_CODEX_BIN: path.join(f.root, 'missing-codex'), COUNCIL_CLAUDE_BIN: path.join(f.root, 'missing-claude') },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.source_sha256, planArtifactHash(source));
+  assert.equal(receipt.edits_applied, 0);
+  assert.deepEqual(await fs.readFile(receipt.plan), expected);
+  assert.deepEqual(await fs.readFile(output), expected);
+  assert.deepEqual(await read(path.join(f.out, 'run.json')), before);
+  assert.equal(before.runtime.version, (await read(fileURLToPath(new URL('../package.json', import.meta.url)))).version);
+  assert.equal(before.attempts.length, 0);
+});
+
+test('preview checks combines the full quality result with unchanged outbound metadata and no run mutations', async () => {
+  const f = await readyForVerify('preview-checks-valid', { mode: 'review' });
+  await write(path.join(f.out, 'decisions.json'), mappedPlan(await read(path.join(f.out, 'decisions.json'))));
+  const before = await runFileBytes(f.out);
+  const checked = quality({ run: f.out });
+  const ordinary = preview({ run: f.out, stage: 'verify' });
+  const combined = preview({ run: f.out, stage: 'verify', checks: true });
+  const { checks, ...outbound } = combined;
+  assert.deepEqual(checks, checked);
+  assert.deepEqual(outbound, ordinary);
+  assert.deepEqual(preview({ run: f.out, stage: 'verify', checks: false }), ordinary);
+  assert.equal(Object.hasOwn(ordinary, 'checks'), false);
+  assert.equal(checks.plan_quality.status, 'recorded');
+  assert.deepEqual(await runFileBytes(f.out), before);
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, 1);
+});
+
+test('preview checks blocks invalid recorded structure while retaining every quality issue and all run bytes', async () => {
+  const f = await readyForVerify('preview-checks-invalid', { mode: 'review' });
+  const document = mappedPlan(await read(path.join(f.out, 'decisions.json')));
+  document.plan_map.nodes[2].requires = ['missing-required-node'];
+  await write(path.join(f.out, 'decisions.json'), document);
+  const expected = quality({ run: f.out });
+  assert.equal(expected.plan_quality.status, 'invalid');
+  assert.ok(expected.plan_quality.issues.length > 0);
+  const before = await runFileBytes(f.out);
+  const result = preview({ run: f.out, stage: 'verify', checks: true });
+  assert.equal(result.blocked, true);
+  assert.equal(result.stage, 'verify');
+  assert.deepEqual(result.checks, expected);
+  assert.equal(Object.hasOwn(result, 'prompt'), false);
+  assert.equal(Object.hasOwn(result, 'worker'), false);
+  assert.deepEqual(await runFileBytes(f.out), before);
+  assert.equal((await read(path.join(f.out, 'run.json'))).attempts.length, 1);
+});
+
+test('preview checks rejects invalid stage, nonboolean API options and duplicate CLI flags without mutation', async () => {
+  const f = await readyForVerify('preview-checks-options', { mode: 'review' });
+  const before = await runFileBytes(f.out);
+  for (const checks of ['true', 1, null]) assert.throws(() => preview({ run: f.out, stage: 'verify', checks }));
+  for (const stage of ['review', 'draft', 'author-review']) assert.throws(() => preview({ run: f.out, stage, checks: true }));
+  const cli = fileURLToPath(new URL('../scripts/council.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [cli, 'preview', '--run', f.out, '--stage', 'verify', '--checks', '--checks', '--compact'], {
+    encoding: 'utf8', windowsHide: true, timeout: 10000,
+  });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, '');
+  assert.deepEqual(await runFileBytes(f.out), before);
+});
 
 test('report validator rejects incomplete and invalid reports', () => {
   assert.doesNotThrow(()=>validateReport(report(['C-D1']),'C-D'));

@@ -26,6 +26,9 @@ node RUNNER guide --topic verify --run RUN
 node RUNNER guide --section protocol#decision-record --run RUN
 node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --context CONTEXT --coordinator HOST --mode plan --out RUN
 node RUNNER preview --run RUN --stage STAGE
+node RUNNER preview --run RUN --stage verify --checks --compact
+node RUNNER plan --run RUN --source draft --source-sha256 HASH --edits EDITS --compact
+node RUNNER plan --run RUN --source final --source-sha256 HASH --out OUTPUT --compact
 node RUNNER ask --run RUN --stage author-draft
 node RUNNER ask --run RUN --stage draft
 node RUNNER ask --run RUN --stage author-review
@@ -510,13 +513,28 @@ Each draft, review, security review, and verification report uses this complete 
 - `proposal_markdown` carries the independent plan for a draft. For review/verification it is optional supporting context; substantive corrections belong in numbered findings. Do not claim that proposed tests have already run.
 - Review and verification `proposal_markdown` may be empty. Do not duplicate findings, restate whole plans or hide additional action items there. Put concise pressure tests and actual ID-referenced replies in `summary` or findings so the discussion view shows them. Drafts still need complete nonempty proposals; security reviews still need their nonempty applicability assessment. There is no minimum report word count. Retain all material findings, assumptions, questions and limitations.
 
+## Local plan edits and exports
+
+Use the pinned runner's `plan` command when it supports it. It performs no reasoning or model calls; the coordinator remains responsible for the complete resulting plan.
+
+- `--source draft` extracts the exact `coordinator-draft.json` proposal; `--source final` uses current `final-plan.md`.
+- `--source-sha256 HASH` is mandatory and hashes the entire raw UTF-8 source file (the entire JSON for a draft), including original newlines/BOM. Use an actual saved-file hash, not a proposal-only hash or an invented value.
+- Optional `--edits FILE` reads an array of exactly `{old, new}` string pairs. Each old string must match exactly once at that step; replacements apply sequentially. Stale hashes, missing/ambiguous anchors and no-op edits fail before writes. An empty list copies exact source text. A substantial rewrite may still be authored directly; do not force it into inadequate patches.
+- The result writes `final-plan.md`. If a different final already exists, use that final as the source and its current hash. Never replace accepted revisions with an earlier draft.
+- Optional `--out FILE` creates an exact Markdown copy inside the prepared project, with an existing parent directory. Differing existing output, selected source evidence, tool/repository configuration and symlinks are rejected. Completed plans allow exact export only. An interrupted export can be repeated with the current final hash; it is not another peer call.
+- Returned file hashes verify saved-byte equality. Simple inline link checks inspect only project-local existence, without following symlinks or remote paths. Fix missing targets; inspect relevant unsupported links/anchors separately. Pending generated artifacts must exist at delivery. These checks do not certify plan semantics, sources or execution.
+
+Reuse intact source text and known edits for synthesis; inspect consequential interactions before verification. Do not print/read the entire exported copy merely to compare bytes. A full final plan, security report and finding decisions still go to the verifier. Edits after verification follow the unchanged [revision boundary](#final-revision-check); the helper never grants reviewed status or bypasses completion gates.
+
 ## Token efficiency
 
 For a bounded software feature in host-author review mode, use the [focused review contract](focused-review.md) instead of reading ordinary topics separately. Its eligibility gates and exception triggers are mandatory; never downgrade QA, content or deeper planning to qualify. `finish --run RUN --receipt` preserves all completion gates and full saved records, returning the outcome, risks, unknowns, artifact paths and scoped usage without the repeated assessment background. Inspect problems reported there; do not routinely reread intact generated records or call `usage` again.
 
 Coordinator context is part of planning usage. Combine applicable guidance topics with `guide --topics`, reuse fully read sections from the same pinned source while they remain in context, and use indexes to locate missing sections. Optional plan-map details are loaded only when used. If a host truncates output, page whole sections or read the affected section; a metadata index is not a substitute for instructions. These helpers never shorten worker evidence or reduce reviewer capability.
 
-Use deterministic local extraction/copy for unchanged proposal/final-plan text and check copied bytes or hashes. Apply accepted fixes before verification; do not copy a stale proposal over a revised plan. Avoid echoing full files just to check they exist or match. Batch independent tool work where supported, but preserve sequential worker stages and wait for active workers before mutations. Retain complete saved reports, errors, findings, limits and three linked deliverables.
+Use deterministic local extraction/copy for unchanged proposal/final-plan text and check copied bytes or hashes. The [local plan helper](#local-plan-edits-and-exports) avoids regenerating intact text even in hosts with a limited file interface. Apply accepted fixes before verification; do not copy a stale proposal over a revised plan. Avoid echoing full files just to check they exist or match. Prefer `--compact` for JSON commands: every field remains intact. Batch independent tool work where supported, but preserve sequential worker stages and wait for active workers before mutations. Retain complete saved reports, errors, findings, limits and three linked deliverables.
+
+Before verification, `preview --stage verify --checks` (also `verify-final`) runs the same `quality` checks and returns their complete results with outbound metadata. Inspect both; a blocked result requires repair. This can replace a separate `quality` call at that boundary. Plain `preview` and `quality` remain unchanged. Neither structural success nor disclosure metadata replaces semantic review or authorizes a worker call.
 
 Worker packets retain exact selected evidence, assessment, applicable full reports and actual participant roles/model IDs. Preparation validates every context argument, then keeps the first occurrence of each canonical context path. Distinct files remain separate even when their text matches; brief and assessment roles are not deduplicated against context. Repeated paths no longer consume the aggregate context allowance more than once. Existing file-count, per-file and prompt bounds remain.
 

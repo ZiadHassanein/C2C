@@ -28,6 +28,7 @@ import { checkAllowanceEvidence } from './allowance.mjs';
 import { ASSURANCE_SCHEMA, checkAssurance, parseBoundedJSON } from './assurance.mjs';
 import { renderResult } from './result.mjs';
 import { completionReceipt } from './completion-receipt.mjs';
+import { renderPlanArtifact } from './plan-artifact.mjs';
 
 const VERSION = 7;
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -837,6 +838,13 @@ function validateStage(dir, state, stage) {
 /** Describe the current outbound packet without persisting seals or calling a CLI. */
 export function preview(options) {
   notPeer();
+  required(options.checks === undefined || typeof options.checks === 'boolean', '--checks must be a boolean');
+  required(!options.checks || ['verify', 'verify-final'].includes(options.stage), '--checks is for verification previews only');
+  const checks = options.checks ? quality({ run: options.run }) : null;
+  if (checks && (checks.plan_quality.status === 'invalid' || checks.assurance.status === 'invalid')) {
+    return { stage: options.stage, blocked: true, checks,
+      note: 'Repair the reported structural or assurance issues and repeat this preview before asking the verifier. No worker was launched.' };
+  }
   const loaded = loadRun(options.run);
   const state = structuredClone(loaded.state);
   const stage = options.stage;
@@ -856,6 +864,7 @@ export function preview(options) {
   const evidenceMetadata = evidence => ({ path: evidence.path, bytes: evidence.bytes, sha256: evidence.sha256, source_revision_sha256: sha(evidence.source_revision) });
   return {
     stage, mode: state.mode, purpose: state.purpose ?? 'planning', work_profile: packet.work_profile, worker, effort: selectedEffort(state, worker.role), runtime: state.runtime ?? null,
+    ...(checks ? { checks } : {}),
     spending_policy: resolveSpendingPolicy({ preferences: readPreferences(), runPolicy: state.spending_policy }),
     inputs: packet.shared_context.inputs.map(input => ({ kind: input.kind, path: input.path, bytes: Buffer.byteLength(input.content), sha256: sha(input.content) })),
     project_assessment: Object.hasOwn(packet.shared_context, 'project_assessment'),
@@ -1060,6 +1069,147 @@ export function progress(options) {
   return { run: dir, status: state.status, peer: state.peer, provider_limit: providerLimitNotice(state), peer_progress: readPeerProgress(dir, state) };
 }
 
+function inspectPlanLinks(text, file, dir, state) {
+  // Existence checks only: do not fetch URLs or read arbitrary linked content.
+  const visible = text.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, '');
+  const links = [];
+  const seen = new Set();
+  const pattern = /!?\[[^\]\r\n]*\]\((<[^>\r\n]+>|[^\s()]+)(?:\s+"[^"]*")?\)/g;
+  for (const match of visible.matchAll(pattern)) {
+    const target = match[1].replace(/^<|>$/g, '');
+    if (seen.has(target)) continue;
+    seen.add(target);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target) && !/^[A-Za-z]:[\\/]/.test(target) || target.startsWith('//')) {
+      links.push({ target, status: 'external_unchecked' }); continue;
+    }
+    const index = target.indexOf('#');
+    const base = index < 0 ? target : target.slice(0, index);
+    let decoded;
+    try { decoded = decodeURIComponent(base); }
+    catch { links.push({ target, status: 'unparsed' }); continue; }
+    if (/^[\\/]{2}/.test(decoded)) { links.push({ target, status: 'external_unchecked' }); continue; }
+    const resolved = base ? path.resolve(path.dirname(file), decoded) : file;
+    const relative = path.relative(state.project, resolved);
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      links.push({ target, status: 'outside_project_unchecked' }); continue;
+    }
+    let cursor = state.project, found = true, linked = false;
+    for (const part of relative.split(path.sep).filter(Boolean)) {
+      cursor = path.join(cursor, part);
+      try { if (fs.lstatSync(cursor).isSymbolicLink()) { linked = true; break; } }
+      catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') { found = false; break; } throw error; }
+    }
+    if (linked) { links.push({ target, status: 'symlink_unchecked' }); continue; }
+    const expected = state.status !== 'complete' && ['DISCUSSION.md', 'RESULT.md'].some(name => resolved === path.join(dir, name));
+    links.push({ target, status: resolved === file || found
+      ? index < 0 ? 'exists' : 'anchor_unchecked'
+      : expected ? 'pending_generated_artifact' : 'missing' });
+  }
+  return { file, syntax_scope: 'simple_inline_markdown_links', links,
+    limitation: 'Project-local existence only; anchors, symlinks, reference-style or complex Markdown links and external destinations need separate inspection. Expected generated artifacts must exist at delivery.' };
+}
+
+function publishNewPlan(file, text) {
+  // Publish a flushed sibling via an exclusive hard link. A concurrent new
+  // destination is never replaced, unlike rename-based replacement.
+  const temporary = `${file}.${crypto.randomUUID()}.tmp`;
+  let descriptor;
+  try {
+    descriptor = fs.openSync(temporary, 'wx', 0o600);
+    fs.writeFileSync(descriptor, text, 'utf8');
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor); descriptor = undefined;
+    fs.linkSync(temporary, file);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+    try { fs.unlinkSync(temporary); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+}
+
+/** Apply authored literal changes and copy exact plan bytes locally. No model calls. */
+export function planArtifact(options) {
+  notPeer();
+  const { dir } = loadRun(options.run);
+  const release = lock(dir);
+  try {
+    const { state } = loadRun(options.run);
+    assertWorkersStopped(state);
+    required(!state.attempts.some(attempt => attempt.status === 'running'), 'An attempt is still recorded as running; resolve liveness before editing or exporting');
+    required(['draft', 'final'].includes(options.source), 'plan requires --source draft or final');
+    const sourceFile = path.join(dir, options.source === 'draft' ? 'coordinator-draft.json' : 'final-plan.md');
+    const canonical = path.join(dir, 'final-plan.md');
+    const regular = file => {
+      const stat = fs.lstatSync(file);
+      required(stat.isFile() && !stat.isSymbolicLink() && stat.size <= LIMIT, 'Plan sources and destinations must be bounded regular files');
+    };
+    regular(sourceFile);
+    // Preserve raw UTF-8 bytes, including a BOM, for the compare-and-swap hash.
+    const sourceBytes = fs.readFileSync(sourceFile);
+    required(!sourceBytes.includes(0), 'Binary plan sources are unsupported');
+    const sourceText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(sourceBytes);
+    if (options.source === 'draft') validateReport(JSON.parse(sourceText.replace(/^\uFEFF/, '')), 'C-D');
+    const edits = options.edits === undefined ? [] : readJSON(options.edits);
+    const rendered = renderPlanArtifact({ sourceText, sourceKind: options.source === 'draft' ? 'report' : 'markdown', sourceSha256: options['source-sha256'], edits });
+    checkSecrets(rendered.text);
+    const exists = file => { try { fs.lstatSync(file); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; } };
+    const existing = exists(canonical);
+    if (existing) regular(canonical);
+    const currentBytes = existing ? fs.readFileSync(canonical) : null;
+    if (options.source === 'final') required(currentBytes && sha(currentBytes) === rendered.source_sha256, 'Plan source changed during preparation; inspect the current bytes before editing');
+    const changed = !currentBytes || !currentBytes.equals(Buffer.from(rendered.text, 'utf8'));
+    required(state.status !== 'complete' || !changed, 'Completed plan is immutable; only an exact export is allowed');
+    required(!existing || options.source === 'final' || !changed, 'Existing final plan differs; use --source final and its current hash');
+    if (changed) required(!state.seals['final-plan.md'], 'Sealed final plan is immutable');
+
+    let output = null;
+    if (options.out !== undefined) {
+      required(typeof options.out === 'string' && options.out.trim() && path.extname(options.out).toLowerCase() === '.md', '--out must name an explicit Markdown file');
+      const requested = path.resolve(options.out);
+      const parent = fs.realpathSync(path.dirname(requested));
+      output = path.join(parent, path.basename(requested));
+      const project = fs.realpathSync(state.project);
+      const relative = path.relative(project, output);
+      required(relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative), 'Plan export must remain inside the prepared project');
+      required(!relative.split(path.sep).some(part => ['.git', '.codex', '.claude', '.agents'].includes(part.toLowerCase())), 'Plan export cannot overwrite tool or repository configuration');
+      const inRun = path.relative(dir, output);
+      required(output === canonical || inRun === '..' || inRun.startsWith(`..${path.sep}`) || path.isAbsolute(inRun), 'Only final-plan.md is a plan destination inside the run');
+      const snapshot = readJSON(path.join(dir, 'snapshot.json'));
+      const pathKey = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+      required(!snapshot.inputs.some(input => pathKey(input.path) === pathKey(output)), 'Plan export cannot overwrite selected source evidence');
+      if (exists(output)) {
+        regular(output);
+        if (output !== canonical) required(fs.readFileSync(output).equals(Buffer.from(rendered.text, 'utf8')), 'Export already exists with different bytes; choose a fresh explicit destination');
+      }
+    }
+    // Recheck observed source/destination identity just before writing. The run
+    // lock coordinates C2C operations, not external editors; this is a checked
+    // snapshot, not an OS-level transaction with unrelated writers.
+    regular(sourceFile);
+    required(sha(fs.readFileSync(sourceFile)) === rendered.source_sha256, 'Plan source changed before publication; inspect the current bytes');
+    if (existing) {
+      regular(canonical);
+      required(fs.readFileSync(canonical).equals(currentBytes), 'Final plan changed before publication; inspect the current bytes');
+    }
+    // A crash between publications leaves canonical bytes intact. New paths use
+    // exclusive publication, so a concurrently created user file is preserved.
+    if (changed) {
+      if (existing) write(canonical, rendered.text);
+      else publishNewPlan(canonical, rendered.text);
+    }
+    if (output && output !== canonical && !exists(output)) publishNewPlan(output, rendered.text);
+    const checks = [canonical, ...(output && output !== canonical ? [output] : [])].map(file => {
+      const bytes = fs.readFileSync(file);
+      required(sha(bytes) === rendered.sha256, 'Plan changed while checking delivery bytes');
+      return { path: file, bytes: bytes.length, sha256: sha(bytes) };
+    });
+    return { run: dir, source: sourceFile, source_sha256: rendered.source_sha256, plan: canonical, export: output,
+      edits_applied: rendered.edits_applied, changed, files: checks,
+      link_checks: checks.map(item => inspectPlanLinks(rendered.text, item.path, dir, state)),
+      review_status: state.status === 'complete' ? state.completion?.outcome ?? 'recorded_completion' : 'not_completed',
+      note: 'Exact-byte construction and export only. This does not adjudicate findings or replace full plan/security/decision review. Changed plans still require the existing verification boundary.' };
+  } finally { release(); }
+}
+
 // Compare existing adjudications semantically: appending dispositions for new
 // verifier findings is expected, while reversing an earlier decision needs review.
 function revisionBoundary(dir, state) {
@@ -1202,10 +1352,13 @@ function parseArgs(argv) {
   const [rawCommand = 'help', ...args] = argv;
   const command = rawCommand === '--version' ? 'version' : rawCommand === '--help' ? 'help' : rawCommand;
   const options = {};
-  const allowed = { guide: ['run', 'topic', 'topics', 'section', 'domain', 'offset', 'limit'], quality: ['run'], usage: ['run'], evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['spending', 'purpose', 'context-profile', 'project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'peer-effort', 'author-effort', 'budget-profile', 'timeout-policy', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage', 'allowance-evidence'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
+  const allowed = { plan: ['run', 'source', 'source-sha256', 'edits', 'out'], guide: ['run', 'topic', 'topics', 'section', 'domain', 'offset', 'limit'], quality: ['run'], usage: ['run'], evidence: ['run', 'request', 'status', 'file', 'label', 'reason', 'source-revision'], decisions: ['run'], doctor: [], version: [], discussion: ['run'], 'recover-lock': ['run', 'expected-sha256', 'confirm-owner-stopped'], prepare: ['spending', 'purpose', 'context-profile', 'project', 'brief', 'assessment', 'out', 'context', 'coordinator', 'mode', 'pairing', 'coordinator-model', 'author-model', 'peer-model', 'peer-effort', 'author-effort', 'budget-profile', 'timeout-policy', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts'], extend: ['run', 'idle-timeout-seconds', 'timeout-seconds', 'budget-seconds', 'max-attempts', 'reason'], preview: ['run', 'stage'], ask: ['run', 'stage', 'allowance-evidence'], status: ['run'], progress: ['run'], finish: ['run', 'unverified-reason'], help: [] };
   required(Object.hasOwn(allowed, command), `Unknown command: ${command}`);
   let compact = false;
   for (let i = 0; i < args.length; i++) {
+    if (command === 'preview' && args[i] === '--checks') {
+      required(!options.checks, 'Duplicate option: --checks'); options.checks = true; continue;
+    }
     if (command === 'finish' && args[i] === '--receipt') {
       required(!options.receipt, 'Duplicate option: --receipt'); options.receipt = true; continue;
     }
@@ -1223,7 +1376,7 @@ function parseArgs(argv) {
   }
   return { command, options, compact };
 }
-const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  guide (--topic TOPIC | --topics TOPIC,TOPIC | --section REFERENCE#ANCHOR) [--run DIR]\n        [--domain software|content|mixed|non_software] [--index] [--offset N --limit N]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--purpose planning|qa] [--spending subscription|included-only] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--allowance-evidence FILE]\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT] [--receipt]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
+const HELP = `C2C ${PACKAGE_VERSION} (Node.js 18+; native CLIs)\n\nCommands:\n  guide (--topic TOPIC | --topics TOPIC,TOPIC | --section REFERENCE#ANCHOR) [--run DIR]\n        [--domain software|content|mixed|non_software] [--index] [--offset N --limit N]\n  plan --run DIR --source draft|final --source-sha256 HASH [--edits FILE] [--out FILE]\n  quality --run DIR\n  usage --run DIR\n  version\n  doctor\n  prepare --project DIR --brief FILE --assessment FILE --coordinator codex|claude --out NEW_DIR\n          [--context FILE ...] [--purpose planning|qa] [--spending subscription|included-only] [--mode plan|review] [--context-profile full|verify-compact] [--pairing cross|same]\n          [--coordinator-model FULL_ID] [--author-model FULL_ID] [--peer-model FULL_ID]\n          [--peer-effort LEVEL] [--author-effort LEVEL]\n          [--budget-profile standard|project] [--timeout-policy activity|fixed]\n          [--idle-timeout-seconds N]\n          [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  preview --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--checks]\n  ask --run DIR --stage author-draft|author-review|draft|review|verify|verify-final [--allowance-evidence FILE]\n  status --run DIR\n  progress --run DIR\n  extend --run DIR --reason TEXT [--idle-timeout-seconds N] [--timeout-seconds N] [--budget-seconds N] [--max-attempts N]\n  discussion --run DIR\n  evidence --run DIR --request ID --status supplied|unavailable|rejected --reason TEXT\n           [--file RELATIVE_PATH] [--label RELATIVE_PATH] [--source-revision TEXT]\n  decisions --run DIR\n  finish --run DIR [--unverified-reason TEXT] [--receipt]\n  recover-lock --run DIR --expected-sha256 HASH --confirm-owner-stopped yes\n\nDefault activity policy: no fixed call or cumulative deadline while meaningful model activity continues.\nStandard: 600-second inactivity guard and 4 attempts; project: 1200-second guard and 5 attempts.\nExplicit timeout-seconds/budget-seconds remain hard caps. Optional fixed policy retains 300/900 standard or 600/2400 project time caps.\nBackground author plan mode needs 5 successful calls and defaults to 6 attempts; author review mode needs 3 calls.\nAll worker attempts and runtime share these limits. Extend records increases and preserves prior evidence.\nOptional hard-cap ceilings: 900 seconds/call, 3600 total seconds; inactivity guard: 60–3600 seconds; up to 6 attempts. These are not token or spending caps.\nThe current chat assesses project context and direction before preparing a run.\nAppend --compact for single-line JSON output with all fields preserved.\nUse preview for read-only outbound metadata before a worker launch; it does not grant permission or attest billing.\nUse progress for metadata-only polling without repeating the assessment or limit history.\nDefault pairing is cross. Same-provider pairing requires two different exact model IDs.\nWith --author-model, the selected planner runs in a background CLI and is compared with the peer model.\nWithout it, the current chat model must be declared for same-provider pairing. The host never switches models.\nEffort is pinned per worker role when explicitly supplied; --author-effort requires --author-model.\nCodex levels: none|minimal|low|medium|high|xhigh|max|ultra; Claude: low|medium|high|xhigh|max.\nResearch model/client compatibility first. Omitted effort preserves existing provider/default behavior; effective effort is unknown.\nThe host synthesizes and owns security review and decisions. Read SKILL.md for required artifacts.\nNo automatic implementation.\n`;
 
 function isMainModule() {
   try { return process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); }
@@ -1236,7 +1389,7 @@ if (isMainModule()) {
     if (argv[0] !== 'prepare' && argv.includes('--run') && routeRunCommand(argv, fileURLToPath(import.meta.url))) { /* Pinned runner owns stdout and status. */ }
     else {
       const { command, options, compact } = parseArgs(argv);
-      const handlers = { guide, quality, usage, evidence, prepare, preview, ask, status, progress, extend, finish, doctor, discussion, decisions: syncDecisions, 'recover-lock': recoverLock };
+      const handlers = { plan: planArtifact, guide, quality, usage, evidence, prepare, preview, ask, status, progress, extend, finish, doctor, discussion, decisions: syncDecisions, 'recover-lock': recoverLock };
       if (command === 'prepare' && routePrepareCommand(argv, PACKAGE_ROOT, PACKAGE_RUNTIME, options.out)) { /* Prepare from the immutable bundle. */ }
       else if (command === 'help') process.stdout.write(HELP);
       else if (command === 'version') process.stdout.write(JSON.stringify({ name: 'C2C', version: PACKAGE_VERSION, run_format: VERSION }) + '\n');

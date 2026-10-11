@@ -1,13 +1,13 @@
 <picture>
+  <source media="(prefers-color-scheme: dark) and (max-width: 800px)" srcset="docs/assets/cover-mobile-dark.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cover-dark.svg">
   <source media="(max-width: 800px)" srcset="docs/assets/cover-mobile.svg">
-  <img src="docs/assets/cover.svg" alt="C2C — They plan for you. Codex and Claude Code point into a shared plan covering scope, security, tests and a clear first step. From small features to full projects; use either tool or both." width="1120">
+  <img src="docs/assets/cover.svg" alt="C2C with Codex and Claude Code: plan scope and architecture, critique risks and tests, then revise the next steps. Either provider can lead." width="1120">
 </picture>
 
-# C2C — testing and planning with Codex and Claude Code
+# C2C — software engineering and testing
 
-**Built for developer testing and QA.** Plan software or content, run authorized checks, and turn reviewed evidence into a practical next step—with Codex, Claude Code, or both.
-
-C2C adds a repeatable planner–critic workflow: challenge missing cases, record test evidence, and incorporate accepted fixes into the revised plan.
+Plan implementation, review changes and run authorized tests with **Codex, Claude Code, or both**—from small features to full projects. A planner and critic challenge assumptions and turn findings into a revised plan. Content and mixed projects are supported too.
 
 [![Tests](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml/badge.svg)](https://github.com/ZiadHassanein/C2C/actions/workflows/test.yml)
 
@@ -22,6 +22,7 @@ Both tools already support testing and review; see the official [Codex workflow]
 
 | Work | Direct use | What C2C adds |
 |---|---|---|
+| **Software engineering** | Ask for architecture advice, implementation planning or a change review. | Checks project context, compares approaches and connects milestones to security and acceptance checks. |
 | **Testing and QA** | Ask the assistant to choose checks, run tests and inspect results. | Connects risks to checks and keeps proposed, passed, failed and blocked results distinct. The coordinator runs authorized tests; peers challenge supplied evidence. |
 | **Review** | Request another assessment or coordinate additional reviewers. | Coordinates an eligible planner and distinct critic, records disagreements and checks the revised plan. |
 | **Handoff** | Specify the plan and supporting records you need. | Delivers the revised plan, concise discussion and result, with evidence links, unresolved issues and a clear first step. |
@@ -127,8 +128,8 @@ and show me the plan before coding.
 
 | Your task | What the review emphasizes |
 |---|---|
-| **Developer QA** — a change, regression, or release decision | Authorized tests, negative cases and observed evidence; missing or failed checks remain visible. |
-| **Software** — a feature, fix, or app | Engineering choices, failure paths, security and tests. |
+| **Software engineering** — a feature, fix, architecture decision, or full project | Project context, engineering trade-offs, implementation milestones, security and acceptance tests. |
+| **Testing and QA** — a change, regression, or release decision | Authorized tests, negative cases and observed evidence; missing or failed checks remain visible. |
 | **Content** — website copy, educational material, or images | Audience, structure, factual sources, rights, accessibility and editorial acceptance checks. |
 | **Mixed** — an app and its content | Both perspectives, with dependencies and separate technical and content checks. |
 
@@ -345,13 +346,14 @@ You can ask: “Recommend an execution model for each milestone within my includ
 
 ## Features
 
-**Testing and QA, structured review, model research and saved progress.** Worker calls use your provider allowance. Keep secrets out of selected context; attempt/time limits are not spending caps. C2C does not buy credits or change billing to bypass a limit.
+**Software planning and review, testing, model research and saved progress.** Worker calls use your provider allowance. Keep secrets out of selected context; attempt/time limits are not spending caps. C2C does not buy credits or change billing to bypass a limit.
 
 <details>
 <summary>All features, privacy, usage limits and evidence boundaries</summary>
 
 | Capability | What it changes for your plan |
 |---|---|
+| **Software engineering** | Assesses the project, compares architecture and implementation approaches, and defines milestones with a clear first step. |
 | **Testing and QA** | Plans meaningful checks, reviews evidence from authorized tests, and keeps failed, skipped and blocked checks visible. [QA workflow](docs/QA.md). |
 | **Current model research** | Selects suitable planning/review workers within your limits, with recorded reasons. |
 | **Missing-evidence requests** | Lets reviewers ask for facts; scoped snapshots or explicit unavailable/rejected answers are recorded. |

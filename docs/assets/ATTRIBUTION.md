@@ -1,6 +1,6 @@
 # Logo credits
 
-The README banner reuses the provider marks shown in C2C's demonstration video. Their original path geometry and colors are preserved.
+The README banner reuses the provider marks shown in C2C's demonstration video. Their original path geometry and colors are preserved; neutral backings keep the marks legible in the dark variants. C2C's own wordmark adapts its colors to the surrounding theme.
 
 | Mark | Source |
 |---|---|

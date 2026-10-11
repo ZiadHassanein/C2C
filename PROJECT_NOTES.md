@@ -1,6 +1,6 @@
 # Project notes and continuation guide
 
-Last updated: 2026-10-10. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
+Last updated: 2026-10-11. This is the maintained project summary, not a transcript. Read it before rediscovering the design or repeating validation. Check the current source, Git state, and run manifests before relying on dated observations.
 
 ## Objective and current status
 
@@ -35,6 +35,12 @@ The user explicitly requested suitability for both small features and big-projec
 - Real CLI calls succeeded in both directions. New version 2 focused-review and project-planning cycles completed with real Claude. The focused feature has executed synthetic implementation tests; the project roadmap preserves an unresolved identity-policy finding. The older long Claude sample remains incomplete and exhausted; preserve its original evidence.
 
 ## Decisions and reasons
+
+### README: engineering scope and compact logo banner
+
+Software engineering and testing are the primary scope, with content and mixed projects still supported. This supersedes the tester-first positioning below. The shorter opening introduces the planner–critic workflow; a compact banner shows Plan → Critique → Revise without assigning fixed roles to Codex or Claude Code. Original provider mark geometry and colors are preserved. Separate mobile/desktop and light/dark SVGs retain readable labels and accessible descriptions.
+
+All four local browser previews selected the expected asset and had no horizontal overflow at 1200px/390px; independent visual review found no actionable issues. Supporting text contrast is at least 5.74:1 and arrows at least 3.66:1. Publication is limited to README, banner assets, attribution and these notes. Package/runtime content and the published version remain 2.5.0; unreleased feature claims are excluded.
 
 ### README: make testing and QA prominent
 

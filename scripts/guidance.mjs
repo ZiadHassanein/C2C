@@ -7,7 +7,7 @@ const files = Object.freeze({ protocol: 'references/protocol.md', assessment: 'r
 const topics = Object.freeze({
   start: ['assessment#gather-evidence-without-expanding-scope', 'assessment#choose-an-actionable-direction'],
   assess: ['assessment#distinguish-deployment-from-readiness', 'assessment#json-contract', 'assessment#persist-and-revisit'],
-  prepare: ['protocol#planning-depth-and-deliverables', 'protocol#choose-an-available-route', 'protocol#pairing-and-model-identity', 'models#worker-effort', 'protocol#no-paid-limit-recovery', 'protocol#commands', 'protocol#launch-preview-and-local-permissions'],
+  prepare: ['protocol#planning-depth-and-deliverables', 'protocol#choose-an-available-route', 'protocol#pairing-and-model-identity', 'models#worker-effort', 'protocol#no-paid-limit-recovery', 'protocol#preparation-command', 'protocol#launch-preview-and-local-permissions'],
   models: ['models#research-once-per-task', 'models#filter-before-choosing', 'models#assign-real-roles', 'models#worker-effort', 'models#recommend-models-for-execution'],
   exchange: ['protocol#exchange-sequence', 'protocol#file-contract', 'protocol#report-schema', 'protocol#decision-record', 'protocol#security-and-testing', 'protocol#bounded-evidence-requests'],
   verify: ['protocol#final-revision-check', 'protocol#decision-record', 'presentation#check-before-delivery'],
@@ -47,12 +47,27 @@ function sections(markdown) {
   return found;
 }
 
-export function readGuidance(root, { topic, section, domain = 'software' } = {}) {
+export function readGuidance(root, { topic, topics: requestedTopics, section, domain = 'software', offset, limit, index = false } = {}) {
   requireThat(['software', 'content', 'mixed', 'non_software'].includes(domain), 'Unknown guidance domain');
-  requireThat(Boolean(topic) !== Boolean(section), 'Choose exactly one guidance topic or section');
+  requireThat(typeof index === 'boolean', 'Guidance index must be a boolean');
+  requireThat(Number(Boolean(topic)) + Number(requestedTopics !== undefined) + Number(Boolean(section)) === 1, 'Choose exactly one guidance topic, topics list or section');
   requireThat(!topic || Object.hasOwn(topics, topic), `Unknown guidance topic: ${topic}`);
-  const selected = topic ? [...topics[topic]] : [section];
-  if (topic && ['start', 'assess'].includes(topic) && ['content', 'mixed'].includes(domain)) selected.push('assessment#content-and-mixed-work');
+  if (requestedTopics !== undefined) {
+    requireThat(Array.isArray(requestedTopics) && requestedTopics.length > 0 && requestedTopics.length <= Object.keys(topics).length, 'Expected a bounded nonempty guidance topics list');
+    requireThat(requestedTopics.every(item => typeof item === 'string' && Object.hasOwn(topics, item)), 'Unknown guidance topic in topics list');
+    requireThat(new Set(requestedTopics).size === requestedTopics.length, 'Duplicate guidance topic in topics list');
+  }
+  const selectedTopics = requestedTopics ?? (topic ? [topic] : []);
+  const selected = selectedTopics.length ? selectedTopics.flatMap(item => [
+    ...topics[item],
+    ...(['start', 'assess'].includes(item) && ['content', 'mixed'].includes(domain) ? ['assessment#content-and-mixed-work'] : []),
+  ]) : [section];
+  const paginated = offset !== undefined || limit !== undefined;
+  const start = offset === undefined ? 0 : offset, pageSize = limit === undefined ? 64 : limit;
+  if (paginated) {
+    requireThat(Number.isSafeInteger(start) && start >= 0, 'Guidance offset must be a nonnegative integer');
+    requireThat(Number.isSafeInteger(pageSize) && pageSize >= 1 && pageSize <= 64, 'Guidance limit must be an integer from 1 to 64');
+  }
   const cache = new Map(), sources = [];
   for (const reference of [...new Set(selected)]) {
     requireThat(typeof reference === 'string' && reference.length <= 160, 'Invalid guidance section');
@@ -71,8 +86,18 @@ export function readGuidance(root, { topic, section, domain = 'software' } = {})
     requireThat(item, `Missing guidance section: ${reference}`);
     sources.push({ file, anchor, sha256: source.sha256, ...item });
   }
-  return { topic: topic || null, domain, sources,
-    markdown: `# C2C guidance: ${topic || section}\n\nUse with the entry skill's universal constraints. Read linked sections only when needed.\n\n${sources.map(source => `<!-- ${source.file}#${source.anchor} -->\n${source.content}`).join('\n\n')}\n` };
+  requireThat(!paginated || start < sources.length, 'Guidance offset is outside the selected sections');
+  const page = paginated ? sources.slice(start, start + pageSize) : sources;
+  const pagination = paginated ? { offset: start, limit: pageSize, total: sources.length, returned: page.length, next_offset: start + page.length < sources.length ? start + page.length : null } : null;
+  const metadata = { topic: topic || null, ...(requestedTopics !== undefined ? { topics: [...requestedTopics] } : {}), domain };
+  if (index) return { ...metadata, index: true,
+    sources: page.map(({ file, anchor, sha256, heading, content }) => ({ reference: `${Object.keys(files).find(key => files[key] === file)}#${anchor}`, file, anchor, sha256, heading, bytes: Buffer.byteLength(content) })),
+    ...(pagination ? { pagination } : {}),
+    note: 'Index only: no guidance bodies were returned. Read the required complete sections; an index is not evidence that their instructions were read.' };
+  const continuation = pagination ? `Guidance sections ${start + 1}–${start + page.length} of ${sources.length}. ${pagination.next_offset === null ? 'No further sections follow this page.' : `Continue with offset ${pagination.next_offset} and the same selection/domain; unread sections still apply.`}\n\n` : '';
+  return { ...metadata, sources: page,
+    ...(pagination ? { pagination } : {}),
+    markdown: `# C2C guidance: ${topic || requestedTopics?.join(', ') || section}\n\nUse with the entry skill's universal constraints. Read linked sections only when needed.\n\n${continuation}${page.map(source => `<!-- ${source.file}#${source.anchor} -->\n${source.content}`).join('\n\n')}\n` };
 }
 
 export const GUIDANCE_TOPICS = Object.freeze(Object.keys(topics));

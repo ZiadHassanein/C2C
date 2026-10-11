@@ -45,7 +45,9 @@ node RUNNER finish --run RUN
 
 Replace `HOST` with `codex` when starting in Codex or `claude` when starting in Claude Code. The initiating chat coordinates; neither provider is the permanent lead. Append `--compact` to routine commands to receive single-line JSON with every field preserved. This changes only console formatting; saved artifacts remain readable. `ask` already returns the complete validated report: use that result and open the report file only if it was unavailable or truncated.
 
-`guide` reads applicable local reference sections without a model call. Choose one `--topic` (`start`, `assess`, `prepare`, `models`, `exchange`, `verify`, `same`, `recover`, `fallback`, `present`, `qa`, or `update`) or one `--section` such as `protocol#decision-record`. Use `--domain content` or `--domain mixed` for their assessment guidance; the default is `software`. With `--run RUN`, use the run's pinned instructions. Reuse sections already read; the entry skill's universal constraints still apply.
+`guide` reads applicable local reference sections without a model call. Choose one `--topic` (`start`, `assess`, `prepare`, `models`, `exchange`, `verify`, `same`, `recover`, `fallback`, `present`, `qa`, or `update`), `--topics start,assess` for an ordered deduplicated union, or one `--section` such as `protocol#decision-record`. Use `--domain content` or `--domain mixed` for their assessment guidance; the default is `software`. With `--run RUN`, use the run's pinned instructions. Reuse sections already read; the entry skill's universal constraints still apply.
+
+Prefer default Markdown for reading guidance: legacy `--compact` preserves both source bodies and assembled Markdown. `--index` returns only section locations, headings, source hashes and byte sizes; it does not satisfy required reading. Use it to locate unread sections after an overlapping topic, reusing only complete same-pin/hash guidance still in the current context. `--offset N --limit N` pages complete sections with an explicit next offset; it bounds section count, not bytes. Read every needed page. A truncated response, changed source or lost context requires reading the affected sections again. Older pins retain their supported guide options.
 
 Read the `doctor` field for the selected route, even when the command exits successfully:
 
@@ -57,6 +59,14 @@ Read the `doctor` field for the selected route, even when the command exits succ
 | Claude Code, `same` (Claude peer) | `claude_only_ready` |
 
 For `--author-model`, also require the coordinator provider's `codex_only_ready` or `claude_only_ready` field. A cross-provider run with a background author therefore needs both CLIs. Unused routes need not be ready. These fields check the CLI and visible saved authentication, not provider acceptance, model access, or runtime identity. The author stages above apply only to a configured background author; `author-review` applies only to plan mode.
+
+## Preparation command
+
+```text
+node RUNNER prepare --project PROJECT --brief BRIEF --assessment ASSESSMENT --context CONTEXT --coordinator HOST --mode MODE --out RUN
+```
+
+Use absolute, quoted paths. `HOST` is the initiating app, `codex` or `claude`; `MODE` is `review` or `plan` as selected for this task. Read the actual route's doctor field: host-author cross uses `codex_chat_ready` or `claude_chat_ready` for the starting app; same-provider uses `codex_only_ready` or `claude_only_ready`. A background author also needs its provider's `*_only_ready` field. These are CLI/authentication checks, not model access, quota or identity attestation. With a ready assessment and eligible roles, use the options below. Other commands remain in the [command reference](#commands); read their sections when needed.
 
 `prepare` options:
 
@@ -502,6 +512,10 @@ Each draft, review, security review, and verification report uses this complete 
 
 ## Token efficiency
 
+Coordinator context is part of planning usage. Combine applicable guidance topics with `guide --topics`, reuse fully read sections from the same pinned source while they remain in context, and use indexes to locate missing sections. Optional plan-map details are loaded only when used. If a host truncates output, page whole sections or read the affected section; a metadata index is not a substitute for instructions. These helpers never shorten worker evidence or reduce reviewer capability.
+
+Use deterministic local extraction/copy for unchanged proposal/final-plan text and check copied bytes or hashes. Apply accepted fixes before verification; do not copy a stale proposal over a revised plan. Avoid echoing full files just to check they exist or match. Batch independent tool work where supported, but preserve sequential worker stages and wait for active workers before mutations. Retain complete saved reports, errors, findings, limits and three linked deliverables.
+
 Worker packets retain exact selected evidence, assessment, applicable full reports and actual participant roles/model IDs. Preparation validates every context argument, then keeps the first occurrence of each canonical context path. Distinct files remain separate even when their text matches; brief and assessment roles are not deduplicated against context. Repeated paths no longer consume the aggregate context allowance more than once. Existing file-count, per-file and prompt bounds remain.
 
 Run UUIDs, source byte counts/hashes and derived identity labels stay in local records. The prompt keeps the model-identity caveat without repeating it in packet metadata. Common instructions and context precede stage-specific data, permitting but not guaranteeing cache reuse. Reuse returned reports, the task's model research and compact progress views. Avoid duplicate prose/reads, never material evidence or findings. Read reference sections only when relevant.
@@ -538,7 +552,9 @@ When a later finding overturns an earlier resolution, update the earlier rationa
 
 The peer's verification summary supplies its actual response to material counterarguments about its own proposal or recommendations, citing the relevant finding IDs and whether its position stands, changes, or remains uncertain. A coordinator's disposition of its own critique is not that response. Put substantive new corrections in numbered findings, including corrections first discussed in prose; `proposal_markdown` is supporting context, not a second untracked task list. Do not invent a peer finding ID or agreement when an older report lacks one: identify any resulting coordinator-proposed change and its review limit explicitly in the plan.
 
-### Optional plan map
+The optional [plan map](#optional-plan-map) has a separate schema and examples. Load that section only when recording or inspecting a map; ordinary finding dispositions do not require one. QA assurance remains required for QA as described above.
+
+## Optional plan map
 
 Use a compact map when material decisions depend on evidence, unknown facts or other steps. Trace **requirement → evidence or explicit assumption → decision → step → acceptance check**. Size it to consequential scope and dependencies, not prose volume; do not model every sentence or inflate a tiny task. Preserve the existing decisions array inside the wrapper and keep the full usable plan in `final-plan.md`.
 

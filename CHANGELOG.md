@@ -2,6 +2,14 @@
 
 C2C is a Codex and Claude Code skill for collaborative planning and mutual plan review. Invoke it with `$C2C` in Codex or `/C2C` in Claude Code. [Install and get started](README.md#install).
 
+## 2.6.0 — Reduce repeated coordination context
+
+- Combine related guidance topics without repeating shared sections. Indexes identify unread sections; pagination returns complete sections with explicit continuation.
+- Keep optional plan-map details separate and load preparation options without the unrelated command catalogue.
+- Reuse guidance already read in the current context, and extract/copy unchanged plan text with local tools instead of regenerating and rereading it. Preserve full saved artifacts and handle substantive revisions normally.
+- Reviewer models, effort, stage counts, full worker context, safety checks and the three-file handoff remain unchanged. These coordination controls do not establish total token savings or equal plan quality.
+- Existing guide calls and compact JSON remain compatible. Active plans keep their pinned runtime and instructions.
+
 ## 2.5.1 — Use available included allowance
 
 - Allows a bounded task to proceed on fresh, supported included-usage evidence with proportionate headroom. A separate disabled-overflow attestation is no longer a routine prerequisite when included allowance is available.

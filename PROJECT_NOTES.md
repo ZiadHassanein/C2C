@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### Version 2.6.0: coordinator context reuse
+
+Guidance now accepts multiple related topics, returning the complete ordered union of their sections once. Metadata-only indexes expose section locations/source hashes/sizes, and explicit pagination returns whole sections with continuation. Existing single-topic and compact JSON contracts remain unchanged. Preparation no longer includes the full unrelated command catalogue, and the optional plan-map schema has its own section. Relevant contracts remain discoverable; indexes and partial pages never count as completed reading. Reuse applies only to complete guidance from the same pinned source still in context, with reloading after source change, context loss or truncation.
+
+The skill batches independent local tool work and uses exact local extraction/copy for unchanged plan text, preserving substantive edits before verification and checking bytes/hashes rather than echoing copies. This affects coordinator instructions and read-only guidance helpers. It does not change worker prompts, models/effort, full evidence packets, stage counts, security/QA enforcement, finding decisions, state seals, spending rules or the three-file handoff. No performance percentage or quality guarantee is established by these helpers. Private task measurements remain outside the repository.
+
+Validation: twelve focused tests cover CLI compatibility, ordered topic unions, exact section reconstruction, bounds, metadata-only indexes and valid index-to-section selectors across all reference files. Independent review verified all topic/domain combinations and corrected the index selector. The frozen full suite passed 603 tests with 11 platform skips, zero failures. An earlier attempt correctly failed because packaged sources were edited during its execution; it was retained and replaced by the frozen-source run. Documentation checks passed 283 references and fourteen SVG checks; the new version passes the immutable-release guard.
+
 ### README: visible chat and terminal command reference
 
 The README now places chat invocations and a request reference immediately below its opening navigation, outside disclosures. Planning, revised-plan review, critique-only, QA, content/mixed work, saved-run resume, either single-provider route, model advice, live discussion and update requests are visible together. Requests after `$C2C` or `/C2C` are explicitly natural language, not invented slash subcommands. The old `#use-it` link remains valid.

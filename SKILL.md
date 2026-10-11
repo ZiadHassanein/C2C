@@ -17,7 +17,9 @@ Either app can start; the initiating chat coordinates, synthesizes and owns deci
 
 ## Load the applicable guidance
 
-Resolve `RUNNER` and `SETUP` to this skill's absolute `scripts/council.mjs` and `scripts/setup.mjs` paths. Use `node RUNNER guide --topic TOPIC` to retrieve complete maintained sections instead of loading every reference. Add `--run RUN` for an existing run so its pinned version owns the command; resolve subsequent links against that bundle. Add `--domain content` or `mixed` for content assessment. Reuse sections already read unless facts or instructions change.
+Resolve `RUNNER` and `SETUP` to this skill's absolute `scripts/council.mjs` and `scripts/setup.mjs` paths. Load only applicable guidance, once per current context. Batch related topics with `node RUNNER guide --topics TOPIC,TOPIC`; each section appears once. Default Markdown avoids the repeated bodies in legacy `guide --compact` JSON. Add `--run RUN` for the pinned instructions and resolve links against that bundle; add `--domain content` or `mixed` where applicable.
+
+For a later topic overlapping guidance already read, use `guide --topic TOPIC --index`, then retrieve only unread sections with `--section REFERENCE#ANCHOR`. Indexes list locations and source hashes, not instructions. Reuse only fully read sections from the same pin/hash still in context; after compaction, a source change or truncated output, reload needed sections. For large responses, `--offset N --limit N` pages whole sections; follow every required remaining page. Never reread a full topic merely because the stage changed.
 
 | Current work | Topic |
 |---|---|
@@ -59,7 +61,9 @@ For QA, use `--purpose qa` and load `qa`. Run requested project tests within exi
 
 Read `exchange` for stages and schemas. Before the first worker call, inspect recipients and outbound content with `preview`; reuse C2C authorization. A host permission denial is not provider failure. Keep yielded `ask` in its original session. Prefer supported completion notifications; otherwise use the longest bounded waits allowed by host progress/cancellation requirements, backing off unchanged polls. Never relaunch or edit artifacts while a worker may be running.
 
-Use returned reports directly. Triage findings by supported consequence, not persuasive wording: test assumptions, failure cases and remedies separately. Correct real defects, defend sound decisions, and record optional polish without forcing objections or rounds. Preserve dissent, rejected rationales and unresolved gates. Keep public arguments concise and ID-linked; never expose private reasoning or invent replies. Use bounded evidence requests, not broader worker tools.
+Use returned reports directly; do not reopen intact reports. Batch independent local reads, artifact writes and checks in the host's tool interface, keeping worker calls and dependent mutations sequential. Extract/copy unchanged plan text with local file tools or code instead of generating it again; apply substantive fixes before verification. Confirm copied bytes with a hash or equality check rather than printing and rereading both copies. Saved content must remain complete; output selection must retain errors, findings, review limits and next actions.
+
+Triage findings by supported consequence, not persuasive wording: test assumptions, failure cases and remedies separately. Correct real defects, defend sound decisions, and record optional polish without forcing objections or rounds. Preserve dissent, rejected rationales and unresolved gates. Keep public arguments concise and ID-linked; never expose private reasoning or invent replies. Use bounded evidence requests, not broader worker tools.
 
 Every route owes a usable plan: evidence-backed scope, decisions, ordered work, security, acceptance checks and Start here, scaled to software, content or mixed work. Integrate adopted fixes into operative `final-plan.md`, preserving sound content; discussion alone is not a revision. Link material requirements, evidence/assumptions, decisions, dependencies and checks through the existing decision record. Run `quality --run RUN` before verification and after substantive changes; repair broken links/cycles. Its structural result proves neither truth nor semantic completeness; see `verify` for the optional map.
 

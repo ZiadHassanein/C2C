@@ -17,7 +17,50 @@ C2C assesses your project first, then develops, challenges, revises and checks t
 
 [**Version 2.5.1**](CHANGELOG.md) · **Windows · Linux · macOS** · **Node.js 18+** · **No npm dependencies** · [**MIT license**](LICENSE)
 
-[Install](#install) · [First request](#use-it) · [Existing plan](#already-have-a-plan) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
+[**Chat commands**](#commands) · [Install](#install) · [Terminal commands](#terminal-commands) · [Existing plan](#already-have-a-plan) · [Your plan](#what-you-receive) · [Workflow](#how-it-works) · [Update](#update) · [Uninstall](#uninstall) · [Help](#need-help)
+
+<a name="use-it"></a>
+
+## Commands
+
+After [installing](#install), open your project and start a new chat. Use **`$C2C` in Codex** or **`/C2C` in Claude Code**, followed by your request.
+
+### From Codex
+
+```text
+Use $C2C to plan a search filter.
+Check the project first. Include
+security and acceptance tests.
+Show me the plan before coding.
+```
+
+### From Claude Code
+
+```text
+/C2C Plan a search filter.
+Check the project first. Include
+security and acceptance tests.
+Show me the plan before coding.
+```
+
+**Choose a request below.** The words after `$C2C` or `/C2C` are ordinary language, not fixed subcommands. Replace example tasks and paths with your own.
+
+| What you need | Request after `$C2C` or `/C2C` |
+|---|---|
+| **Plan a feature or project** | Plan an ecommerce app. Assess the project first; include an MVP, milestones, security, tests and where to start. Show the plan before coding. |
+| **Improve an existing plan** | Review `docs/plan.md`, apply accepted fixes, and verify the revised plan. |
+| **Critique only** | Critique `docs/plan.md`. Give findings without rewriting it. |
+| **Testing and QA** | Review this change, run the authorized local tests, and give me a revised fix plan with the evidence. |
+| **Content or mixed work** | Plan improvements to this app and its content. Check sources, image rights, accessibility and acceptance criteria. |
+| **Resume saved work** | Resume from this run's saved `HANDOFF.md`. Continue unfinished stages and preserve completed reviews. |
+| **Codex only (start in Codex)** | Use Codex only to plan this feature, with a distinct eligible critic model. |
+| **Claude only (start in Claude Code)** | Use Claude only to plan this feature, with a distinct eligible critic model. |
+| **Model advice only** | Assess this task and recommend models; advice only, without worker calls. |
+| **Execution model advice** | Recommend an execution model for each milestone within my included allowance. Explain why; mark unsupported savings unknown. |
+| **See the discussion** | Show the main disagreements and plan changes as you go. |
+| **Update safely** | Update C2C and keep this plan on its current version. |
+
+One-provider review uses two eligible models. If no pair can run, C2C labels its current-chat self-critique as provisional. [Participant choices](#with-codex-only-or-claude-only) · [Installation and maintenance commands](#terminal-commands).
 
 <details>
 <summary>How is C2C different from using Codex or Claude Code directly?</summary>
@@ -111,25 +154,9 @@ For the default setup with both CLIs, look for:
 
 </details>
 
-## Use it
+## Examples
 
-**Open your project in Codex or Claude Code and start a new chat.** Paste one of these prompts into that chat—not the terminal:
-
-### From Codex
-
-```text
-Use $C2C to plan a search filter for this app.
-Check the project first, include security and acceptance tests,
-and show me the plan before coding.
-```
-
-### From Claude Code
-
-```text
-/C2C Plan a search filter for this app.
-Check the project first, include security and acceptance tests,
-and show me the plan before coding.
-```
+Use the [chat commands above](#commands) for any of these tasks:
 
 | Your task | What the review emphasizes |
 |---|---|
@@ -397,6 +424,33 @@ The coordinator can load applicable instruction sections with `guide` and inspec
 C2C does not buy credits or switch to paid billing when a provider limit blocks planning. Any continuation stays within existing authorized limits; otherwise it delivers a provisional plan or saves a checkpoint. [Billing boundaries](docs/FAQ.md#will-c2c-buy-credits-or-require-paid-usage-after-a-limit).
 
 </details>
+
+## Terminal commands
+
+Use these in **PowerShell or Terminal**, rather than the chat. This command shows the setup help:
+
+```sh
+npx --yes https://github.com/ZiadHassanein/C2C/archive/refs/tags/v2.5.1.tar.gz help
+```
+
+Replace the final `help` with an action below. If you downloaded the repository, use `node scripts/setup.mjs ACTION` from its folder instead, replacing `ACTION` with the same action.
+
+| Action | What it does |
+|---|---|
+| `install` | Install for both apps. [Installation](#install). |
+| `doctor` | Check CLI setup and saved authentication without a model call. [Setup checks](docs/SETUP.md#check-your-setup). |
+| `version` | Show the version of the C2C package running this command. |
+| `check-update` | Check for a new release without installing it. |
+| `update` | Install the latest stable release while preserving supported active plans. [Update](#update). |
+| `preferences` | Show saved C2C preferences. |
+| `preferences --spending included-only` | Save the included-allowance-only preference for both apps. [Spending preference](docs/SETUP.md#save-your-spending-preference). |
+| `uninstall --dry-run` | Preview removal without changing skill files. |
+| `uninstall` | Remove managed skill folders with recoverable backups. [Uninstall](#uninstall). |
+| `rollback BACKUP_ID` | Restore the backup identified by the setup helper. |
+| `recover BACKUP_ID` | Recover an interrupted installation change; this does not resume a planning run. |
+| `help` | Show setup commands and options. |
+
+Replace `BACKUP_ID` with the ID printed by the helper. Install, update and uninstall also accept `--target codex` or `--target claude` for one app, and `--dry-run` to preview. npx may download the package even during a preview. [Full setup, recovery and rollback details](docs/SETUP.md).
 
 ## Update
 

@@ -36,6 +36,14 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README: visible chat and terminal command reference
+
+The README now places chat invocations and a request reference immediately below its opening navigation, outside disclosures. Planning, revised-plan review, critique-only, QA, content/mixed work, saved-run resume, either single-provider route, model advice, live discussion and update requests are visible together. Requests after `$C2C` or `/C2C` are explicitly natural language, not invented slash subcommands. The old `#use-it` link remains valid.
+
+A visible terminal reference lists all setup actions with one complete versioned npx example and the local-folder alternative. It distinguishes installation recovery from planning resume, a package version from an installed-version claim, and two-model single-provider review from provisional self-critique. Detailed examples remain available. Documentation-only scope: no packaged files, version change, installation changes, private measurement publication or live model calls.
+
+Validation: the command reference was checked against setup help and the existing skill instructions. Independent review corrected the single-provider examples to name their required starting app. All 283 local references, fourteen SVG checks, whitespace checks and the immutable v2.5.1 package guard passed. Local GitHub-like rendering at 320, 390 and 1200 px in both themes passed for both command sections: no page or table overflow, and the chat examples fit phone widths. The long terminal command scrolls within its code block. These are local rendering checks, not physical-device certification.
+
 ### Version 2.5.1: proportionate included-allowance checks
 
 Fresh supported evidence of included allowance, with adequate headroom for a bounded task, can qualify the existing subscription route without a separate disabled-overflow attestation. The previous blanket prerequisite was too restrictive. The coordinator records the evidence, keeps the workload proportionate, refreshes stale observations, stops on a limit or insufficient headroom, and never requests a purchase, upgrade or extra-usage activation to continue. A stronger explicitly requested provider-enforced spending guarantee remains a separate constraint; ordinary included-only wording does not invent that requirement. Existing evidence schema, credential-route validation and sealed run policies are unchanged. This is a guidance correction, not a new billing-control capability or a measured performance claim.

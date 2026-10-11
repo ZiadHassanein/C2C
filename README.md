@@ -1,7 +1,9 @@
 <picture>
-  <source media="(prefers-color-scheme: dark) and (max-width: 800px)" srcset="docs/assets/cover-mobile-dark.svg">
+  <source media="(prefers-color-scheme: dark) and (max-width: 480px)" srcset="docs/assets/cover-mobile-dark.svg">
+  <source media="(prefers-color-scheme: dark) and (max-width: 800px)" srcset="docs/assets/cover-tablet-dark.svg">
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cover-dark.svg">
-  <source media="(max-width: 800px)" srcset="docs/assets/cover-mobile.svg">
+  <source media="(max-width: 480px)" srcset="docs/assets/cover-mobile.svg">
+  <source media="(max-width: 800px)" srcset="docs/assets/cover-tablet.svg">
   <img src="docs/assets/cover.svg" alt="C2C with Codex and Claude Code: Assess → Plan → Critique → Revise → Verify. Start with the project and requirements, then develop, challenge, revise and review the plan. Either provider can lead." width="1120">
 </picture>
 

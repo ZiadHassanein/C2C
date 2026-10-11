@@ -36,6 +36,10 @@ The user explicitly requested suitability for both small features and big-projec
 
 ## Decisions and reasons
 
+### README: legible phone banner
+
+The opening illustration now uses a vertical five-step flow on phone viewports up to 480 px. Provider names remain in a separate header. At 320 px with representative GitHub padding, workflow labels render at 20 px instead of about 12 px. The previous compact horizontal illustration is retained for 481–800 px tablets, and desktop assets are unchanged. Light/dark source selection and overflow checks passed at eight widths (sixteen combinations). This is an isolated Chromium rendering check, not physical-device certification. Scope is documentation and illustrations only; packaged v2.5.0 instructions and runtime remain unchanged.
+
 ### README: explain efficiency and simplify comparison/routing
 
 The opening now explains default repetition controls: repeated context-file entries are removed, task research and reports are reused, and successful review stages are preserved. This is a mechanism claim, not measured whole-task token savings; extra review can increase usage. The compact two-column comparison emphasizes assessment, a real critic, revisions to the plan, evidence status and saved progress. It acknowledges direct assistants' existing capabilities and qualifies the three-file handoff as completed-exchange behavior. Official provider references remain linked.
